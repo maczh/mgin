@@ -7,9 +7,9 @@
 
     + 首先采用Git命令行下载这个范例项目，假设自己的新工程名称为 test
     
-    ```
+```
     git clone https://github.com/maczh/mgin.git test
-    ```
+```
     
     + 修改 mgin.yml 文件名为 test.yml
     
