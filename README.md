@@ -7,26 +7,26 @@
 
 + 首先采用Git命令行下载这个范例项目，假设自己的新工程名称为 test
     
-```
+```shell script
     git clone https://github.com/maczh/mgin.git test
 ```
     
 + 修改 mgin.yml 文件名为 test.yml
     
-```
+```shell script
     cd test
     mv mgin.yml test.yml
 ```
     
 + 修改 main.go 中指定的配置文件名
     
-```
+```go
     const config_file = "test.yml"
 ```
     
 + 修改 test.yml 配置中的项目名称、端口和nacos服务器的IP和端口
     
-```
+```yaml
     go:
       application:
         name: test
@@ -37,7 +37,7 @@
     
 + 修改自己项目中要使用到的数据库，比如只用到MySQL,那就去掉go.config.used中的mongodb和redis，如果要使用接口日志，即 go.log.req的值不为空，那么必须加上mongodb的配置，如:
     
-```
+```yaml
     go:
       config:
         used: mysql,nacos,mongodb
@@ -45,7 +45,7 @@
     
 + 在Nacos的配置中心中要有以相应配置，如MySQL的配置 
     mysql-go-test.yml
-```
+```yaml
     go:
       data:
         mysql: testuser:**********@tcp(192.168.1.3:3306)/test?charset=utf8&parseTime=True&loc=Local
@@ -57,7 +57,7 @@
 ```
 
 mongodb-go-test.yml
-```
+```yaml
     go:
       data:
         mongodb:
@@ -71,7 +71,7 @@ mongodb-go-test.yml
 ```
 
 redis-go-test.yml
-```
+```yaml
     go:
       data:
         redis:
@@ -88,7 +88,7 @@ redis-go-test.yml
 ```
 
 nacos-go-test.yml
-```
+```yaml
     go:
       nacos:
         server: 192.168.1.2
@@ -112,9 +112,9 @@ nacos-go-test.yml
 + controller
   api接口控制层，负责从http reguest传入的map参数转换成service层调用的参数，调用service层函数实现api接口逻辑
 + Router.go
-  http 路由配置，将http的url请求路由指向调用controller层中的函数
+  http 路由配置，将http的url请求路由指向调用controller层中的函数,
   如:
-  ```
+  ```go
 	engine.Any("/user/mysql/save", func(c *gin.Context) {
 		result = controller.SaveUserMysql(utils.GinParamMap(c))
 		c.JSON(http.StatusOK, result)
