@@ -1,7 +1,10 @@
 # MGin 微服务框架范例
 
-    MGin微服务框架范例，用于快速创建基于MGin微服务框架的RESTful微服务程序，本范例程序演示了如何使用Mysql/MongoDB/Redis进行增改查操作，作为RESTful API接口提供给其他服务使用。
-    在本范例中，采用Nacos作为配置中心和注册服务与发现中心，Mysql、MongoDB和Redis的配置都放在Nacos中，都采用了连接池配置，接口请求日志保存到MongoDB中，采用在Http header中X-RequestId作为链路跟踪。
+    MGin微服务框架范例，用于快速创建基于MGin微服务框架的RESTful微服务程序，本范例程序演示了
+    如何使用Mysql/MongoDB/Redis进行增改查操作，作为RESTful API接口提供给其他服务使用。
+    在本范例中，采用Nacos作为配置中心和注册服务与发现中心，Mysql、MongoDB和Redis的配置都
+    放在Nacos中，都采用了连接池配置，接口请求日志保存到MongoDB中，采用在Http header中
+    X-RequestId作为链路跟踪。
     
 ## 创建MGin新工程的方式
 
