@@ -6,11 +6,11 @@ require (
 	github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751
 	github.com/ekyoung/gin-nice-recovery v0.0.0-20160510022553-1654dca486db
 	github.com/gin-gonic/gin v1.7.4
-	github.com/maczh/gintool v0.0.0-20211002171640-d59ba85464c2
-	github.com/maczh/logs v0.0.0-20210715072413-98275114a392
-	github.com/maczh/mgconfig v0.0.0-20211029142213-924e6e0bc421
-	github.com/maczh/mgtrace v0.0.0-20210716015726-4036f2f735db
-	github.com/maczh/utils v0.0.0-20210901100133-3776a91e2036
+	github.com/maczh/gintool v1.0.0
+	github.com/maczh/logs v1.0.0
+	github.com/maczh/mgconfig v1.0.0
+	github.com/maczh/mgtrace v1.0.0
+	github.com/maczh/utils v1.0.0
 	github.com/sadlil/gologger v0.0.0-20180131031757-2507bf651df8
 	github.com/swaggo/gin-swagger v1.3.2
 	github.com/swaggo/swag v1.7.4
@@ -30,7 +30,6 @@ require (
 	github.com/beltran/gssapi v0.0.0-20200324152954-d86554db4bab // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bitly/go-hostpool v0.1.0 // indirect
-	github.com/bmizerany/assert v0.0.0-20160611221934-b7ed37b82869 // indirect
 	github.com/buger/jsonparser v0.0.0-20181115193947-bf1c66bbce23 // indirect
 	github.com/cespare/xxhash/v2 v2.1.1 // indirect
 	github.com/couchbase/gocb/v2 v2.3.3 // indirect
@@ -39,7 +38,6 @@ require (
 	github.com/denisenkom/go-mssqldb v0.0.0-20191124224453-732737034ffd // indirect
 	github.com/emirpasic/gods v1.12.0 // indirect
 	github.com/fatih/color v1.9.0 // indirect
-	github.com/fortytw2/leaktest v1.3.0 // indirect
 	github.com/fsnotify/fsnotify v1.4.9 // indirect
 	github.com/gin-contrib/sse v0.1.0 // indirect
 	github.com/go-errors/errors v1.4.1 // indirect
@@ -73,7 +71,7 @@ require (
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
-	github.com/json-iterator/go v1.1.11 // indirect
+	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/knadh/koanf v1.3.0 // indirect
 	github.com/konsorten/go-windows-terminal-sequences v1.0.3 // indirect
 	github.com/kr/fs v0.1.0 // indirect
@@ -85,7 +83,7 @@ require (
 	github.com/levigross/grequests v0.0.0-20190908174114-253788527a1a // indirect
 	github.com/lib/pq v1.1.1 // indirect
 	github.com/maczh/mgcache v0.0.0-20210716084131-9824ba2bf323 // indirect
-	github.com/mailru/easyjson v0.7.6 // indirect
+	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mattbaird/elastigo v0.0.0-20170123220020-2fe47fd29e4b // indirect
 	github.com/mattn/go-colorable v0.1.6 // indirect
 	github.com/mattn/go-isatty v0.0.12 // indirect
@@ -95,12 +93,11 @@ require (
 	github.com/mitchellh/mapstructure v1.4.1 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
-	github.com/modern-go/reflect2 v1.0.1 // indirect
+	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/muesli/cache2go v0.0.0-20211005105910-8e46465cca4a // indirect
 	github.com/nacos-group/nacos-sdk-go v1.0.9 // indirect
+	github.com/nxadm/tail v1.4.8 // indirect
 	github.com/olivere/elastic v6.2.37+incompatible // indirect
-	github.com/onsi/ginkgo v1.16.5 // indirect
-	github.com/onsi/gomega v1.16.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pkg/sftp v1.13.4 // indirect
 	github.com/prometheus/client_golang v1.11.0 // indirect
