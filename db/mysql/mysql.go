@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-type MySQL struct {
+type mysqlClient struct {
 	mysql   *gorm.DB
 	mysqls  map[string]*gorm.DB
 	multi   bool
@@ -21,9 +21,10 @@ type MySQL struct {
 	confUrl string
 }
 
+var Mysql = &mysqlClient{}
 var logger = gologger.GetLogger()
 
-func (m *MySQL) Init(mysqlConfigUrl string) {
+func (m *mysqlClient) Init(mysqlConfigUrl string) {
 	if mysqlConfigUrl != "" {
 		m.confUrl = mysqlConfigUrl
 	}
@@ -107,7 +108,7 @@ func (m *MySQL) Init(mysqlConfigUrl string) {
 	}
 }
 
-func (m *MySQL) Close() {
+func (m *mysqlClient) Close() {
 	if m.multi {
 		for k, _ := range m.mysqls {
 			sqldb, _ := m.mysqls[k].DB()
@@ -121,7 +122,7 @@ func (m *MySQL) Close() {
 	}
 }
 
-func mySqlsCheck(m *MySQL) error {
+func mySqlsCheck(m *mysqlClient) error {
 	if !m.multi {
 		return errors.New("Not multi mysql connections setting")
 	}
@@ -145,7 +146,7 @@ func mySqlsCheck(m *MySQL) error {
 	return nil
 }
 
-func mySqlCheck(m *MySQL) (*gorm.DB, error) {
+func mySqlCheck(m *mysqlClient) (*gorm.DB, error) {
 	if m.mysql == nil {
 		m.Init("")
 		if m.mysql == nil {
@@ -164,7 +165,7 @@ func mySqlCheck(m *MySQL) (*gorm.DB, error) {
 	return m.mysql, nil
 }
 
-func (m *MySQL) Check() {
+func (m *mysqlClient) Check() {
 	if m.multi {
 		err := mySqlsCheck(m)
 		if err != nil {
@@ -178,7 +179,7 @@ func (m *MySQL) Check() {
 	}
 }
 
-func (m *MySQL) GetConnection(dbName ...string) (*gorm.DB, error) {
+func (m *mysqlClient) GetConnection(dbName ...string) (*gorm.DB, error) {
 	if len(dbName) == 0 {
 		if m.multi {
 			return nil, errors.New("multi get connection must specify a database name")

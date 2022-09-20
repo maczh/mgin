@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-type Redis struct {
+type redisClient struct {
 	client  *redis.Client
 	multi   bool
 	clients map[string]*redis.Client
@@ -23,9 +23,11 @@ type Redis struct {
 	confUrl string
 }
 
+var Redis = &redisClient{}
+
 var logger = gologger.GetLogger()
 
-func (r *Redis) Init(redisConfigUrl string) {
+func (r *redisClient) Init(redisConfigUrl string) {
 	if redisConfigUrl != "" {
 		r.confUrl = redisConfigUrl
 	}
@@ -134,7 +136,7 @@ func (r *Redis) Init(redisConfigUrl string) {
 	}
 }
 
-func (r *Redis) Close() {
+func (r *redisClient) Close() {
 	if r.multi {
 		for dbName, rc := range r.clients {
 			rc.Close()
@@ -146,7 +148,7 @@ func (r *Redis) Close() {
 	}
 }
 
-func (r *Redis) redisCheck(dbName string) error {
+func (r *redisClient) redisCheck(dbName string) error {
 	fmt.Printf("正在检查%s连接\n", dbName)
 	if err := r.clients[dbName].Ping().Err(); err != nil {
 		logger.Error("Redis连接故障:" + err.Error())
@@ -161,7 +163,7 @@ func (r *Redis) redisCheck(dbName string) error {
 	return nil
 }
 
-func (r *Redis) Check() {
+func (r *redisClient) Check() {
 	if r.client == nil && len(r.clients) == 0 {
 		r.Init("")
 		return
@@ -179,10 +181,10 @@ func (r *Redis) Check() {
 	}
 }
 
-func (r *Redis) GetConnection(dbName ...string) (*redis.Client, error) {
+func (r *redisClient) GetConnection(dbName ...string) (*redis.Client, error) {
 	if r.multi {
 		if len(dbName) == 0 || len(dbName) > 1 {
-			return nil, errors.New("Multidb Get Redis connection must specify one database name")
+			return nil, errors.New("Multidb Get redisClient connection must specify one database name")
 		}
 		err := r.redisCheck(dbName[0])
 		if err != nil {

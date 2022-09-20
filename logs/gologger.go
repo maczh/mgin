@@ -1,7 +1,7 @@
 package logs
 
 import (
-	"github.com/maczh/mgin"
+	"github.com/maczh/mgin/config"
 )
 
 const (
@@ -17,7 +17,7 @@ type GoLogger struct {
 }
 
 func GetLogger(selector ...string) GoLogger {
-	logFileName := mgin.MGin.Config.GetConfigString("go.logger.file")
+	logFileName := config.Config.GetConfigString("go.logger.file")
 	if len(selector) == 0 {
 		if logFileName != "" {
 			selector = []string{CONSOLE, FILE}

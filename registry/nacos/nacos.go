@@ -1,7 +1,8 @@
 package nacos
 
 import (
-	"github.com/maczh/mgin/utils"
+	jsoniter "github.com/json-iterator/go"
+	"github.com/maczh/mgin/config"
 	"github.com/sadlil/gologger"
 	"net"
 	"os"
@@ -20,7 +21,7 @@ import (
 	"github.com/nacos-group/nacos-sdk-go/vo"
 )
 
-type Nacos struct {
+type nacosClient struct {
 	client     naming_client.INamingClient
 	cluster    string
 	group      string
@@ -30,13 +31,14 @@ type Nacos struct {
 	confUrl    string
 }
 
+var Nacos = &nacosClient{}
 var logger = gologger.GetLogger()
 
-func (n *Nacos) GetNacosClient() naming_client.INamingClient {
+func (n *nacosClient) GetNacosClient() naming_client.INamingClient {
 	return n.client
 }
 
-func (n *Nacos) Register(nacosConfigUrl string) {
+func (n *nacosClient) Register(nacosConfigUrl string) {
 	if nacosConfigUrl != "" {
 		n.confUrl = nacosConfigUrl
 	}
@@ -50,8 +52,8 @@ func (n *Nacos) Register(nacosConfigUrl string) {
 			logger.Error("Nacos配置下载失败! " + err.Error())
 			return
 		}
-		cfg := koanf.New(".")
-		err = cfg.Load(rawbytes.Provider([]byte(resp.String())), yaml.Parser())
+		n.conf = koanf.New(".")
+		err = n.conf.Load(rawbytes.Provider([]byte(resp.String())), yaml.Parser())
 		if err != nil {
 			logger.Error("Nacos配置文件解析错误:" + err.Error())
 			n.conf = nil
@@ -65,12 +67,12 @@ func (n *Nacos) Register(nacosConfigUrl string) {
 			path += "/naming"
 			os.Mkdir(path, 0777)
 		}
-		n.lan = cfg.Bool("go.nacos.lan")
-		n.lanNetwork = cfg.String("go.nacos.lanNet")
+		n.lan = n.conf.Bool("go.nacos.lan")
+		n.lanNetwork = n.conf.String("go.nacos.lanNet")
 		serverConfigs := []constant.ServerConfig{}
-		ipstr := cfg.String("go.nacos.server")
-		portstr := cfg.String("go.nacos.port")
-		n.group = cfg.String("go.nacos.group")
+		ipstr := n.conf.String("go.nacos.server")
+		portstr := n.conf.String("go.nacos.port")
+		n.group = n.conf.String("go.nacos.group")
 		if n.group == "" {
 			n.group = "DEFAULT_GROUP"
 		}
@@ -85,7 +87,7 @@ func (n *Nacos) Register(nacosConfigUrl string) {
 			}
 			serverConfigs = append(serverConfigs, serverConfig)
 		}
-		logger.Debug("Nacos服务器配置: " + utils.ToJSON(serverConfigs))
+		logger.Debug("Nacos服务器配置: " + toJSON(serverConfigs))
 		clientConfig := constant.ClientConfig{}
 		clientConfig.LogLevel = "error"
 		if n.conf.Exists("go.nacos.clientConfig.logLevel") {
@@ -95,7 +97,7 @@ func (n *Nacos) Register(nacosConfigUrl string) {
 		if n.conf.Exists("go.nacos.clientConfig.updateCacheWhenEmpty") {
 			clientConfig.UpdateCacheWhenEmpty = n.conf.Bool("go.nacos.client.updateCacheWhenEmpty")
 		}
-		logger.Debug("Nacos客户端配置: " + utils.ToJSON(clientConfig))
+		logger.Debug("Nacos客户端配置: " + toJSON(clientConfig))
 		n.client, err = clients.CreateNamingClient(map[string]interface{}{
 			"serverConfigs": serverConfigs,
 			"clientConfig":  clientConfig,
@@ -106,23 +108,23 @@ func (n *Nacos) Register(nacosConfigUrl string) {
 		}
 		localip, _ := localIPv4s(n.lan, n.lanNetwork)
 		ip := localip[0]
-		if n.conf.Exists("go.application.ip") {
-			ip = n.conf.String("go.application.ip")
+		if config.Config.Exists("go.application.ip") {
+			ip = config.Config.GetConfigString("go.application.ip")
 		}
-		n.cluster = cfg.String("go.nacos.clusterName")
-		port := uint64(n.conf.Int("go.application.port"))
+		n.cluster = n.conf.String("go.nacos.clusterName")
+		port := uint64(config.Config.GetConfigInt("go.application.port"))
 		metadata := make(map[string]string)
-		if port == 0 || n.conf.String("go.application.port_ssl") != "" {
-			port = uint64(n.conf.Int64("go.application.port_ssl"))
+		if port == 0 || config.Config.GetConfigString("go.application.port_ssl") != "" {
+			port = uint64(config.Config.GetConfigInt("go.application.port_ssl"))
 			metadata["ssl"] = "true"
 		}
-		if n.conf.Exists("go.application.debug") && n.conf.Bool("go.application.debug") {
+		if config.Config.Exists("go.application.debug") && config.Config.GetConfigBool("go.application.debug") {
 			metadata["debug"] = "true"
 		}
 		success, regerr := n.client.RegisterInstance(vo.RegisterInstanceParam{
 			Ip:          ip,
 			Port:        port,
-			ServiceName: n.conf.String("go.application.name"),
+			ServiceName: config.Config.GetConfigString("go.application.name"),
 			Weight:      1,
 			ClusterName: n.cluster,
 			Enable:      true,
@@ -137,11 +139,11 @@ func (n *Nacos) Register(nacosConfigUrl string) {
 		}
 
 		err = n.client.Subscribe(&vo.SubscribeParam{
-			ServiceName: n.conf.String("go.application.name"),
+			ServiceName: config.Config.GetConfigString("go.application.name"),
 			Clusters:    []string{n.cluster},
 			GroupName:   n.group,
 			SubscribeCallback: func(services []model.SubscribeService, err error) {
-				logger.Debug("callback return services:" + utils.ToJSON(services))
+				logger.Debug("callback return services:" + toJSON(services))
 			},
 		})
 		if err != nil {
@@ -151,7 +153,7 @@ func (n *Nacos) Register(nacosConfigUrl string) {
 
 }
 
-func (n *Nacos) GetServiceURL(servicename string) (string, string) {
+func (n *nacosClient) GetServiceURL(servicename string) (string, string) {
 	var instance *model.Instance
 	var err error
 	serviceGroup := n.group
@@ -185,13 +187,13 @@ func (n *Nacos) GetServiceURL(servicename string) (string, string) {
 	return url, serviceGroup
 }
 
-func (n *Nacos) DeRegister() {
+func (n *nacosClient) DeRegister() {
 	err := n.client.Unsubscribe(&vo.SubscribeParam{
-		ServiceName: n.conf.String("go.application.name"),
+		ServiceName: config.Config.GetConfigString("go.application.name"),
 		Clusters:    []string{n.cluster},
 		GroupName:   n.group,
 		SubscribeCallback: func(services []model.SubscribeService, err error) {
-			logger.Debug("callback return services:" + utils.ToJSON(services))
+			logger.Debug("callback return services:" + toJSON(services))
 		},
 	})
 	if err != nil {
@@ -199,13 +201,13 @@ func (n *Nacos) DeRegister() {
 	}
 	ips, _ := localIPv4s(n.lan, n.lanNetwork)
 	ip := ips[0]
-	if n.conf.Exists("go.application.ip") {
-		ip = n.conf.String("go.application.ip")
+	if config.Config.Exists("go.application.ip") {
+		ip = config.Config.GetConfigString("go.application.ip")
 	}
 	success, regerr := n.client.DeregisterInstance(vo.DeregisterInstanceParam{
 		Ip:          ip,
-		Port:        uint64(n.conf.Int("go.application.port")),
-		ServiceName: n.conf.String("go.application.name"),
+		Port:        uint64(config.Config.GetConfigInt("go.application.port")),
+		ServiceName: config.Config.GetConfigString("go.application.name"),
 		Cluster:     n.cluster,
 		Ephemeral:   true,
 	})
@@ -247,4 +249,19 @@ func localIPv4s(lan bool, lanNetwork string) ([]string, error) {
 		}
 	}
 	return ips, nil
+}
+
+var json = jsoniter.ConfigCompatibleWithStandardLibrary
+
+func toJSON(o interface{}) string {
+	j, err := json.Marshal(o)
+	if err != nil {
+		return "{}"
+	} else {
+		js := string(j)
+		js = strings.Replace(js, "\\u003c", "<", -1)
+		js = strings.Replace(js, "\\u003e", ">", -1)
+		js = strings.Replace(js, "\\u0026", "&", -1)
+		return js
+	}
 }

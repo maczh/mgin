@@ -14,7 +14,7 @@ import (
 	"strings"
 )
 
-type MongoDB struct {
+type mongodb struct {
 	conn       *mgo.Database
 	mongo      *mgo.Session
 	mgodb      string
@@ -27,9 +27,11 @@ type MongoDB struct {
 	confUrl    string
 }
 
+var Mongo = &mongodb{}
+
 var logger = gologger.GetLogger()
 
-func (m *MongoDB) Init(mongodbConfigUrl string) {
+func (m *mongodb) Init(mongodbConfigUrl string) {
 	if mongodbConfigUrl != "" {
 		m.confUrl = mongodbConfigUrl
 	}
@@ -50,28 +52,28 @@ func (m *MongoDB) Init(mongodbConfigUrl string) {
 			m.conf = nil
 			return
 		}
-		if m.conf.Bool("go.data.MongoDB.debug") {
+		if m.conf.Bool("go.data.mongodb.debug") {
 			mgo.SetDebug(true)
 			var mgoLogger *log.Logger
 			mgoLogger = log.New(os.Stderr, "", log.LstdFlags)
 			mgo.SetLogger(mgoLogger)
 		}
-		m.multi = m.conf.Bool("go.data.MongoDB.multidb")
+		m.multi = m.conf.Bool("go.data.mongodb.multidb")
 		if m.multi {
 			m.mongos = make(map[string]*mgo.Session)
 			m.mgoDbNames = make(map[string]string)
 			m.mongoUrls = make(map[string]string)
-			dbNames := strings.Split(m.conf.String("go.data.MongoDB.dbNames"), ",")
+			dbNames := strings.Split(m.conf.String("go.data.mongodb.dbNames"), ",")
 			for _, dbName := range dbNames {
-				if dbName != "" && m.conf.Exists(fmt.Sprintf("go.data.MongoDB.%s.uri", dbName)) {
-					m.mongoUrls[dbName] = m.conf.String(fmt.Sprintf("go.data.MongoDB.%s.uri", dbName))
+				if dbName != "" && m.conf.Exists(fmt.Sprintf("go.data.mongodb.%s.uri", dbName)) {
+					m.mongoUrls[dbName] = m.conf.String(fmt.Sprintf("go.data.mongodb.%s.uri", dbName))
 					session, err := mgo.Dial(m.mongoUrls[dbName])
 					if err != nil {
 						logger.Error(dbName + " MongoDB连接错误:" + err.Error())
 						continue
 					}
 					m.mongos[dbName] = session
-					m.mgoDbNames[dbName] = m.conf.String(fmt.Sprintf("go.data.MongoDB.%s.db", dbName))
+					m.mgoDbNames[dbName] = m.conf.String(fmt.Sprintf("go.data.mongodb.%s.db", dbName))
 					if m.conf.Int("go.data.mongo_pool.max") > 1 {
 						m.max = m.conf.Int("go.data.mongo_pool.max")
 						if m.max < 10 {
@@ -83,7 +85,7 @@ func (m *MongoDB) Init(mongodbConfigUrl string) {
 				}
 			}
 		} else {
-			m.mongo, err = mgo.Dial(m.conf.String("go.data.MongoDB.uri"))
+			m.mongo, err = mgo.Dial(m.conf.String("go.data.mongodb.uri"))
 			if err != nil {
 				logger.Error("MongoDB连接错误:" + err.Error())
 				return
@@ -96,13 +98,13 @@ func (m *MongoDB) Init(mongodbConfigUrl string) {
 				m.mongo.SetPoolLimit(m.max)
 				m.mongo.SetMode(mgo.Monotonic, true)
 			}
-			m.mgodb = m.conf.String("go.data.MongoDB.db")
+			m.mgodb = m.conf.String("go.data.mongodb.db")
 			m.conn = m.mongo.Copy().DB(m.mgodb)
 		}
 	}
 }
 
-func (m *MongoDB) Close() {
+func (m *mongodb) Close() {
 	if m.multi {
 		for k, _ := range m.mongos {
 			m.mongos[k].Close()
@@ -115,7 +117,7 @@ func (m *MongoDB) Close() {
 	}
 }
 
-func (m *MongoDB) mgoCheck(dbName string) error {
+func (m *mongodb) mgoCheck(dbName string) error {
 	if m.mongos[dbName].Ping() != nil {
 		m.mongos[dbName].Close()
 		session, err := mgo.Dial(m.mongoUrls[dbName])
@@ -130,7 +132,7 @@ func (m *MongoDB) mgoCheck(dbName string) error {
 	return nil
 }
 
-func (m *MongoDB) Check() {
+func (m *mongodb) Check() {
 	if (m.conn == nil || m.mongo == nil) && len(m.mongos) == 0 {
 		m.Init("")
 		return
@@ -150,10 +152,10 @@ func (m *MongoDB) Check() {
 	}
 }
 
-func (m *MongoDB) GetConnection(dbName ...string) (*mgo.Database, error) {
+func (m *mongodb) GetConnection(dbName ...string) (*mgo.Database, error) {
 	if m.multi {
 		if len(dbName) > 1 || len(dbName) == 0 {
-			return nil, errors.New("Multidb MongoDB get connection must be specified one dbName")
+			return nil, errors.New("Multidb mongodb get connection must be specified one dbName")
 		}
 		err := m.mgoCheck(dbName[0])
 		if err != nil {
@@ -163,12 +165,12 @@ func (m *MongoDB) GetConnection(dbName ...string) (*mgo.Database, error) {
 	} else {
 		m.Check()
 		if m.mongo == nil {
-			return nil, errors.New("MongoDB connection failed")
+			return nil, errors.New("mongodb connection failed")
 		}
 		return m.mongo.Copy().DB(m.mgodb), nil
 	}
 }
 
-func (m *MongoDB) ReturnConnection(conn *mgo.Database) {
+func (m *mongodb) ReturnConnection(conn *mgo.Database) {
 	conn.Session.Close()
 }

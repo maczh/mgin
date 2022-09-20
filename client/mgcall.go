@@ -4,11 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"github.com/levigross/grequests"
-	"github.com/maczh/mgin"
 	"github.com/maczh/mgin/cache"
+	"github.com/maczh/mgin/config"
 	"github.com/maczh/mgin/logs"
 	"github.com/maczh/mgin/middleware/trace"
 	"github.com/maczh/mgin/middleware/xlang"
+	"github.com/maczh/mgin/registry/nacos"
 	"github.com/nacos-group/nacos-sdk-go/model"
 	"github.com/nacos-group/nacos-sdk-go/vo"
 	"math/rand"
@@ -17,32 +18,74 @@ import (
 	"time"
 )
 
-type Client struct {
+type mginClient struct {
 	reqType string
 }
 
+var Client = &mginClient{}
+
 //微服务调用其他服务的接口
-func (c *Client) Call(service string, uri string, params interface{}, opts ...interface{}) (string, error) {
+func (c *mginClient) Call(service string, uri string, params ...interface{}) (string, error) {
 	if c.reqType == "" {
-		c.reqType = mgin.MGin.Config.GetConfigString("go.microservice.type")
+		c.reqType = config.Config.GetConfigString("go.microservice.type")
 		if c.reqType == "" {
 			c.reqType = "x-form"
 		}
 	}
 	switch c.reqType {
 	case "x-form":
-		return CallWithHeader(service, uri, params.(map[string]string), map[string]string{})
+		var data map[string]string
+		if len(params) == 1 {
+			data = params[0].(map[string]string)
+		}
+		return CallWithHeader(service, uri, data, map[string]string{})
 	case "json":
-		if len(opts) == 0 || opts[0].(string) == "POST" {
-			return PostJson(service, uri, params)
+		var query map[string]string
+		if len(params) == 0 {
+			return GetJson(service, uri, nil, nil)
+		}
+		var body interface{}
+		if len(params) == 3 {
+			query = params[2].(map[string]string)
+			body = params[1]
+		} else if len(params) == 2 {
+			body = params[1]
+		}
+
+		if params[0].(string) == "POST" {
+			return PostJson(service, uri, body, query)
 		} else {
-			return GetJson(service, uri, params)
+			return GetJson(service, uri, body, query)
 		}
 	case "restful":
-		return RestfulWithHeader(opts[0].(string), service, uri, opts[1].(map[string]string), nil, params)
+		method := "GET"
+		var pathParams map[string]string
+		var body interface{}
+		switch len(params) {
+		case 0:
+			break
+		case 1:
+			method = params[0].(string)
+		case 2:
+			method = params[0].(string)
+			pathParams = params[1].(map[string]string)
+		case 3:
+			method = params[0].(string)
+			pathParams = params[1].(map[string]string)
+			body = params[2]
+		default:
+			method = params[0].(string)
+			pathParams = params[1].(map[string]string)
+			body = params[2]
+		}
+		return RestfulWithHeader(method, service, uri, pathParams, nil, body)
 	default:
 		return "", fmt.Errorf("微服务接口协议模式设置错误")
 	}
+}
+
+func (c *mginClient) CallForm(service string, uri string, params map[string]string) (string, error) {
+	return CallWithHeader(service, uri, params, map[string]string{})
 }
 
 func Get(service string, uri string, params map[string]string) (string, error) {
@@ -53,19 +96,19 @@ func GetWithHeader(service string, uri string, params map[string]string, header 
 	host, err := getHostFromCache(service)
 	group := "DEFAULT_GROUP"
 	if err != nil || host == "" {
-		discovery := mgin.MGin.Config.GetConfigString("go.discovery")
+		discovery := config.Config.GetConfigString("go.discovery")
 		if discovery == "" {
 			discovery = "nacos"
 		}
 		switch discovery {
 		case "nacos":
-			host, group = mgin.MGin.Nacos.GetServiceURL(service)
+			host, group = nacos.Nacos.GetServiceURL(service)
 			if host != "" && !cache.OnGetCache("nacos").IsExist("nacos:subscribe:"+service) {
 				subscribeNacos(service, group)
 				cache.OnGetCache("nacos").Add("nacos:subscribe:"+service, "true", 0)
 			}
 			//case "consul":
-			//	host = mgin.MGin.Nacos.GetConsulServiceURL(service)
+			//	host = nacos.Nacos.GetConsulServiceURL(service)
 		}
 		if host != "" {
 			cache.OnGetCache("nacos").Add(service, host, 5*time.Minute)
@@ -85,19 +128,19 @@ func GetWithHeader(service string, uri string, params map[string]string, header 
 	logs.Debug("Nacos微服务返回结果:{}", resp.String())
 	if err != nil {
 		cache.OnGetCache("nacos").Delete(service)
-		discovery := mgin.MGin.Config.GetConfigString("go.discovery")
+		discovery := config.Config.GetConfigString("go.discovery")
 		if discovery == "" {
 			discovery = "nacos"
 		}
 		switch discovery {
 		case "nacos":
-			host, group = mgin.MGin.Nacos.GetServiceURL(service)
+			host, group = nacos.Nacos.GetServiceURL(service)
 			if host != "" && !cache.OnGetCache("nacos").IsExist("nacos:subscribe:"+service) {
 				subscribeNacos(service, group)
 				cache.OnGetCache("nacos").Add("nacos:subscribe:"+service, "true", 0)
 			}
 			//case "consul":
-			//	host = mgin.MGin.Nacos.GetConsulServiceURL(service)
+			//	host = nacos.Nacos.GetConsulServiceURL(service)
 		}
 		if host != "" {
 			cache.OnGetCache("nacos").Add(service, host, 5*time.Minute)
@@ -126,19 +169,19 @@ func CallWithHeader(service string, uri string, params map[string]string, header
 	host, err := getHostFromCache(service)
 	group := "DEFAULT_GROUP"
 	if err != nil || host == "" {
-		discovery := mgin.MGin.Config.GetConfigString("go.discovery")
+		discovery := config.Config.GetConfigString("go.discovery")
 		if discovery == "" {
 			discovery = "nacos"
 		}
 		switch discovery {
 		case "nacos":
-			host, group = mgin.MGin.Nacos.GetServiceURL(service)
+			host, group = nacos.Nacos.GetServiceURL(service)
 			if host != "" && !cache.OnGetCache("nacos").IsExist("nacos:subscribe:"+service) {
 				subscribeNacos(service, group)
 				cache.OnGetCache("nacos").Add("nacos:subscribe:"+service, "true", 0)
 			}
 			//case "consul":
-			//	host = mgin.MGin.Nacos.GetConsulServiceURL(service)
+			//	host = nacos.Nacos.GetConsulServiceURL(service)
 		}
 		if host != "" {
 			cache.OnGetCache("nacos").Add(service, host, 5*time.Minute)
@@ -158,19 +201,19 @@ func CallWithHeader(service string, uri string, params map[string]string, header
 	logs.Debug("Nacos微服务返回结果:{}", resp.String())
 	if err != nil {
 		cache.OnGetCache("nacos").Delete(service)
-		discovery := mgin.MGin.Config.GetConfigString("go.discovery")
+		discovery := config.Config.GetConfigString("go.discovery")
 		if discovery == "" {
 			discovery = "nacos"
 		}
 		switch discovery {
 		case "nacos":
-			host, group = mgin.MGin.Nacos.GetServiceURL(service)
+			host, group = nacos.Nacos.GetServiceURL(service)
 			if host != "" && !cache.OnGetCache("nacos").IsExist("nacos:subscribe:"+service) {
 				subscribeNacos(service, group)
 				cache.OnGetCache("nacos").Add("nacos:subscribe:"+service, "true", 0)
 			}
 			//case "consul":
-			//	host = mgin.MGin.Nacos.GetConsulServiceURL(service)
+			//	host = nacos.Nacos.GetConsulServiceURL(service)
 		}
 		if host != "" {
 			cache.OnGetCache("nacos").Add(service, host, 5*time.Minute)
@@ -202,19 +245,19 @@ func CallWithFilesHeader(service string, uri string, params map[string]string, f
 	host, err := getHostFromCache(service)
 	group := "DEFAULT_GROUP"
 	if err != nil || host == "" {
-		discovery := mgin.MGin.Config.GetConfigString("go.discovery")
+		discovery := config.Config.GetConfigString("go.discovery")
 		if discovery == "" {
 			discovery = "nacos"
 		}
 		switch discovery {
 		case "nacos":
-			host, group = mgin.MGin.Nacos.GetServiceURL(service)
+			host, group = nacos.Nacos.GetServiceURL(service)
 			if host != "" && !cache.OnGetCache("nacos").IsExist("nacos:subscribe:"+service) {
 				subscribeNacos(service, group)
 				cache.OnGetCache("nacos").Add("nacos:subscribe:"+service, "true", 0)
 			}
 			//case "consul":
-			//	host = mgin.MGin.Nacos.GetConsulServiceURL(service)
+			//	host = nacos.Nacos.GetConsulServiceURL(service)
 		}
 		if host != "" {
 			cache.OnGetCache("nacos").Add(service, host, 5*time.Minute)
@@ -235,19 +278,19 @@ func CallWithFilesHeader(service string, uri string, params map[string]string, f
 	logs.Debug("Nacos微服务返回结果:{}", resp.String())
 	if err != nil {
 		cache.OnGetCache("nacos").Delete(service)
-		discovery := mgin.MGin.Config.GetConfigString("go.discovery")
+		discovery := config.Config.GetConfigString("go.discovery")
 		if discovery == "" {
 			discovery = "nacos"
 		}
 		switch discovery {
 		case "nacos":
-			host, group = mgin.MGin.Nacos.GetServiceURL(service)
+			host, group = nacos.Nacos.GetServiceURL(service)
 			if host != "" && !cache.OnGetCache("nacos").IsExist("nacos:subscribe:"+service) {
 				subscribeNacos(service, group)
 				cache.OnGetCache("nacos").Add("nacos:subscribe:"+service, "true", 0)
 			}
 			//case "consul":
-			//	host = mgin.MGin.Nacos.GetConsulServiceURL(service)
+			//	host = nacos.Nacos.GetConsulServiceURL(service)
 		}
 		if host != "" {
 			cache.OnGetCache("nacos").Add(service, host, 5*time.Minute)
@@ -288,7 +331,7 @@ func subscribeNacos(serviceName, groupName string) {
 	if groupName == "" {
 		groupName = "DEFAULT_GROUP"
 	}
-	err := mgin.MGin.Nacos.GetNacosClient().Subscribe(&vo.SubscribeParam{
+	err := nacos.Nacos.GetNacosClient().Subscribe(&vo.SubscribeParam{
 		ServiceName: serviceName,
 		Clusters:    []string{"DEFAULT"},
 		GroupName:   groupName,

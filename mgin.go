@@ -1,7 +1,6 @@
 package mgin
 
 import (
-	"github.com/maczh/mgin/client"
 	"github.com/maczh/mgin/config"
 	"github.com/maczh/mgin/db/mongo"
 	"github.com/maczh/mgin/db/mysql"
@@ -13,43 +12,30 @@ import (
 )
 
 type mgin struct {
-	Config *config.Config
-	Mysql  *mysql.MySQL
-	Mongo  *mongo.MongoDB
-	Redis  *redis.Redis
-	Nacos  *nacos.Nacos
-	Client *client.Client
 }
 
-var MGin *mgin
+var MGin = &mgin{}
 var logger = gologger.GetLogger()
 
 func Init(configFile string) {
-	MGin = &mgin{
-		Client: &client.Client{},
-	}
-	MGin.Config.Init(configFile)
-	configs := MGin.Config.GetConfigString("go.config.used")
+	config.Config.Init(configFile)
+	configs := config.Config.GetConfigString("go.config.used")
 
 	if strings.Contains(configs, "mysql") {
 		logger.Info("正在连接MySQL")
-		MGin.Mysql = &mysql.MySQL{}
-		MGin.Mysql.Init(MGin.Config.GetConfigUrl(MGin.Config.GetConfigString("go.config.prefix.mysql")))
+		mysql.Mysql.Init(config.Config.GetConfigUrl(config.Config.GetConfigString("go.config.prefix.mysql")))
 	}
 	if strings.Contains(configs, "mongodb") {
 		logger.Info("正在连接MongoDB")
-		MGin.Mongo = &mongo.MongoDB{}
-		MGin.Mongo.Init(MGin.Config.GetConfigUrl(MGin.Config.GetConfigString("go.config.prefix.mongodb")))
+		mongo.Mongo.Init(config.Config.GetConfigUrl(config.Config.GetConfigString("go.config.prefix.mongodb")))
 	}
 	if strings.Contains(configs, "redis") {
 		logger.Info("正在连接Redis")
-		MGin.Redis = &redis.Redis{}
-		MGin.Redis.Init(MGin.Config.GetConfigUrl(MGin.Config.GetConfigString("go.config.prefix.redis")))
+		redis.Redis.Init(config.Config.GetConfigUrl(config.Config.GetConfigString("go.config.prefix.redis")))
 	}
 	if strings.Contains(configs, "nacos") {
 		logger.Info("正在注册到Nacos")
-		MGin.Nacos = &nacos.Nacos{}
-		MGin.Nacos.Register(MGin.Config.GetConfigUrl(MGin.Config.GetConfigString("go.config.prefix.nacos")))
+		nacos.Nacos.Register(config.Config.GetConfigUrl(config.Config.GetConfigString("go.config.prefix.nacos")))
 	}
 
 	//设置定时任务自动检查
@@ -64,41 +50,41 @@ func Init(configFile string) {
 
 func (m *mgin) checkAll() {
 
-	configs := m.Config.GetConfigString("go.config.used")
+	configs := config.Config.GetConfigString("go.config.used")
 
 	if strings.Contains(configs, "mysql") {
 		logger.Debug("正在检查MySQL")
-		m.Mysql.Check()
+		mysql.Mysql.Check()
 	}
 	if strings.Contains(configs, "mongodb") {
 		logger.Debug("正在检查MongoDB")
-		m.Mongo.Check()
+		mongo.Mongo.Check()
 	}
 	if strings.Contains(configs, "redis") {
 		logger.Debug("正在检查Redis")
-		m.Redis.Check()
+		redis.Redis.Check()
 	}
 
 }
 
 func (m *mgin) SafeExit() {
-	configs := m.Config.GetConfigString("go.config.used")
+	configs := config.Config.GetConfigString("go.config.used")
 
 	if strings.Contains(configs, "mysql") {
 		logger.Debug("正在检查MySQL")
-		m.Mysql.Close()
+		mysql.Mysql.Close()
 	}
 	if strings.Contains(configs, "mongodb") {
 		logger.Debug("正在检查MongoDB")
-		m.Mongo.Close()
+		mongo.Mongo.Close()
 	}
 	if strings.Contains(configs, "redis") {
 		logger.Debug("正在检查Redis")
-		m.Redis.Close()
+		redis.Redis.Close()
 	}
 	if strings.Contains(configs, "nacos") {
 		logger.Info("正在注销Nacos")
-		m.Nacos.DeRegister()
+		nacos.Nacos.DeRegister()
 	}
 
 }

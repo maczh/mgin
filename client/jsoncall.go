@@ -3,25 +3,26 @@ package client
 import (
 	"errors"
 	"github.com/levigross/grequests"
-	"github.com/maczh/mgin"
 	"github.com/maczh/mgin/cache"
+	"github.com/maczh/mgin/config"
 	"github.com/maczh/mgin/logs"
 	"github.com/maczh/mgin/middleware/trace"
 	"github.com/maczh/mgin/middleware/xlang"
+	"github.com/maczh/mgin/registry/nacos"
 	"time"
 )
 
-func JsonWithHeader(method, service, uri string, header map[string]string, body interface{}) (string, error) {
+func JsonWithHeader(method, service, uri string, header map[string]string, body interface{}, query map[string]string) (string, error) {
 	host, err := getHostFromCache(service)
 	group := "DEFAULT_GROUP"
 	if err != nil || host == "" {
-		discovery := mgin.MGin.Config.GetConfigString("go.discovery")
+		discovery := config.Config.GetConfigString("go.discovery")
 		if discovery == "" {
 			discovery = "nacos"
 		}
 		switch discovery {
 		case "nacos":
-			host, group = mgin.MGin.Nacos.GetServiceURL(service)
+			host, group = nacos.Nacos.GetServiceURL(service)
 			if host != "" && !cache.OnGetCache("nacos").IsExist("nacos:subscribe:"+service) {
 				subscribeNacos(service, group)
 				cache.OnGetCache("nacos").Add("nacos:subscribe:"+service, "true", 0)
@@ -49,36 +50,42 @@ func JsonWithHeader(method, service, uri string, header map[string]string, body 
 	case "GET":
 		resp, err = grequests.Get(url, &grequests.RequestOptions{
 			Headers:            header,
+			Params:             query,
 			InsecureSkipVerify: true,
 			JSON:               body,
 		})
 	case "POST":
 		resp, err = grequests.Post(url, &grequests.RequestOptions{
 			Headers:            header,
+			Params:             query,
 			InsecureSkipVerify: true,
 			JSON:               body,
 		})
 	case "DELETE":
 		resp, err = grequests.Delete(url, &grequests.RequestOptions{
 			Headers:            header,
+			Params:             query,
 			InsecureSkipVerify: true,
 			JSON:               body,
 		})
 	case "PUT":
 		resp, err = grequests.Put(url, &grequests.RequestOptions{
 			Headers:            header,
+			Params:             query,
 			InsecureSkipVerify: true,
 			JSON:               body,
 		})
 	case "OPTIONS":
 		resp, err = grequests.Options(url, &grequests.RequestOptions{
 			Headers:            header,
+			Params:             query,
 			InsecureSkipVerify: true,
 			JSON:               body,
 		})
 	case "HEAD":
 		resp, err = grequests.Head(url, &grequests.RequestOptions{
 			Headers:            header,
+			Params:             query,
 			InsecureSkipVerify: true,
 			JSON:               body,
 		})
@@ -86,13 +93,13 @@ func JsonWithHeader(method, service, uri string, header map[string]string, body 
 	logs.Debug("Nacos微服务返回结果:{}", resp.String())
 	if err != nil {
 		cache.OnGetCache("nacos").Delete(service)
-		discovery := mgin.MGin.Config.GetConfigString("go.discovery")
+		discovery := config.Config.GetConfigString("go.discovery")
 		if discovery == "" {
 			discovery = "nacos"
 		}
 		switch discovery {
 		case "nacos":
-			host, group = mgin.MGin.Nacos.GetServiceURL(service)
+			host, group = nacos.Nacos.GetServiceURL(service)
 			if host != "" && !cache.OnGetCache("nacos").IsExist("nacos:subscribe:"+service) {
 				subscribeNacos(service, group)
 				cache.OnGetCache("nacos").Add("nacos:subscribe:"+service, "true", 0)
@@ -110,36 +117,42 @@ func JsonWithHeader(method, service, uri string, header map[string]string, body 
 		case "GET":
 			resp, err = grequests.Get(url, &grequests.RequestOptions{
 				Headers:            header,
+				Params:             query,
 				InsecureSkipVerify: true,
 				JSON:               body,
 			})
 		case "POST":
 			resp, err = grequests.Post(url, &grequests.RequestOptions{
 				Headers:            header,
+				Params:             query,
 				InsecureSkipVerify: true,
 				JSON:               body,
 			})
 		case "DELETE":
 			resp, err = grequests.Delete(url, &grequests.RequestOptions{
 				Headers:            header,
+				Params:             query,
 				InsecureSkipVerify: true,
 				JSON:               body,
 			})
 		case "PUT":
 			resp, err = grequests.Put(url, &grequests.RequestOptions{
 				Headers:            header,
+				Params:             query,
 				InsecureSkipVerify: true,
 				JSON:               body,
 			})
 		case "OPTIONS":
 			resp, err = grequests.Options(url, &grequests.RequestOptions{
 				Headers:            header,
+				Params:             query,
 				InsecureSkipVerify: true,
 				JSON:               body,
 			})
 		case "HEAD":
 			resp, err = grequests.Head(url, &grequests.RequestOptions{
 				Headers:            header,
+				Params:             query,
 				InsecureSkipVerify: true,
 				JSON:               body,
 			})
@@ -155,10 +168,10 @@ func JsonWithHeader(method, service, uri string, header map[string]string, body 
 	}
 }
 
-func PostJson(service, uri string, body interface{}) (string, error) {
-	return JsonWithHeader("POST", service, uri, nil, body)
+func PostJson(service, uri string, body interface{}, query map[string]string) (string, error) {
+	return JsonWithHeader("POST", service, uri, nil, body, query)
 }
 
-func GetJson(service, uri string, body interface{}) (string, error) {
-	return JsonWithHeader("GET", service, uri, nil, body)
+func GetJson(service, uri string, body interface{}, query map[string]string) (string, error) {
+	return JsonWithHeader("GET", service, uri, nil, body, query)
 }

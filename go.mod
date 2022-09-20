@@ -4,6 +4,7 @@ go 1.17
 
 require (
 	github.com/araddon/dateparse v0.0.0-20210429162001-6b43995a97de
+	github.com/ekyoung/gin-nice-recovery v0.0.0-20160510022553-1654dca486db
 	github.com/emirpasic/gods v1.18.1
 	github.com/gin-gonic/gin v1.8.1
 	github.com/go-redis/redis v6.15.9+incompatible

@@ -7,16 +7,17 @@ import (
 	"github.com/sadlil/gologger"
 )
 
-type Config struct {
+type config struct {
 	Config *koanf.Koanf
 }
+
+var Config = &config{}
 
 var logger = gologger.GetLogger()
 
 const config_file = "./application.yml"
-const AUTO_CHECK_MINUTES = 30 //自动检查连接间隔时间，单位为分钟
 
-func (c *Config) Init(cf string) {
+func (c *config) Init(cf string) {
 	if cf == "" {
 		cf = config_file
 	}
@@ -30,7 +31,7 @@ func (c *Config) Init(cf string) {
 
 }
 
-func (c *Config) GetConfigString(name string) string {
+func (c *config) GetConfigString(name string) string {
 	if c.Config == nil {
 		return ""
 	}
@@ -41,7 +42,7 @@ func (c *Config) GetConfigString(name string) string {
 	}
 }
 
-func (c *Config) GetConfigInt(name string) int {
+func (c *config) GetConfigInt(name string) int {
 	if c.Config == nil {
 		return 0
 	}
@@ -52,7 +53,25 @@ func (c *Config) GetConfigInt(name string) int {
 	}
 }
 
-func (c *Config) GetConfigUrl(prefix string) string {
+func (c *config) GetConfigBool(name string) bool {
+	if c.Config == nil {
+		return false
+	}
+	if c.Config.Exists(name) {
+		return c.Config.Bool(name)
+	} else {
+		return false
+	}
+}
+
+func (c *config) Exists(name string) bool {
+	if c.Config == nil {
+		return false
+	}
+	return c.Config.Exists(name)
+}
+
+func (c *config) GetConfigUrl(prefix string) string {
 	serverType := c.Config.String("go.config.server_type")
 	configUrl := c.Config.String("go.config.server")
 	switch serverType {

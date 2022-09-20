@@ -1,10 +1,12 @@
 package trace
 
 import (
+	"bytes"
 	"github.com/gin-gonic/gin"
 	"github.com/maczh/mgin/cache"
-	"github.com/maczh/mgin/utils"
 	"math/rand"
+	"runtime"
+	"strconv"
 	"time"
 )
 
@@ -13,12 +15,12 @@ func PutRequestId(c *gin.Context) {
 	if requestId == "" {
 		requestId = getRandomHexString(16)
 	}
-	routineId := utils.GetGoroutineID()
+	routineId := getGoroutineID()
 	cache.OnGetCache("RequestId").Add(routineId, requestId, 5*time.Minute)
 }
 
 func GetRequestId() string {
-	requestId, found := cache.OnGetCache("RequestId").Value(utils.GetGoroutineID())
+	requestId, found := cache.OnGetCache("RequestId").Value(getGoroutineID())
 	if found {
 		return requestId.(string)
 	} else {
@@ -39,4 +41,13 @@ func generateRandString(source string, l int) string {
 func getRandomHexString(l int) string {
 	str := "0123456789abcdef"
 	return generateRandString(str, l)
+}
+
+func getGoroutineID() uint64 {
+	b := make([]byte, 64)
+	b = b[:runtime.Stack(b, false)]
+	b = bytes.TrimPrefix(b, []byte("goroutine "))
+	b = b[:bytes.IndexByte(b, ' ')]
+	n, _ := strconv.ParseUint(string(b), 10, 64)
+	return n
 }

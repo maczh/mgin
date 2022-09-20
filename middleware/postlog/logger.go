@@ -4,7 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/maczh/mgin"
+	"github.com/maczh/mgin/config"
+	"github.com/maczh/mgin/db/mongo"
 	"github.com/maczh/mgin/models"
 	"io/ioutil"
 	"strings"
@@ -37,7 +38,7 @@ func (w bodyLogWriter) WriteString(s string) (int, error) {
 
 func RequestLogger() gin.HandlerFunc {
 	if collection == "" {
-		collection = mgin.MGin.Config.GetConfigString("go.log.req")
+		collection = config.Config.GetConfigString("go.log.req")
 	}
 
 	go handleAccessChannel()
@@ -82,7 +83,7 @@ func RequestLogger() gin.HandlerFunc {
 
 		// 日志格式
 		var params interface{}
-		if strings.Contains(c.ContentType(), "application/json") {
+		if strings.Contains(c.ContentType(), "application/json") && body != "" {
 			utils.FromJSON(body, &req)
 			params = req
 		} else if strings.Contains(c.ContentType(), "x-www-form-urlencoded") || strings.Contains(c.ContentType(), "multipart/form-data") {
@@ -120,12 +121,12 @@ func handleAccessChannel() {
 		}
 		var postLog models.PostLog
 		json.Unmarshal([]byte(accessLog), &postLog)
-		conn, err := mgin.MGin.Mongo.GetConnection()
+		conn, err := mongo.Mongo.GetConnection()
 		if err != nil {
 			logs.Error("MongoDB连接失败:{}", err.Error())
 			continue
 		}
-		defer mgin.MGin.Mongo.ReturnConnection(conn)
+		defer mongo.Mongo.ReturnConnection(conn)
 		err = conn.C(collection).Insert(postLog)
 		if err != nil {
 			logs.Error("MongoDB写入错误:" + err.Error())

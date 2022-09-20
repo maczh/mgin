@@ -1,0 +1,29 @@
+go:
+  application:
+    name: mgin-server
+    port: 8101
+  config:
+    server: http://59.56.77.23:58848/
+    server_type: nacos
+    env: test
+    type: .yml
+    mid: "-"
+    used: mongodb,nacos
+    prefix:
+      mysql: mysql
+      mongodb: mongo-fcp
+      redis: redis
+      ssdb: ssdb
+      rabbitmq: rabbitmq
+      nacos: nacos
+  microservice:
+    type: json
+  log:
+    req: MginServerRequestLog
+  logger:
+    level: debug
+    out: console
+    file: /opt/logs/mgin-server
+  xlang:
+    appName: mgin-server
+    default: en-us

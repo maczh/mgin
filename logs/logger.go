@@ -2,7 +2,7 @@ package logs
 
 import (
 	jsoniter "github.com/json-iterator/go"
-	"github.com/maczh/mgin"
+	"github.com/maczh/mgin/config"
 	"github.com/maczh/mgin/middleware/trace"
 	"reflect"
 	"strconv"
@@ -24,14 +24,14 @@ var logger GoLogger
 var logLevel = "debug"
 
 func initConfig() {
-	l := mgin.MGin.Config.GetConfigString("go.logger.out")
+	l := config.Config.GetConfigString("go.logger.out")
 	if l != "" {
 		loggers := strings.Split(l, ",")
 		logger = GetLogger(loggers...)
 	} else {
 		logger = GetLogger()
 	}
-	level := mgin.MGin.Config.GetConfigString("go.logger.level")
+	level := config.Config.GetConfigString("go.logger.level")
 	if level != "" {
 		logLevel = level
 	}
