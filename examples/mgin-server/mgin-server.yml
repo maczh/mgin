@@ -7,7 +7,7 @@ go:
     server: http://59.56.77.23:58848/
     server_type: nacos
     env: test
-    used: mongodb,nacos
+    used: mongodb,nacos,rabbitmq
     prefix:
       mysql: mysql
       mongodb: mongo-fcp

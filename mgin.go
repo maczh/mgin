@@ -45,7 +45,9 @@ func (m *mgin) Use(dbConfigName string, dbInit dbInitFunc, dbClose dbCloseFunc, 
 		CloseFunc: dbClose,
 		CheckFunc: dbCheck,
 	}
+	logs.Info("正在连接{}", dbConfigName)
 	dbInit(cnfUrl)
+	logs.Info("{}连接成功", dbConfigName)
 }
 func Init(configFile string) {
 	config.Config.Init(configFile)
@@ -92,15 +94,15 @@ func (m *mgin) checkAll() {
 	configs := config.Config.Config.Used
 
 	if strings.Contains(configs, "mysql") {
-		logger.Debug("正在检查MySQL")
+		logger.Info("正在检查MySQL")
 		db.Mysql.Check()
 	}
 	if strings.Contains(configs, "mongodb") {
-		logger.Debug("正在检查MongoDB")
+		logger.Info("正在检查MongoDB")
 		db.Mongo.Check()
 	}
 	if strings.Contains(configs, "redis") {
-		logger.Debug("正在检查Redis")
+		logger.Info("正在检查Redis")
 		db.Redis.Check()
 	}
 	if strings.Contains(configs, "elasticsearch") {
@@ -121,15 +123,15 @@ func (m *mgin) SafeExit() {
 	configs := config.Config.Config.Used
 
 	if strings.Contains(configs, "mysql") {
-		logger.Debug("正在关闭MySQL连接")
+		logger.Info("正在关闭MySQL连接")
 		db.Mysql.Close()
 	}
 	if strings.Contains(configs, "mongodb") {
-		logger.Debug("正在关闭MongoDB连接")
+		logger.Info("正在关闭MongoDB连接")
 		db.Mongo.Close()
 	}
 	if strings.Contains(configs, "redis") {
-		logger.Debug("正在关闭Redis连接")
+		logger.Info("正在关闭Redis连接")
 		db.Redis.Close()
 	}
 	if strings.Contains(configs, "elasticsearch") {
@@ -142,7 +144,7 @@ func (m *mgin) SafeExit() {
 	}
 	if m.plugins != nil {
 		for dbConfigName, pl := range m.plugins {
-			if pl.CheckFunc != nil {
+			if pl.CloseFunc != nil {
 				logs.Info("正在关闭{}", dbConfigName)
 				pl.CloseFunc()
 			}
