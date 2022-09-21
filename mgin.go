@@ -3,6 +3,7 @@ package mgin
 import (
 	"github.com/maczh/mgin/config"
 	"github.com/maczh/mgin/db"
+	"github.com/maczh/mgin/logs"
 	"github.com/maczh/mgin/registry"
 	"github.com/sadlil/gologger"
 	"strings"
@@ -10,11 +11,42 @@ import (
 )
 
 type mgin struct {
+	plugins map[string]plugin
+}
+
+type plugin struct {
+	InitFunc  dbInitFunc
+	CloseFunc dbCloseFunc
+	CheckFunc dbCheckFunc
 }
 
 var MGin = &mgin{}
 var logger = gologger.GetLogger()
 
+type dbInitFunc func(configUrl string)
+type dbCloseFunc func()
+type dbCheckFunc func()
+
+func (m *mgin) Use(dbConfigName string, dbInit dbInitFunc, dbClose dbCloseFunc, dbCheck dbCheckFunc) {
+	if !strings.Contains(config.Config.Config.Used, dbConfigName) {
+		logs.Error("加载{}失败，配置文件中未使用", dbConfigName)
+		return
+	}
+	cnfUrl := config.Config.GetConfigUrl(config.Config.GetConfigString("go.config.prefix." + dbConfigName))
+	if cnfUrl == "" {
+		logs.Error("{}配置错误，无法获取配置地址", dbConfigName)
+		return
+	}
+	if m.plugins == nil {
+		m.plugins = make(map[string]plugin)
+	}
+	m.plugins[dbConfigName] = plugin{
+		InitFunc:  dbInit,
+		CloseFunc: dbClose,
+		CheckFunc: dbCheck,
+	}
+	dbInit(cnfUrl)
+}
 func Init(configFile string) {
 	config.Config.Init(configFile)
 	configs := config.Config.Config.Used
@@ -75,7 +107,14 @@ func (m *mgin) checkAll() {
 		logger.Info("正在检查ElasticSearch")
 		db.ElasticSearch.Check()
 	}
-
+	if m.plugins != nil {
+		for dbConfigName, pl := range m.plugins {
+			if pl.CheckFunc != nil {
+				logs.Info("正在检查{}", dbConfigName)
+				pl.CheckFunc()
+			}
+		}
+	}
 }
 
 func (m *mgin) SafeExit() {
@@ -100,6 +139,14 @@ func (m *mgin) SafeExit() {
 	if strings.Contains(configs, "nacos") {
 		logger.Info("正在注销Nacos")
 		registry.Nacos.DeRegister()
+	}
+	if m.plugins != nil {
+		for dbConfigName, pl := range m.plugins {
+			if pl.CheckFunc != nil {
+				logs.Info("正在关闭{}", dbConfigName)
+				pl.CloseFunc()
+			}
+		}
 	}
 
 }
