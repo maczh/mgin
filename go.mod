@@ -16,6 +16,7 @@ require (
 	github.com/mattn/go-isatty v0.0.14
 	github.com/muesli/cache2go v0.0.0-20211005105910-8e46465cca4a
 	github.com/nacos-group/nacos-sdk-go v1.0.9
+	github.com/olivere/elastic v6.2.37+incompatible
 	github.com/pkg/sftp v1.13.5
 	github.com/sadlil/gologger v0.0.0-20180131031757-2507bf651df8
 	github.com/shiena/ansicolor v0.0.0-20200904210342-c7312218db18
@@ -32,6 +33,7 @@ require (
 	github.com/bitly/go-hostpool v0.1.0 // indirect
 	github.com/bmizerany/assert v0.0.0-20160611221934-b7ed37b82869 // indirect
 	github.com/buger/jsonparser v1.1.1 // indirect
+	github.com/fortytw2/leaktest v1.3.0 // indirect
 	github.com/fsnotify/fsnotify v1.4.9 // indirect
 	github.com/gin-contrib/sse v0.1.0 // indirect
 	github.com/go-errors/errors v1.0.1 // indirect
@@ -45,10 +47,12 @@ require (
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
+	github.com/josharian/intern v1.0.0 // indirect
 	github.com/kr/fs v0.1.0 // indirect
 	github.com/leodido/go-urn v1.2.1 // indirect
 	github.com/lestrrat/go-file-rotatelogs v0.0.0-20180223000712-d3151e2a480f // indirect
 	github.com/lestrrat/go-strftime v0.0.0-20180220042222-ba3bf9c1d042 // indirect
+	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mattbaird/elastigo v0.0.0-20170123220020-2fe47fd29e4b // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect

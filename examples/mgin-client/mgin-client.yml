@@ -2,24 +2,26 @@ go:
   application:
     name: mgin-client
     port: 8102
+    project: example
   config:
     server: http://59.56.77.23:58848/
     server_type: nacos
     env: test
-    type: .yml
-    mid: "-"
-    used: mongodb,nacos
+    used: mongodb,nacos,elasticsearch
     prefix:
       mysql: mysql
       mongodb: mongo-fcp
       redis: redis
-      ssdb: ssdb
       rabbitmq: rabbitmq
       nacos: nacos
-  microservice:
-    type: json
+      elasticsearch: elasticsearch
+  discovery:
+    registry: nacos
+    callType: json
   log:
     req: MginClientRequestLog
+    call: MginClientCallLog
+    db: elasticsearch
   logger:
     level: debug
     out: console

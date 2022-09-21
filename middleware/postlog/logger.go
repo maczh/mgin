@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/maczh/mgin/config"
-	"github.com/maczh/mgin/db/mongo"
+	"github.com/maczh/mgin/db"
 	"github.com/maczh/mgin/models"
 	"io/ioutil"
 	"strings"
@@ -24,7 +24,6 @@ type bodyLogWriter struct {
 }
 
 var accessChannel = make(chan string, 100)
-var collection string
 
 func (w bodyLogWriter) Write(b []byte) (int, error) {
 	w.body.Write(b)
@@ -37,9 +36,6 @@ func (w bodyLogWriter) WriteString(s string) (int, error) {
 }
 
 func RequestLogger() gin.HandlerFunc {
-	if collection == "" {
-		collection = config.Config.GetConfigString("go.log.req")
-	}
 
 	go handleAccessChannel()
 
@@ -96,6 +92,7 @@ func RequestLogger() gin.HandlerFunc {
 		postLog.Time = startTime.Format("2006-01-02 15:04:05")
 		postLog.Uri = c.Request.RequestURI
 		postLog.Method = c.Request.Method
+		postLog.AppName = config.Config.App.Name
 		postLog.RequestId = trace.GetRequestId()
 		postLog.ContentType = c.ContentType()
 		postLog.Requestparam = params
@@ -108,28 +105,43 @@ func RequestLogger() gin.HandlerFunc {
 		logs.Debug("请求参数:{}", params)
 		logs.Debug("接口返回:{}", result)
 
-		if collection != "" {
+		if config.Config.Log.RequestTableName != "" {
 			accessChannel <- utils.ToJSON(postLog)
 		}
 	}
 }
 
 func handleAccessChannel() {
+	if config.Config.Log.LogDb == "" {
+		config.Config.Log.LogDb = "mongodb"
+	}
 	for accessLog := range accessChannel {
-		if collection == "" {
+		if config.Config.Log.RequestTableName == "" {
 			continue
 		}
 		var postLog models.PostLog
 		json.Unmarshal([]byte(accessLog), &postLog)
-		conn, err := mongo.Mongo.GetConnection()
-		if err != nil {
-			logs.Error("MongoDB连接失败:{}", err.Error())
-			continue
-		}
-		defer mongo.Mongo.ReturnConnection(conn)
-		err = conn.C(collection).Insert(postLog)
-		if err != nil {
-			logs.Error("MongoDB写入错误:" + err.Error())
+		switch config.Config.Log.LogDb {
+		case "mongodb":
+			conn, err := db.Mongo.GetConnection()
+			if err != nil {
+				logs.Error("MongoDB连接失败:{}", err.Error())
+				continue
+			}
+			defer db.Mongo.ReturnConnection(conn)
+			err = conn.C(config.Config.Log.RequestTableName).Insert(postLog)
+			if err != nil {
+				logs.Error("MongoDB写入错误:" + err.Error())
+			}
+		case "elasticsearch":
+			doc := make(map[string]interface{})
+			utils.FromJSON(utils.ToJSON(postLog), &doc)
+			resp, err := db.ElasticSearch.AddDocument(strings.ToLower(config.Config.App.Project), strings.ToLower(config.Config.Log.RequestTableName), doc, []string{})
+			if err != nil {
+				logs.Error("ElasticSearch写入日志失败:{}", err.Error())
+				continue
+			}
+			logs.Debug("日志写入ElasticSearch返回:{}", resp)
 		}
 	}
 	return

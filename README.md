@@ -1,125 +1,216 @@
-# MGin 微服务框架范例
+# MGin 微服务框架
 
-    MGin微服务框架范例，用于快速创建基于MGin微服务框架的RESTful微服务程序，本范例程序演示了
-    如何使用Mysql/MongoDB/Redis进行增改查操作，作为RESTful API接口提供给其他服务使用。
-    在本范例中，采用Nacos作为配置中心和注册服务与发现中心，Mysql、MongoDB和Redis的配置都
-    放在Nacos中，都采用了连接池配置，接口请求日志保存到MongoDB中，采用在Http header中
-    X-RequestId作为链路跟踪。
-    
-## 创建MGin新工程的方式
+MGin微服务框架，用于快速创建基于MGin微服务框架的RESTful微服务程序
 
-+ 首先采用Git命令行下载这个范例项目，假设自己的新工程名称为 test
-    
+## MGin框架功能
+
+### Web服务框架
+
+- Gin
+
+### 支持统一的配置中心
+
+- Nacos
+- Consul
+- SpringCloud Config
+
+### 支持的服务发现与注册中心
+
+- Nacos
+- Consul (计划)
+- Etcd (计划)
+
+### 内置支持自动连接的数据库
+
+- MySQL (GORM v2)
+- MongoDB (mgo v2)
+- Redis (go-redis)
+- ElasitcSearch (olivere/elastic)
+- 其他各类的数据库、消息队列等计划与中间件模式实现自动加载
+- Mysql/mongodb/redis已经支持多库连接
+
+### 支持的接口协议
+
+- http
+- https
+- gRPC (计划)
+
+### 支持的接口参数规范
+
+- x-form  (x-form-urlencoded)
+- json (url query string + json body, POST + GET)
+- restful
+
+## 安装
 ```shell script
-    git clone https://github.com/maczh/mgin.git test
-```
-    
-+ 修改 mgin.yml 文件名为 test.yml
-    
-```shell script
-    cd test
-    mv mgin.yml test.yml
-```
-    
-+ 修改 main.go 中指定的配置文件名
-    
-```go
-    const config_file = "test.yml"
-```
-    
-+ 修改 test.yml 配置中的项目名称、端口和nacos服务器的IP和端口
-    
-```yaml
-    go:
-      application:
-        name: test
-        port: 8080
-      config:
-        server: http://192.168.1.2:8848/
-```
-    
-+ 修改自己项目中要使用到的数据库，比如只用到MySQL,那就去掉go.config.used中的mongodb和redis，如果要使用接口日志，即 go.log.req的值不为空，那么必须加上mongodb的配置，如:
-    
-```yaml
-    go:
-      config:
-        used: mysql,nacos,mongodb
-```
-    
-+ 在Nacos的配置中心中要有以相应配置，如MySQL的配置 
-    mysql-go-test.yml
-```yaml
-    go:
-      data:
-        mysql: testuser:**********@tcp(192.168.1.3:3306)/test?charset=utf8&parseTime=True&loc=Local
-        mysql_pool:
-          min: 5
-          max: 20
-          idle: 10
-          timeout: 300
+go get -u github.com/maczh/mgin
 ```
 
-mongodb-go-test.yml
+## 使用方法
+
+### 本地配置文件
+
++ 默认文件名为`模块名.yml`，可自定义名称，配置内容如下
 ```yaml
-    go:
-      data:
-        mongodb:
-          uri: mongodb://testuser:**********@192.168.1.4:27017/test
-          db: test
-        mongo_pool:
-          min: 2
-          max: 20
-          idle: 10
-          timeout: 300 
+go:
+  application:
+    name: myapp         #应用名称,用于自动注册微服务时的服务名
+    port: 8080          #端口号
+    project: myproj     #所属项目名称
+    port_ssl:           #https端口号
+    cert:               #ssl证书文件地址
+    key:                #ssl证书私钥文件地址
+    debug:              #本地调试模式，可注册到nacos，可调用其他微服务，调试实例不可被其他实例调用
+    ip: xxx.xxx.xxx.xxx  #微服务注册时登记的本地IP，不配可自动获取，如需指定外网IP或Docker之外的IP时配置
+  discovery:                      
+    registry: nacos                    #微服务的服务发现与注册中心类型 nacos,consul,默认是 nacos
+    callType: json                     #微服务调用参数模式 x-form,json,restful 三种模式可选
+  config:                               #统一配置服务器相关
+    server: http://192.168.1.5:8848/    #配置服务器地址
+    server_type: nacos                  #配置服务器类型 nacos,consul,springconfig
+    env: test                           #配置环境 一般常用test/prod/dev等，跟相应配置文件匹配
+    used: nacos,mysql,mongodb,redis     #当前应用启用的配置
+    prefix:                             #配置文件名前缀定义
+      mysql: mysql                      #mysql对应的配置文件名前缀，如当前配置中对应的配置文件名为 mysql-test.yml
+      mongodb: mongodb
+      redis: redis
+      nacos: nacos
+      elasticsearch: elasticsearch
+  logger:                 #控制台日志与文件日志输出，logs包的输出
+    level: debug
+    out: console,file          #日志输出到控制台与文件
+    file: /opt/logs/myapp      #日志文件路径与前缀，后面自动加上.yyyy-MM-dd.log，目录必须已创建
+  log:                    #controller接口访问日志与微服务调用请求日志
+    db: mongodb           #日志库，支持mongodb与elasticsearch
+    req: MyappRequestLog  #接口访问日志表名称，在es中使用工程名称${go.application.project}_${go.log.req}作为索引名
+    call: MyappCallLog    #微服务调用日志表，表名规则同上
+```
++ mysql配置范例 mysql-test.yml
+```yaml
+go:
+  data:
+    mysql: user:pwd@tcp(xxx.xxx.xxx.xxx:3306)/dbname?charset=utf8&parseTime=True&loc=Local
+    mysql_debug: true   #打开调试模式
+    mysql_pool:     #连接池设置,若无此项则使用单一长连接
+      max: 200      #实际最大连接数
+      total: 1000   #最大并发数,不填默认为最大连接数5倍
+      timeout: 30   #空闲连接超时，秒，默认60秒
+      life: 5       #连接生命周期，分钟，默认60分钟
+```
++ mysql多库连接配置范例 mysql-multidb-test.yml
+```yaml
+go:
+  data:
+    mysql: 
+      multidb: true
+      dbNames: test1,test2
+      test1: user1:pwd1@tcp(xxx.xxx.xxx.xxx:3306)/dbname1?charset=utf8&parseTime=True&loc=Local
+      test2: user2:pwd2@tcp(xxx.xxx.xxx.xxx:3306)/dbname2?charset=utf8&parseTime=True&loc=Local
+    mysql_debug: true   #打开调试模式
+    mysql_pool:     #连接池设置,若无此项则使用单一长连接
+      max: 200      #实际最大连接数
+      total: 1000   #最大并发数,不填默认为最大连接数5倍
+      timeout: 30   #空闲连接超时，秒，默认60秒
+      life: 5       #连接生命周期，分钟，默认60分钟
 ```
 
-redis-go-test.yml
+
++ mongodb配置范例 mongodb-test.yml
 ```yaml
-    go:
-      data:
-        redis:
-          host: 192.168.1.5
+go:
+  data:
+    mongodb:
+      uri: mongodb://user:pwd@xxx.xxx.xxx.xxx:port/dbname #当使用复制集时 mongodb://user:pwd@192.168..3.5:27017,192.168.3.6:27017/dbname?replicaSet=replsetname
+      db: dbname
+      debug: true   #打开调试模式
+    mongo_pool:     #连接池设置,若无此项则使用单一长连接
+      max: 20       #最大连接数
+```
+
++ mongodb多库连接配置范例 mongodb-multidb-test.yml
+```yaml
+go:
+  data:
+    mongodb:
+      multidb: true
+      dbNames: test1,test2
+      test1:
+          uri: mongodb://user1:pwd1@xxx.xxx.xxx.xxx:port/dbname1 #当使用复制集时 mongodb://user:pwd@192.168..3.5:27017,192.168.3.6:27017/dbname?replicaSet=replsetname
+          db: dbname1
+      test2:
+        uri: mongodb://user2:pwd2@xxx.xxx.xxx.xxx:port/dbname2 #当使用复制集时 mongodb://user:pwd@192.168..3.5:27017,192.168.3.6:27017/dbname?replicaSet=replsetname
+        db: dbname2
+      debug: true   #打开调试模式
+    mongo_pool:     #连接池设置,若无此项则使用单一长连接
+      max: 20       #最大连接数
+```
+
+
++ redis配置范例 redis-test.yml
+```yaml
+go:
+  data:
+    redis:
+      host: xxx.xxx.xxx.xxx
+      port: 6379
+      password: password
+      database: 1
+      timeout: 1000
+    redis_pool:
+      min: 3        #最小空闲连接数,默认2
+      max: 200      #连接池大小，最小默认10
+      idle: 10      #空闲超时，分钟,默认5分钟
+      timeout: 300  #连接超时，秒，默认60秒
+```
+
++ redis多库连接配置范例 redis-multidb-test.yml
+```yaml
+go:
+  data:
+    redis:
+      multidb: true
+      dbNames: test1,test2
+      test1:
+          host: xxx.xxx.xxx.xxx
           port: 6379
-          password: *************
+          password: password
           database: 1
-          timeout: 1000
-        redis_pool:
-          min: 3
-          max: 20
-          idle: 10
-          timeout: 300
+      test2:
+        host: xxx.xxx.xxx.xxx
+        port: 6379
+        password: password
+        database: 2
+    redis_pool:
+      min: 3        #最小空闲连接数,默认2
+      max: 200      #连接池大小，最小默认10
+      idle: 10      #空闲超时，分钟,默认5分钟
+      timeout: 300  #连接超时，秒，默认60秒
 ```
 
-nacos-go-test.yml
++ nacos配置范例 nacos-test.yml
 ```yaml
-    go:
-      nacos:
-        server: 192.168.1.2
-        port: 8848
-        clusterName: DEFAULT
-        weight: 1
+go:
+  nacos:
+    server: xxx.xxx.xxx   #nacos服务IP
+    port: 8848            #nacos端口
+    clusterName: DEFAULT
+    group: OpenApi    #根据项目不同配置不同分组
+    weight: 1
+    lan: true   #以内网地址注册，否则以公网地址注册
+    lanNet: 192.168.3.    #网段前缀
 ```
-    
-## MGin工程的层次结构为标准MVC结构
++ Elasticsearch配置范例 elasticsearch-test.yml
+```yaml
+go:
+  elasticsearch:
+    uri: http://xxx.xxx.xxx.xxx:9200
+    user: elastic
+    password: ***********
+```
 
-+ model 
-  数据模型，存放各种对象结构体，如表对象、接口入参对象、出参对象等
-+ mysql
-  mysql的表操作DAO层，负责实现mysql表的增删改查，采用的是gorm v1.0
-+ mongo
-  mongodb表的操作DAO层，负责实现mongodb表的境删改查，采用的是Mgo v2
-+ redis
-  redis操作层
-+ service
-  业务实现层，从controller层传入参数，调用mysql/mongodb/redis等数据库层进行业务逻辑实现
-+ controller
-  api接口控制层，负责从http reguest传入的map参数转换成service层调用的参数，调用service层函数实现api接口逻辑
-+ Router.go
-  http 路由配置，将http的url请求路由指向调用controller层中的函数,
-  如:
-  ```go
-	engine.Any("/user/mysql/save", func(c *gin.Context) {
-		result = controller.SaveUserMysql(utils.GinParamMap(c))
-		c.JSON(http.StatusOK, result)
-	})
-  ``` 
+
+### 微服务工程范例
+
+* 服务端参见 examples/mgin-server项目
+* 客户端参见 examples/mgin-client项目
+

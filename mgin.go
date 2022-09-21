@@ -2,10 +2,8 @@ package mgin
 
 import (
 	"github.com/maczh/mgin/config"
-	"github.com/maczh/mgin/db/mongo"
-	"github.com/maczh/mgin/db/mysql"
-	"github.com/maczh/mgin/db/redis"
-	"github.com/maczh/mgin/registry/nacos"
+	"github.com/maczh/mgin/db"
+	"github.com/maczh/mgin/registry"
 	"github.com/sadlil/gologger"
 	"strings"
 	"time"
@@ -19,23 +17,32 @@ var logger = gologger.GetLogger()
 
 func Init(configFile string) {
 	config.Config.Init(configFile)
-	configs := config.Config.GetConfigString("go.config.used")
+	configs := config.Config.Config.Used
 
 	if strings.Contains(configs, "mysql") {
 		logger.Info("正在连接MySQL")
-		mysql.Mysql.Init(config.Config.GetConfigUrl(config.Config.GetConfigString("go.config.prefix.mysql")))
+		db.Mysql.Init(config.Config.GetConfigUrl(config.Config.Config.Prefix.Mysql))
+		logger.Info("连接MySQL成功")
 	}
 	if strings.Contains(configs, "mongodb") {
 		logger.Info("正在连接MongoDB")
-		mongo.Mongo.Init(config.Config.GetConfigUrl(config.Config.GetConfigString("go.config.prefix.mongodb")))
+		db.Mongo.Init(config.Config.GetConfigUrl(config.Config.Config.Prefix.Mongodb))
+		logger.Info("连接MongoDB成功")
 	}
 	if strings.Contains(configs, "redis") {
 		logger.Info("正在连接Redis")
-		redis.Redis.Init(config.Config.GetConfigUrl(config.Config.GetConfigString("go.config.prefix.redis")))
+		db.Redis.Init(config.Config.GetConfigUrl(config.Config.Config.Prefix.Redis))
+		logger.Info("连接Redis成功")
+	}
+	if strings.Contains(configs, "elasticsearch") {
+		logger.Info("正在连接ElasticSearch")
+		db.ElasticSearch.Init(config.Config.GetConfigUrl(config.Config.Config.Prefix.Elasticsearch))
+		logger.Info("连接ElasticSearch成功")
 	}
 	if strings.Contains(configs, "nacos") {
 		logger.Info("正在注册到Nacos")
-		nacos.Nacos.Register(config.Config.GetConfigUrl(config.Config.GetConfigString("go.config.prefix.nacos")))
+		registry.Nacos.Register(config.Config.GetConfigUrl(config.Config.Config.Prefix.Nacos))
+		logger.Info("注册到Nacos成功")
 	}
 
 	//设置定时任务自动检查
@@ -50,41 +57,49 @@ func Init(configFile string) {
 
 func (m *mgin) checkAll() {
 
-	configs := config.Config.GetConfigString("go.config.used")
+	configs := config.Config.Config.Used
 
 	if strings.Contains(configs, "mysql") {
 		logger.Debug("正在检查MySQL")
-		mysql.Mysql.Check()
+		db.Mysql.Check()
 	}
 	if strings.Contains(configs, "mongodb") {
 		logger.Debug("正在检查MongoDB")
-		mongo.Mongo.Check()
+		db.Mongo.Check()
 	}
 	if strings.Contains(configs, "redis") {
 		logger.Debug("正在检查Redis")
-		redis.Redis.Check()
+		db.Redis.Check()
+	}
+	if strings.Contains(configs, "elasticsearch") {
+		logger.Info("正在检查ElasticSearch")
+		db.ElasticSearch.Check()
 	}
 
 }
 
 func (m *mgin) SafeExit() {
-	configs := config.Config.GetConfigString("go.config.used")
+	configs := config.Config.Config.Used
 
 	if strings.Contains(configs, "mysql") {
-		logger.Debug("正在检查MySQL")
-		mysql.Mysql.Close()
+		logger.Debug("正在关闭MySQL连接")
+		db.Mysql.Close()
 	}
 	if strings.Contains(configs, "mongodb") {
-		logger.Debug("正在检查MongoDB")
-		mongo.Mongo.Close()
+		logger.Debug("正在关闭MongoDB连接")
+		db.Mongo.Close()
 	}
 	if strings.Contains(configs, "redis") {
-		logger.Debug("正在检查Redis")
-		redis.Redis.Close()
+		logger.Debug("正在关闭Redis连接")
+		db.Redis.Close()
+	}
+	if strings.Contains(configs, "elasticsearch") {
+		logger.Info("正在关闭ElasticSearch连接")
+		db.ElasticSearch.Close()
 	}
 	if strings.Contains(configs, "nacos") {
 		logger.Info("正在注销Nacos")
-		nacos.Nacos.DeRegister()
+		registry.Nacos.DeRegister()
 	}
 
 }

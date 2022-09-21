@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-type mysqlClient struct {
+type MysqlClient struct {
 	mysql   *gorm.DB
 	mysqls  map[string]*gorm.DB
 	multi   bool
@@ -21,10 +21,9 @@ type mysqlClient struct {
 	confUrl string
 }
 
-var Mysql = &mysqlClient{}
 var logger = gologger.GetLogger()
 
-func (m *mysqlClient) Init(mysqlConfigUrl string) {
+func (m *MysqlClient) Init(mysqlConfigUrl string) {
 	if mysqlConfigUrl != "" {
 		m.confUrl = mysqlConfigUrl
 	}
@@ -32,18 +31,20 @@ func (m *mysqlClient) Init(mysqlConfigUrl string) {
 		logger.Error("MySQL配置文件Url为空")
 		return
 	}
-	if m.conf == nil {
-		resp, err := grequests.Get(m.confUrl, nil)
-		if err != nil {
-			logger.Error("MySQL配置下载失败! " + err.Error())
-			return
-		}
-		m.conf = koanf.New(".")
-		err = m.conf.Load(rawbytes.Provider([]byte(resp.String())), yaml.Parser())
-		if err != nil {
-			logger.Error("MySQL配置格式解析错误:" + err.Error())
-			m.conf = nil
-			return
+	if m.mysql == nil && len(m.mysqls) == 0 {
+		if m.conf == nil {
+			resp, err := grequests.Get(m.confUrl, nil)
+			if err != nil {
+				logger.Error("MySQL配置下载失败! " + err.Error())
+				return
+			}
+			m.conf = koanf.New(".")
+			err = m.conf.Load(rawbytes.Provider([]byte(resp.String())), yaml.Parser())
+			if err != nil {
+				logger.Error("MySQL配置格式解析错误:" + err.Error())
+				m.conf = nil
+				return
+			}
 		}
 		m.multi = false
 		if m.conf.Exists("go.data.mysql.multi") && m.conf.Bool("go.data.mysql.multi") {
@@ -108,7 +109,7 @@ func (m *mysqlClient) Init(mysqlConfigUrl string) {
 	}
 }
 
-func (m *mysqlClient) Close() {
+func (m *MysqlClient) Close() {
 	if m.multi {
 		for k, _ := range m.mysqls {
 			sqldb, _ := m.mysqls[k].DB()
@@ -122,7 +123,7 @@ func (m *mysqlClient) Close() {
 	}
 }
 
-func mySqlsCheck(m *mysqlClient) error {
+func mySqlsCheck(m *MysqlClient) error {
 	if !m.multi {
 		return errors.New("Not multi mysql connections setting")
 	}
@@ -146,7 +147,7 @@ func mySqlsCheck(m *mysqlClient) error {
 	return nil
 }
 
-func mySqlCheck(m *mysqlClient) (*gorm.DB, error) {
+func mySqlCheck(m *MysqlClient) (*gorm.DB, error) {
 	if m.mysql == nil {
 		m.Init("")
 		if m.mysql == nil {
@@ -165,7 +166,7 @@ func mySqlCheck(m *mysqlClient) (*gorm.DB, error) {
 	return m.mysql, nil
 }
 
-func (m *mysqlClient) Check() {
+func (m *MysqlClient) Check() {
 	if m.multi {
 		err := mySqlsCheck(m)
 		if err != nil {
@@ -179,7 +180,7 @@ func (m *mysqlClient) Check() {
 	}
 }
 
-func (m *mysqlClient) GetConnection(dbName ...string) (*gorm.DB, error) {
+func (m *MysqlClient) GetConnection(dbName ...string) (*gorm.DB, error) {
 	if len(dbName) == 0 {
 		if m.multi {
 			return nil, errors.New("multi get connection must specify a database name")

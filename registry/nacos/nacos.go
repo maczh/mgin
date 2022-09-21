@@ -21,7 +21,7 @@ import (
 	"github.com/nacos-group/nacos-sdk-go/vo"
 )
 
-type nacosClient struct {
+type NacosClient struct {
 	client     naming_client.INamingClient
 	cluster    string
 	group      string
@@ -31,14 +31,13 @@ type nacosClient struct {
 	confUrl    string
 }
 
-var Nacos = &nacosClient{}
 var logger = gologger.GetLogger()
 
-func (n *nacosClient) GetNacosClient() naming_client.INamingClient {
+func (n *NacosClient) GetNacosClient() naming_client.INamingClient {
 	return n.client
 }
 
-func (n *nacosClient) Register(nacosConfigUrl string) {
+func (n *NacosClient) Register(nacosConfigUrl string) {
 	if nacosConfigUrl != "" {
 		n.confUrl = nacosConfigUrl
 	}
@@ -108,23 +107,23 @@ func (n *nacosClient) Register(nacosConfigUrl string) {
 		}
 		localip, _ := localIPv4s(n.lan, n.lanNetwork)
 		ip := localip[0]
-		if config.Config.Exists("go.application.ip") {
-			ip = config.Config.GetConfigString("go.application.ip")
+		if config.Config.App.IpAddr != "" {
+			ip = config.Config.App.IpAddr
 		}
 		n.cluster = n.conf.String("go.nacos.clusterName")
-		port := uint64(config.Config.GetConfigInt("go.application.port"))
+		port := uint64(config.Config.App.Port)
 		metadata := make(map[string]string)
-		if port == 0 || config.Config.GetConfigString("go.application.port_ssl") != "" {
-			port = uint64(config.Config.GetConfigInt("go.application.port_ssl"))
+		if port == 0 || config.Config.App.PortSSL != 0 {
+			port = uint64(config.Config.App.PortSSL)
 			metadata["ssl"] = "true"
 		}
-		if config.Config.Exists("go.application.debug") && config.Config.GetConfigBool("go.application.debug") {
+		if config.Config.App.Debug {
 			metadata["debug"] = "true"
 		}
 		success, regerr := n.client.RegisterInstance(vo.RegisterInstanceParam{
 			Ip:          ip,
 			Port:        port,
-			ServiceName: config.Config.GetConfigString("go.application.name"),
+			ServiceName: config.Config.App.Name,
 			Weight:      1,
 			ClusterName: n.cluster,
 			Enable:      true,
@@ -139,7 +138,7 @@ func (n *nacosClient) Register(nacosConfigUrl string) {
 		}
 
 		err = n.client.Subscribe(&vo.SubscribeParam{
-			ServiceName: config.Config.GetConfigString("go.application.name"),
+			ServiceName: config.Config.App.Name,
 			Clusters:    []string{n.cluster},
 			GroupName:   n.group,
 			SubscribeCallback: func(services []model.SubscribeService, err error) {
@@ -153,7 +152,7 @@ func (n *nacosClient) Register(nacosConfigUrl string) {
 
 }
 
-func (n *nacosClient) GetServiceURL(servicename string) (string, string) {
+func (n *NacosClient) GetServiceURL(servicename string) (string, string) {
 	var instance *model.Instance
 	var err error
 	serviceGroup := n.group
@@ -187,9 +186,9 @@ func (n *nacosClient) GetServiceURL(servicename string) (string, string) {
 	return url, serviceGroup
 }
 
-func (n *nacosClient) DeRegister() {
+func (n *NacosClient) DeRegister() {
 	err := n.client.Unsubscribe(&vo.SubscribeParam{
-		ServiceName: config.Config.GetConfigString("go.application.name"),
+		ServiceName: config.Config.App.Name,
 		Clusters:    []string{n.cluster},
 		GroupName:   n.group,
 		SubscribeCallback: func(services []model.SubscribeService, err error) {
@@ -202,12 +201,12 @@ func (n *nacosClient) DeRegister() {
 	ips, _ := localIPv4s(n.lan, n.lanNetwork)
 	ip := ips[0]
 	if config.Config.Exists("go.application.ip") {
-		ip = config.Config.GetConfigString("go.application.ip")
+		ip = config.Config.App.IpAddr
 	}
 	success, regerr := n.client.DeregisterInstance(vo.DeregisterInstanceParam{
 		Ip:          ip,
-		Port:        uint64(config.Config.GetConfigInt("go.application.port")),
-		ServiceName: config.Config.GetConfigString("go.application.name"),
+		Port:        uint64(config.Config.App.Port),
+		ServiceName: config.Config.App.Name,
 		Cluster:     n.cluster,
 		Ephemeral:   true,
 	})

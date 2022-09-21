@@ -24,14 +24,14 @@ var logger GoLogger
 var logLevel = "debug"
 
 func initConfig() {
-	l := config.Config.GetConfigString("go.logger.out")
+	l := config.Config.Logger.Out
 	if l != "" {
 		loggers := strings.Split(l, ",")
 		logger = GetLogger(loggers...)
 	} else {
 		logger = GetLogger()
 	}
-	level := config.Config.GetConfigString("go.logger.level")
+	level := config.Config.Logger.Level
 	if level != "" {
 		logLevel = level
 	}

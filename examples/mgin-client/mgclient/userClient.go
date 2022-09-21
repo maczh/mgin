@@ -18,7 +18,7 @@ type user struct{}
 var User = &user{}
 
 func (u *user) Add(userInfo model.User) models.Result {
-	resp, err := client.Client.Call(ServiceExample, UriUserAdd, "POST", userInfo)
+	resp, err := client.Nacos.Call(ServiceExample, UriUserAdd, "POST", userInfo)
 	if err != nil {
 		return models.Error(-1, err.Error())
 	}
@@ -28,7 +28,7 @@ func (u *user) Add(userInfo model.User) models.Result {
 }
 
 func (u *user) Get(param map[string]string) models.Result {
-	resp, err := client.Client.Call(ServiceExample, UriUserQuery, "GET", nil, param)
+	resp, err := client.Nacos.Call(ServiceExample, UriUserQuery, "GET", nil, param)
 	if err != nil {
 		return models.Error(-1, err.Error())
 	}

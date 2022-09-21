@@ -50,11 +50,11 @@ func main() {
 	engine := setupRouter()
 
 	server := &http.Server{
-		Addr:    ":" + config.Config.GetConfigString("go.application.port"),
+		Addr:    fmt.Sprintf(":%d", config.Config.App.Port),
 		Handler: engine,
 	}
 	serverSsl := &http.Server{
-		Addr:    ":" + config.Config.GetConfigString("go.application.port_ssl"),
+		Addr:    fmt.Sprintf(":%d", config.Config.App.PortSSL),
 		Handler: engine,
 	}
 
@@ -62,15 +62,15 @@ func main() {
 	logs.Info("|     mgin-server example 0.0.1     |")
 	logs.Info("|-----------------------------------|")
 	logs.Info("|  Go Http Server Start Successful  |")
-	logs.Info("|    Port:" + config.Config.GetConfigString("go.application.port") + "     Pid:" + fmt.Sprintf("%d", os.Getpid()) + "        |")
+	logs.Info("|    Port: {}     Pid: {}        |", config.Config.App.Port, os.Getpid())
 	logs.Info("|-----------------------------------|")
 
 	logs.Debug("====================================")
-	logs.Debug("| {}启动成功!   侦听端口:{}     |", config.Config.GetConfigString("go.application.name"), config.Config.GetConfigString("go.application.port"))
+	logs.Debug("| {}启动成功!   侦听端口:{}     |", config.Config.App.Name, config.Config.App.Port)
 	logs.Debug("====================================")
 
 	//http端口侦听
-	if config.Config.GetConfigString("go.application.port") != "" {
+	if config.Config.App.Port != 0 {
 		go func() {
 			var err error
 			err = server.ListenAndServe()
@@ -80,11 +80,11 @@ func main() {
 		}()
 	}
 	//https端口侦听
-	if config.Config.GetConfigString("go.application.cert") != "" {
+	if config.Config.App.Cert != "" {
 		go func() {
 			var err error
 			path, _ := filepath.Abs(filepath.Dir(os.Args[0]))
-			err = serverSsl.ListenAndServeTLS(path+"/"+config.Config.GetConfigString("go.application.cert"), path+"/"+config.Config.GetConfigString("go.application.key"))
+			err = serverSsl.ListenAndServeTLS(path+"/"+config.Config.App.Cert, path+"/"+config.Config.App.Key)
 			if err != nil && err != http.ErrServerClosed {
 				logs.Error("HTTPS server listen: {}", err.Error())
 			}

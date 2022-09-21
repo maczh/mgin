@@ -20,7 +20,7 @@ var appName, defaultLanguage string
 func Init() {
 	appName = config.Config.GetConfigString("go.xlang.appName")
 	if appName == "" {
-		appName = config.Config.GetConfigString("go.application.name")
+		appName = config.Config.App.Name
 	}
 	defaultLanguage = config.Config.GetConfigString("go.xlang.default")
 	if defaultLanguage == "" {

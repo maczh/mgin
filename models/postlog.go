@@ -10,6 +10,7 @@ type PostLog struct {
 	RequestId    string                 `json:"requestId" bson:"requestId"`
 	Responsetime string                 `json:"responsetime" bson:"responsetime"`
 	TTL          int                    `json:"ttl" bson:"ttl"`
+	AppName      string                 `json:"appName" bson:"appName"`
 	Apiname      string                 `json:"apiName" bson:"apiName"`
 	Method       string                 `json:"method" bson:"method"`
 	ContentType  string                 `json:"contentType" bson:"contentType"`

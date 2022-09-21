@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-type redisClient struct {
+type RedisClient struct {
 	client  *redis.Client
 	multi   bool
 	clients map[string]*redis.Client
@@ -23,11 +23,9 @@ type redisClient struct {
 	confUrl string
 }
 
-var Redis = &redisClient{}
-
 var logger = gologger.GetLogger()
 
-func (r *redisClient) Init(redisConfigUrl string) {
+func (r *RedisClient) Init(redisConfigUrl string) {
 	if redisConfigUrl != "" {
 		r.confUrl = redisConfigUrl
 	}
@@ -35,18 +33,20 @@ func (r *redisClient) Init(redisConfigUrl string) {
 		logger.Error("Redis配置Url为空")
 		return
 	}
-	if r.conf == nil {
-		resp, err := grequests.Get(r.confUrl, nil)
-		if err != nil {
-			logger.Error("Redis配置下载失败! " + err.Error())
-			return
-		}
-		r.conf = koanf.New(".")
-		err = r.conf.Load(rawbytes.Provider([]byte(resp.String())), yaml.Parser())
-		if err != nil {
-			logger.Error("Redis配置文件解析错误:" + err.Error())
-			r.conf = nil
-			return
+	if r.client == nil && len(r.clients) == 0 {
+		if r.conf == nil {
+			resp, err := grequests.Get(r.confUrl, nil)
+			if err != nil {
+				logger.Error("Redis配置下载失败! " + err.Error())
+				return
+			}
+			r.conf = koanf.New(".")
+			err = r.conf.Load(rawbytes.Provider([]byte(resp.String())), yaml.Parser())
+			if err != nil {
+				logger.Error("Redis配置文件解析错误:" + err.Error())
+				r.conf = nil
+				return
+			}
 		}
 		r.multi = r.conf.Bool("go.data.redis.multidb")
 		var ro redis.Options
@@ -136,7 +136,7 @@ func (r *redisClient) Init(redisConfigUrl string) {
 	}
 }
 
-func (r *redisClient) Close() {
+func (r *RedisClient) Close() {
 	if r.multi {
 		for dbName, rc := range r.clients {
 			rc.Close()
@@ -148,7 +148,7 @@ func (r *redisClient) Close() {
 	}
 }
 
-func (r *redisClient) redisCheck(dbName string) error {
+func (r *RedisClient) redisCheck(dbName string) error {
 	fmt.Printf("正在检查%s连接\n", dbName)
 	if err := r.clients[dbName].Ping().Err(); err != nil {
 		logger.Error("Redis连接故障:" + err.Error())
@@ -163,7 +163,7 @@ func (r *redisClient) redisCheck(dbName string) error {
 	return nil
 }
 
-func (r *redisClient) Check() {
+func (r *RedisClient) Check() {
 	if r.client == nil && len(r.clients) == 0 {
 		r.Init("")
 		return
@@ -181,10 +181,10 @@ func (r *redisClient) Check() {
 	}
 }
 
-func (r *redisClient) GetConnection(dbName ...string) (*redis.Client, error) {
+func (r *RedisClient) GetConnection(dbName ...string) (*redis.Client, error) {
 	if r.multi {
 		if len(dbName) == 0 || len(dbName) > 1 {
-			return nil, errors.New("Multidb Get redisClient connection must specify one database name")
+			return nil, errors.New("Multidb Get RedisClient connection must specify one database name")
 		}
 		err := r.redisCheck(dbName[0])
 		if err != nil {

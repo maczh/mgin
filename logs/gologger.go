@@ -17,7 +17,7 @@ type GoLogger struct {
 }
 
 func GetLogger(selector ...string) GoLogger {
-	logFileName := config.Config.GetConfigString("go.logger.file")
+	logFileName := config.Config.Logger.File
 	if len(selector) == 0 {
 		if logFileName != "" {
 			selector = []string{CONSOLE, FILE}

@@ -9,7 +9,7 @@ import (
 	"github.com/maczh/mgin/logs"
 	"github.com/maczh/mgin/middleware/trace"
 	"github.com/maczh/mgin/middleware/xlang"
-	"github.com/maczh/mgin/registry/nacos"
+	"github.com/maczh/mgin/registry"
 	"net/url"
 	"strings"
 	"time"
@@ -19,13 +19,13 @@ func RestfulWithHeader(method, service string, uri string, pathparams map[string
 	host, err := getHostFromCache(service)
 	group := "DEFAULT_GROUP"
 	if err != nil || host == "" {
-		discovery := config.Config.GetConfigString("go.discovery")
+		discovery := config.Config.Discovery.Registry
 		if discovery == "" {
 			discovery = "nacos"
 		}
 		switch discovery {
 		case "nacos":
-			host, group = nacos.Nacos.GetServiceURL(service)
+			host, group = registry.Nacos.GetServiceURL(service)
 			if host != "" && !cache.OnGetCache("nacos").IsExist("nacos:subscribe:"+service) {
 				subscribeNacos(service, group)
 				cache.OnGetCache("nacos").Add("nacos:subscribe:"+service, "true", 0)
@@ -92,13 +92,13 @@ func RestfulWithHeader(method, service string, uri string, pathparams map[string
 	logs.Debug("Nacos微服务返回结果:{}", resp.String())
 	if err != nil {
 		cache.OnGetCache("nacos").Delete(service)
-		discovery := config.Config.GetConfigString("go.discovery")
+		discovery := config.Config.Discovery.Registry
 		if discovery == "" {
 			discovery = "nacos"
 		}
 		switch discovery {
 		case "nacos":
-			host, group = nacos.Nacos.GetServiceURL(service)
+			host, group = registry.Nacos.GetServiceURL(service)
 			if host != "" && !cache.OnGetCache("nacos").IsExist("nacos:subscribe:"+service) {
 				subscribeNacos(service, group)
 				cache.OnGetCache("nacos").Add("nacos:subscribe:"+service, "true", 0)

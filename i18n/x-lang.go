@@ -15,7 +15,7 @@ const (
 )
 
 func mgCall(service, uri string, params map[string]string) models.Result {
-	res, err := client.Client.CallForm(service, uri, params)
+	res, err := client.Nacos.CallForm(service, uri, params)
 	if err != nil {
 		logs.Error("微服务{}{}调用异常:{}", service, uri, err.Error())
 		return models.Error(-1, "xlang service unavailable")

@@ -14,7 +14,7 @@ import (
 	"strings"
 )
 
-type mongodb struct {
+type Mongodb struct {
 	conn       *mgo.Database
 	mongo      *mgo.Session
 	mgodb      string
@@ -27,11 +27,9 @@ type mongodb struct {
 	confUrl    string
 }
 
-var Mongo = &mongodb{}
-
 var logger = gologger.GetLogger()
 
-func (m *mongodb) Init(mongodbConfigUrl string) {
+func (m *Mongodb) Init(mongodbConfigUrl string) {
 	if mongodbConfigUrl != "" {
 		m.confUrl = mongodbConfigUrl
 	}
@@ -39,18 +37,21 @@ func (m *mongodb) Init(mongodbConfigUrl string) {
 		logger.Error("MongoDB配置Url为空")
 		return
 	}
-	if m.conf == nil {
-		resp, err := grequests.Get(m.confUrl, nil)
-		if err != nil {
-			logger.Error("MongoDB配置下载失败! " + err.Error())
-			return
-		}
-		m.conf = koanf.New(".")
-		err = m.conf.Load(rawbytes.Provider([]byte(resp.String())), yaml.Parser())
-		if err != nil {
-			logger.Error("MongoDB配置解析错误:" + err.Error())
-			m.conf = nil
-			return
+	var err error
+	if m.conn == nil && len(m.mongos) == 0 {
+		if m.conf == nil {
+			resp, err := grequests.Get(m.confUrl, nil)
+			if err != nil {
+				logger.Error("MongoDB配置下载失败! " + err.Error())
+				return
+			}
+			m.conf = koanf.New(".")
+			err = m.conf.Load(rawbytes.Provider([]byte(resp.String())), yaml.Parser())
+			if err != nil {
+				logger.Error("MongoDB配置解析错误:" + err.Error())
+				m.conf = nil
+				return
+			}
 		}
 		if m.conf.Bool("go.data.mongodb.debug") {
 			mgo.SetDebug(true)
@@ -65,15 +66,15 @@ func (m *mongodb) Init(mongodbConfigUrl string) {
 			m.mongoUrls = make(map[string]string)
 			dbNames := strings.Split(m.conf.String("go.data.mongodb.dbNames"), ",")
 			for _, dbName := range dbNames {
-				if dbName != "" && m.conf.Exists(fmt.Sprintf("go.data.mongodb.%s.uri", dbName)) {
-					m.mongoUrls[dbName] = m.conf.String(fmt.Sprintf("go.data.mongodb.%s.uri", dbName))
+				if dbName != "" && m.conf.Exists(fmt.Sprintf("go.data.Mongodb.%s.uri", dbName)) {
+					m.mongoUrls[dbName] = m.conf.String(fmt.Sprintf("go.data.Mongodb.%s.uri", dbName))
 					session, err := mgo.Dial(m.mongoUrls[dbName])
 					if err != nil {
 						logger.Error(dbName + " MongoDB连接错误:" + err.Error())
 						continue
 					}
 					m.mongos[dbName] = session
-					m.mgoDbNames[dbName] = m.conf.String(fmt.Sprintf("go.data.mongodb.%s.db", dbName))
+					m.mgoDbNames[dbName] = m.conf.String(fmt.Sprintf("go.data.Mongodb.%s.db", dbName))
 					if m.conf.Int("go.data.mongo_pool.max") > 1 {
 						m.max = m.conf.Int("go.data.mongo_pool.max")
 						if m.max < 10 {
@@ -104,7 +105,7 @@ func (m *mongodb) Init(mongodbConfigUrl string) {
 	}
 }
 
-func (m *mongodb) Close() {
+func (m *Mongodb) Close() {
 	if m.multi {
 		for k, _ := range m.mongos {
 			m.mongos[k].Close()
@@ -117,7 +118,7 @@ func (m *mongodb) Close() {
 	}
 }
 
-func (m *mongodb) mgoCheck(dbName string) error {
+func (m *Mongodb) mgoCheck(dbName string) error {
 	if m.mongos[dbName].Ping() != nil {
 		m.mongos[dbName].Close()
 		session, err := mgo.Dial(m.mongoUrls[dbName])
@@ -132,7 +133,7 @@ func (m *mongodb) mgoCheck(dbName string) error {
 	return nil
 }
 
-func (m *mongodb) Check() {
+func (m *Mongodb) Check() {
 	if (m.conn == nil || m.mongo == nil) && len(m.mongos) == 0 {
 		m.Init("")
 		return
@@ -152,10 +153,10 @@ func (m *mongodb) Check() {
 	}
 }
 
-func (m *mongodb) GetConnection(dbName ...string) (*mgo.Database, error) {
+func (m *Mongodb) GetConnection(dbName ...string) (*mgo.Database, error) {
 	if m.multi {
 		if len(dbName) > 1 || len(dbName) == 0 {
-			return nil, errors.New("Multidb mongodb get connection must be specified one dbName")
+			return nil, errors.New("Multidb Mongodb get connection must be specified one dbName")
 		}
 		err := m.mgoCheck(dbName[0])
 		if err != nil {
@@ -165,12 +166,12 @@ func (m *mongodb) GetConnection(dbName ...string) (*mgo.Database, error) {
 	} else {
 		m.Check()
 		if m.mongo == nil {
-			return nil, errors.New("mongodb connection failed")
+			return nil, errors.New("Mongodb connection failed")
 		}
 		return m.mongo.Copy().DB(m.mgodb), nil
 	}
 }
 
-func (m *mongodb) ReturnConnection(conn *mgo.Database) {
+func (m *Mongodb) ReturnConnection(conn *mgo.Database) {
 	conn.Session.Close()
 }
