@@ -2,12 +2,11 @@ module github.com/maczh/mgin/examples/mgin-server
 
 go 1.17
 
-
 require (
 	github.com/ekyoung/gin-nice-recovery v0.0.0-20160510022553-1654dca486db
 	github.com/gin-gonic/gin v1.8.1
-	github.com/maczh/mgin v1.0.4
-	github.com/maczh/mgrabbit v0.0.1
+	github.com/maczh/mgin v1.0.5
+	github.com/maczh/mgrabbit v0.0.2
 	gopkg.in/mgo.v2 v2.0.0-20190816093944-a6b53ec6cb22
 )
 
