@@ -29,6 +29,17 @@ MGin微服务框架，用于快速创建基于MGin微服务框架的RESTful微�
 - 其他各类的数据库、消息队列等计划与中间件模式实现自动加载
 - Mysql/mongodb/redis已经支持多库连接
 
+### 支持通过插件自动加载外部数据库、消息队列模块
+
+```go
+func (m *mgin) Use(dbConfigName string, dbInit dbInitFunc, dbClose dbCloseFunc, dbCheck dbCheckFunc)
+// 范例
+import "github.com/maczh/mgrabbit"
+...
+//加载RabbitMQ消息队列
+mgin.MGin.Use("rabbitmq", mgrabbit.Rabbit.Init, mgrabbit.Rabbit.Close, nil)
+```
+
 ### 支持的接口协议
 
 - http
