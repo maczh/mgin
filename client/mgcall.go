@@ -375,6 +375,9 @@ func subscribeNacosCallback(services []model.SubscribeService, err error) {
 		if s.Metadata != nil && s.Metadata["ssl"] == "true" {
 			protocal = "https://"
 		}
+		if s.Metadata != nil && s.Metadata["debug"] == "true" {
+			continue
+		}
 		if servicesMap[s.ServiceName] == "" {
 			servicesMap[s.ServiceName] = protocal + s.Ip + ":" + strconv.Itoa(int(s.Port))
 		} else {
