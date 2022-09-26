@@ -371,10 +371,14 @@ func subscribeNacosCallback(services []model.SubscribeService, err error) {
 	}
 	servicesMap := make(map[string]string)
 	for _, s := range services {
+		protocal := "http://"
+		if s.Metadata != nil && s.Metadata["ssl"] == "true" {
+			protocal = "https://"
+		}
 		if servicesMap[s.ServiceName] == "" {
-			servicesMap[s.ServiceName] = "http://" + s.Ip + ":" + s.Ip + strconv.Itoa(int(s.Port))
+			servicesMap[s.ServiceName] = protocal + s.Ip + ":" + strconv.Itoa(int(s.Port))
 		} else {
-			servicesMap[s.ServiceName] = servicesMap[s.ServiceName] + ",http://" + s.Ip + ":" + s.Ip + strconv.Itoa(int(s.Port))
+			servicesMap[s.ServiceName] = servicesMap[s.ServiceName] + "," + protocal + s.Ip + ":" + strconv.Itoa(int(s.Port))
 		}
 	}
 	for serviceName, host := range servicesMap {
