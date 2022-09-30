@@ -128,11 +128,11 @@ func handleAccessChannel() {
 				logs.Error("MongoDB连接失败:{}", err.Error())
 				continue
 			}
-			defer db.Mongo.ReturnConnection(conn)
 			err = conn.C(config.Config.Log.RequestTableName).Insert(postLog)
 			if err != nil {
 				logs.Error("MongoDB写入错误:" + err.Error())
 			}
+			db.Mongo.ReturnConnection(conn)
 		case "elasticsearch":
 			doc := make(map[string]interface{})
 			utils.FromJSON(utils.ToJSON(postLog), &doc)
