@@ -17,7 +17,7 @@ go:
       nacos: nacos
   discovery:
     registry: nacos
-    callType: json
+    callType: x-form
   log:
     req: MginServerRequestLog
     db: mongodb
