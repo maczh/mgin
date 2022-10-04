@@ -14,6 +14,12 @@ type mgin struct {
 	plugins map[string]plugin
 }
 
+type MginPlugin interface {
+	Init(configUrl string)
+	Close()
+	Check()
+}
+
 type plugin struct {
 	InitFunc  dbInitFunc
 	CloseFunc dbCloseFunc
@@ -26,6 +32,10 @@ var logger = gologger.GetLogger()
 type dbInitFunc func(configUrl string)
 type dbCloseFunc func()
 type dbCheckFunc func()
+
+func (m *mgin) UsePlugin(dbConfigName string, mginPlugin MginPlugin) {
+	m.Use(dbConfigName, mginPlugin.Init, mginPlugin.Close, mginPlugin.Check)
+}
 
 func (m *mgin) Use(dbConfigName string, dbInit dbInitFunc, dbClose dbCloseFunc, dbCheck dbCheckFunc) {
 	if !strings.Contains(config.Config.Config.Used, dbConfigName) {
