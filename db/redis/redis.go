@@ -163,22 +163,31 @@ func (r *RedisClient) redisCheck(dbName string) error {
 	return nil
 }
 
-func (r *RedisClient) Check() {
+func (r *RedisClient) Check() error {
+	var err error
 	if r.client == nil && len(r.clients) == 0 {
 		r.Init("")
-		return
 	}
 	if r.multi {
 		for dbName, _ := range r.cfgs {
-			_ = r.redisCheck(dbName)
+			err = r.redisCheck(dbName)
+			if err != nil {
+				logger.Error(dbName + " Redis检查失败:" + err.Error())
+			}
 		}
 	} else {
-		if err := r.client.Ping().Err(); err != nil {
+		if err = r.client.Ping().Err(); err != nil {
 			logger.Error("Redis连接故障:" + err.Error())
 			r.Close()
 			r.Init("")
+			if err = r.client.Ping().Err(); err != nil {
+				logger.Error("Redis重新连接之后依然故障:" + err.Error())
+			} else {
+				logger.Error("Redis重新连接成功")
+			}
 		}
 	}
+	return err
 }
 
 func (r *RedisClient) GetConnection(dbName ...string) (*redis.Client, error) {
@@ -192,8 +201,8 @@ func (r *RedisClient) GetConnection(dbName ...string) (*redis.Client, error) {
 		}
 		return r.clients[dbName[0]], nil
 	} else {
-		r.Check()
-		if r.client == nil {
+		err := r.Check()
+		if err != nil {
 			return nil, errors.New("redis connection failed")
 		}
 		return r.client, nil

@@ -166,18 +166,20 @@ func mySqlCheck(m *MysqlClient) (*gorm.DB, error) {
 	return m.mysql, nil
 }
 
-func (m *MysqlClient) Check() {
+func (m *MysqlClient) Check() error {
+	var err error
 	if m.multi {
-		err := mySqlsCheck(m)
+		err = mySqlsCheck(m)
 		if err != nil {
 			logger.Error(err.Error())
 		}
 	} else {
-		_, err := mySqlCheck(m)
+		_, err = mySqlCheck(m)
 		if err != nil {
 			logger.Error(err.Error())
 		}
 	}
+	return err
 }
 
 func (m *MysqlClient) GetConnection(dbName ...string) (*gorm.DB, error) {

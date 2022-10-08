@@ -133,24 +133,32 @@ func (m *Mongodb) mgoCheck(dbName string) error {
 	return nil
 }
 
-func (m *Mongodb) Check() {
+func (m *Mongodb) Check() error {
+	var err error
 	if (m.conn == nil || m.mongo == nil) && len(m.mongos) == 0 {
 		m.Init("")
-		return
 	}
 	if m.multi {
 		for dbName, _ := range m.mongos {
 			err := m.mgoCheck(dbName)
 			if err != nil {
+				logger.Error(dbName + "连接检查失败:" + err.Error())
 				continue
 			}
 		}
 	} else {
-		if m.mongo.Ping() != nil {
+		if err = m.mongo.Ping(); err != nil {
+			logger.Error("MongoDB连接ping失败:" + err.Error())
 			m.Close()
 			m.Init("")
+			if err = m.mongo.Ping(); err != nil {
+				logger.Error("MongoDB重新连接之后依然ping失败:" + err.Error())
+			} else {
+				logger.Error("MongoDB重新连接之后ping成功")
+			}
 		}
 	}
+	return err
 }
 
 func (m *Mongodb) GetConnection(dbName ...string) (*mgo.Database, error) {

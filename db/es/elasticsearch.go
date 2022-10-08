@@ -1,6 +1,7 @@
 package es
 
 import (
+	"fmt"
 	"github.com/knadh/koanf"
 	"github.com/knadh/koanf/parsers/yaml"
 	"github.com/knadh/koanf/providers/rawbytes"
@@ -70,8 +71,14 @@ func (e *ElasticSearch) Close() {
 	e.Elastic = nil
 }
 
-func (e *ElasticSearch) Check() {
+func (e *ElasticSearch) Check() error {
 	if e.Elastic == nil || !e.Elastic.IsRunning() {
+		logger.Error("Elasticsearch检查连接异常,尝试重连中")
 		e.Init("")
+		if e.Elastic == nil || !e.Elastic.IsRunning() {
+			logger.Error("Elasticsearch重新连接失败")
+			return fmt.Errorf("Elasticsearch连接检查失败")
+		}
 	}
+	return nil
 }

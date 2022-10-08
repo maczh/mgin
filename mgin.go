@@ -17,7 +17,7 @@ type mgin struct {
 type MginPlugin interface {
 	Init(configUrl string)
 	Close()
-	Check()
+	Check() error
 }
 
 type plugin struct {
@@ -31,7 +31,7 @@ var logger = gologger.GetLogger()
 
 type dbInitFunc func(configUrl string)
 type dbCloseFunc func()
-type dbCheckFunc func()
+type dbCheckFunc func() error
 
 func (m *mgin) UsePlugin(dbConfigName string, mginPlugin MginPlugin) {
 	m.Use(dbConfigName, mginPlugin.Init, mginPlugin.Close, mginPlugin.Check)
@@ -102,28 +102,43 @@ func Init(configFile string) {
 func (m *mgin) checkAll() {
 
 	configs := config.Config.Config.Used
-
+	var err error
 	if strings.Contains(configs, "mysql") {
 		logger.Info("正在检查MySQL")
-		db.Mysql.Check()
+		err = db.Mysql.Check()
+		if err != nil {
+			logs.Error("MySQL check failed： {}", err.Error())
+		}
 	}
 	if strings.Contains(configs, "mongodb") {
 		logger.Info("正在检查MongoDB")
-		db.Mongo.Check()
+		err = db.Mongo.Check()
+		if err != nil {
+			logs.Error("MongoDB check failed： {}", err.Error())
+		}
 	}
 	if strings.Contains(configs, "redis") {
 		logger.Info("正在检查Redis")
-		db.Redis.Check()
+		err = db.Redis.Check()
+		if err != nil {
+			logs.Error("Redis check failed： {}", err.Error())
+		}
 	}
 	if strings.Contains(configs, "elasticsearch") {
 		logger.Info("正在检查ElasticSearch")
-		db.ElasticSearch.Check()
+		err = db.ElasticSearch.Check()
+		if err != nil {
+			logs.Error("ElasticSearch check failed： {}", err.Error())
+		}
 	}
 	if m.plugins != nil {
 		for dbConfigName, pl := range m.plugins {
 			if pl.CheckFunc != nil {
 				logs.Info("正在检查{}", dbConfigName)
-				pl.CheckFunc()
+				err := pl.CheckFunc()
+				if err != nil {
+					logs.Error("{}连接检查失败:{}", dbConfigName, err.Error())
+				}
 			}
 		}
 	}
