@@ -2,6 +2,7 @@ package nacos
 
 import (
 	jsoniter "github.com/json-iterator/go"
+	"github.com/maczh/mgin/cache"
 	"github.com/maczh/mgin/config"
 	"github.com/sadlil/gologger"
 	"net"
@@ -9,6 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/knadh/koanf"
 	"github.com/knadh/koanf/parsers/yaml"
@@ -153,36 +155,43 @@ func (n *NacosClient) Register(nacosConfigUrl string) {
 }
 
 func (n *NacosClient) GetServiceURL(servicename string) (string, string) {
-	var instance *model.Instance
+	var instances []model.Instance
 	var err error
 	serviceGroup := n.group
-	for i := 0; i < 3; i++ {
-		instance, err = n.client.SelectOneHealthyInstance(vo.SelectOneHealthInstanceParam{
+	instances, err = n.client.SelectAllInstances(vo.SelectAllInstancesParam{
+		ServiceName: servicename,
+		Clusters:    []string{n.cluster},
+		GroupName:   serviceGroup,
+	})
+	if err != nil || len(instances) == 0 {
+		serviceGroup = "DEFAULT_GROUP"
+		instances, err = n.client.SelectAllInstances(vo.SelectAllInstancesParam{
 			ServiceName: servicename,
 			Clusters:    []string{n.cluster},
 			GroupName:   serviceGroup,
 		})
 		if err != nil {
-			serviceGroup = "DEFAULT_GROUP"
-			instance, err = n.client.SelectOneHealthyInstance(vo.SelectOneHealthInstanceParam{
-				ServiceName: servicename,
-				Clusters:    []string{n.cluster},
-				GroupName:   serviceGroup,
-			})
-			if err != nil {
-				logger.Error("获取Nacos服务" + servicename + "失败:" + err.Error())
-				return "", ""
-			}
+			logger.Error("获取Nacos服务" + servicename + "失败:" + err.Error())
+			return "", ""
 		}
+	}
+	url := ""
+	urls := make([]string, 0)
+	for _, instance := range instances {
 		if instance.Metadata != nil && instance.Metadata["debug"] != "true" {
-			break
+			continue
 		}
+		if !instance.Healthy {
+			continue
+		}
+		url := "http://" + instance.Ip + ":" + strconv.Itoa(int(instance.Port))
+		if instance.Metadata != nil && instance.Metadata["ssl"] == "true" {
+			url = "https://" + instance.Ip + ":" + strconv.Itoa(int(instance.Port))
+		}
+		urls = append(urls, url)
+		logger.Debug("Nacos获取" + servicename + "服务成功:" + url)
 	}
-	url := "http://" + instance.Ip + ":" + strconv.Itoa(int(instance.Port))
-	if instance.Metadata != nil && instance.Metadata["ssl"] == "true" {
-		url = "https://" + instance.Ip + ":" + strconv.Itoa(int(instance.Port))
-	}
-	logger.Debug("Nacos获取" + servicename + "服务成功:" + url)
+	cache.OnGetCache("nacos").Add(servicename, strings.Join(urls, ","), 5*time.Minute)
 	return url, serviceGroup
 }
 
