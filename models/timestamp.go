@@ -3,6 +3,7 @@ package models
 import (
 	"database/sql/driver"
 	"fmt"
+	"gopkg.in/mgo.v2/bson"
 	"strconv"
 	"time"
 )
@@ -14,6 +15,20 @@ func (t Timestamp) MarshalJSON() ([]byte, error) {
 	//do your serializing here
 	stamp := fmt.Sprintf("%d", time.Time(t).UnixMilli())
 	return []byte(stamp), nil
+}
+
+func (t Timestamp) GetBSON() (interface{}, error) {
+	return time.Time(t), nil
+}
+
+func (t *Timestamp) SetBSON(raw bson.Raw) error {
+	var tm time.Time
+	err := raw.Unmarshal(&tm)
+	if err != nil {
+		return err
+	}
+	*t = Timestamp(tm)
+	return nil
 }
 
 func (t *Timestamp) UnmarshalJSON(data []byte) (err error) {
