@@ -27,7 +27,7 @@ var Nacos = &mginClient{}
 //Call 微服务调用其他服务的接口
 // x-form模式 Call(service string, uri string, params map[string]string)
 // json模式 Call(service string, uri string, method string, queryParams map[string]string, jsonBody interface{})
-// restful模式 Call(service string, uri string, method string, pathParams map[string]string, jsonBody interface{})
+// restful模式 Call(service string, uri string, method string, pathParams map[string]string, queryparams map[string]string, header map[string]string, jsonBody interface{})
 func (c *mginClient) Call(service string, uri string, params ...interface{}) (string, error) {
 	if c.reqType == "" {
 		c.reqType = config.Config.Discovery.CallType
@@ -62,7 +62,7 @@ func (c *mginClient) Call(service string, uri string, params ...interface{}) (st
 		}
 	case "restful":
 		method := "GET"
-		var pathParams map[string]string
+		var pathParams, queryParams, header map[string]string
 		var body interface{}
 		switch len(params) {
 		case 0:
@@ -76,12 +76,25 @@ func (c *mginClient) Call(service string, uri string, params ...interface{}) (st
 			method = params[0].(string)
 			pathParams = params[1].(map[string]string)
 			body = params[2]
+		case 4:
+			method = params[0].(string)
+			pathParams = params[1].(map[string]string)
+			queryParams = params[2].(map[string]string)
+			body = params[3]
+		case 5:
+			method = params[0].(string)
+			pathParams = params[1].(map[string]string)
+			queryParams = params[2].(map[string]string)
+			header = params[3].(map[string]string)
+			body = params[4]
 		default:
 			method = params[0].(string)
 			pathParams = params[1].(map[string]string)
-			body = params[2]
+			queryParams = params[2].(map[string]string)
+			header = params[3].(map[string]string)
+			body = params[4]
 		}
-		return RestfulWithHeader(method, service, uri, pathParams, nil, body)
+		return RestfulWithHeader(method, service, uri, pathParams, queryParams, header, body)
 	default:
 		return "", fmt.Errorf("微服务接口协议模式设置错误")
 	}
@@ -99,8 +112,8 @@ func (c *mginClient) CallJson(service string, uri string, method string, queryPa
 	}
 }
 
-func (c *mginClient) CallRestful(service string, uri string, method string, pathParams map[string]string, jsonBody interface{}) (string, error) {
-	return RestfulWithHeader(method, service, uri, pathParams, map[string]string{}, jsonBody)
+func (c *mginClient) CallRestful(service string, uri string, method string, pathParams, queryParams, header map[string]string, jsonBody interface{}) (string, error) {
+	return RestfulWithHeader(method, service, uri, pathParams, queryParams, header, jsonBody)
 }
 
 func Get(service string, uri string, params map[string]string) (string, error) {

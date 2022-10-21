@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-func RestfulWithHeader(method, service string, uri string, pathparams map[string]string, header map[string]string, body interface{}) (string, error) {
+func RestfulWithHeader(method, service string, uri string, pathparams map[string]string, queryparams map[string]string, header map[string]string, body interface{}) (string, error) {
 	host, err := getHostFromCache(service)
 	group := "DEFAULT_GROUP"
 	if err != nil || host == "" {
@@ -55,36 +55,42 @@ func RestfulWithHeader(method, service string, uri string, pathparams map[string
 	case "GET":
 		resp, err = grequests.Get(url, &grequests.RequestOptions{
 			Headers:            header,
+			Params:             queryparams,
 			InsecureSkipVerify: true,
 			JSON:               body,
 		})
 	case "POST":
 		resp, err = grequests.Post(url, &grequests.RequestOptions{
 			Headers:            header,
+			Params:             queryparams,
 			InsecureSkipVerify: true,
 			JSON:               body,
 		})
 	case "DELETE":
 		resp, err = grequests.Delete(url, &grequests.RequestOptions{
 			Headers:            header,
+			Params:             queryparams,
 			InsecureSkipVerify: true,
 			JSON:               body,
 		})
 	case "PUT":
 		resp, err = grequests.Put(url, &grequests.RequestOptions{
 			Headers:            header,
+			Params:             queryparams,
 			InsecureSkipVerify: true,
 			JSON:               body,
 		})
 	case "OPTIONS":
 		resp, err = grequests.Options(url, &grequests.RequestOptions{
 			Headers:            header,
+			Params:             queryparams,
 			InsecureSkipVerify: true,
 			JSON:               body,
 		})
 	case "HEAD":
 		resp, err = grequests.Head(url, &grequests.RequestOptions{
 			Headers:            header,
+			Params:             queryparams,
 			InsecureSkipVerify: true,
 			JSON:               body,
 		})
@@ -116,36 +122,42 @@ func RestfulWithHeader(method, service string, uri string, pathparams map[string
 		case "GET":
 			resp, err = grequests.Get(url, &grequests.RequestOptions{
 				Headers:            header,
+				Params:             queryparams,
 				InsecureSkipVerify: true,
 				JSON:               body,
 			})
 		case "POST":
 			resp, err = grequests.Post(url, &grequests.RequestOptions{
 				Headers:            header,
+				Params:             queryparams,
 				InsecureSkipVerify: true,
 				JSON:               body,
 			})
 		case "DELETE":
 			resp, err = grequests.Delete(url, &grequests.RequestOptions{
 				Headers:            header,
+				Params:             queryparams,
 				InsecureSkipVerify: true,
 				JSON:               body,
 			})
 		case "PUT":
 			resp, err = grequests.Put(url, &grequests.RequestOptions{
 				Headers:            header,
+				Params:             queryparams,
 				InsecureSkipVerify: true,
 				JSON:               body,
 			})
 		case "OPTIONS":
 			resp, err = grequests.Options(url, &grequests.RequestOptions{
 				Headers:            header,
+				Params:             queryparams,
 				InsecureSkipVerify: true,
 				JSON:               body,
 			})
 		case "HEAD":
 			resp, err = grequests.Head(url, &grequests.RequestOptions{
 				Headers:            header,
+				Params:             queryparams,
 				InsecureSkipVerify: true,
 				JSON:               body,
 			})
