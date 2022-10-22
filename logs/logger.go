@@ -1,6 +1,7 @@
 package logs
 
 import (
+	"fmt"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/maczh/mgin/config"
 	"github.com/maczh/mgin/middleware/trace"
@@ -61,7 +62,7 @@ func OutPrint(format string, v []interface{}) string {
 		case float32, float64:
 			str = strconv.FormatFloat(value.(float64), 'f', 6, 32)
 		case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, uintptr:
-			str = strconv.Itoa(value.(int))
+			str = fmt.Sprintf("%d", value)
 		case string:
 			str = value.(string)
 		case []byte:

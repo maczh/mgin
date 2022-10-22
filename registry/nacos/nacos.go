@@ -178,13 +178,13 @@ func (n *NacosClient) GetServiceURL(servicename string) (string, string) {
 	url := ""
 	urls := make([]string, 0)
 	for _, instance := range instances {
-		if instance.Metadata != nil && instance.Metadata["debug"] != "true" {
+		if instance.Metadata != nil && instance.Metadata["debug"] == "true" {
 			continue
 		}
 		if !instance.Healthy {
 			continue
 		}
-		url := "http://" + instance.Ip + ":" + strconv.Itoa(int(instance.Port))
+		url = "http://" + instance.Ip + ":" + strconv.Itoa(int(instance.Port))
 		if instance.Metadata != nil && instance.Metadata["ssl"] == "true" {
 			url = "https://" + instance.Ip + ":" + strconv.Itoa(int(instance.Port))
 		}
