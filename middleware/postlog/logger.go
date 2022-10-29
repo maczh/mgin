@@ -95,6 +95,12 @@ func RequestLogger() gin.HandlerFunc {
 		postLog.AppName = config.Config.App.Name
 		postLog.RequestId = trace.GetRequestId()
 		postLog.ContentType = c.ContentType()
+		postLog.RequestHeader = utils.GinHeaders(c)
+		ip := c.Request.Header.Get("X-Forward-For")
+		if ip == "" {
+			ip = c.ClientIP()
+		}
+		postLog.ClientIP = ip
 		postLog.Requestparam = params
 		postLog.Responsetime = endTime.Format("2006-01-02 15:04:05")
 		postLog.Responsemap = result
@@ -142,6 +148,13 @@ func handleAccessChannel() {
 				continue
 			}
 			logs.Debug("日志写入ElasticSearch返回:{}", resp)
+		}
+		//是否写入到kafka
+		if config.Config.Log.Kafka.Use && strings.Contains(config.Config.Config.Used, "kafka") {
+			err := db.Kafka.Send(config.Config.Log.Kafka.Topic, utils.ToJSON(postLog))
+			if err != nil {
+				logs.Error("接口日志发送到kafka失败:{}", err.Error())
+			}
 		}
 	}
 	return

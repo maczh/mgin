@@ -26,6 +26,7 @@ MGin微服务框架，用于快速创建基于MGin微服务框架的RESTful微�
 - MongoDB (mgo v2)
 - Redis (go-redis)
 - ElasitcSearch (olivere/elastic)
+- Kafka  
 - 其他各类的数据库、消息队列等计划与中间件模式实现自动加载
 - Mysql/mongodb/redis已经支持多库连接
 
@@ -80,13 +81,14 @@ go:
     server: http://192.168.1.5:8848/    #配置服务器地址
     server_type: nacos                  #配置服务器类型 nacos,consul,springconfig
     env: test                           #配置环境 一般常用test/prod/dev等，跟相应配置文件匹配
-    used: nacos,mysql,mongodb,redis     #当前应用启用的配置
+    used: nacos,mysql,mongodb,redis,kafka     #当前应用启用的配置
     prefix:                             #配置文件名前缀定义
       mysql: mysql                      #mysql对应的配置文件名前缀，如当前配置中对应的配置文件名为 mysql-test.yml
       mongodb: mongodb
       redis: redis
       nacos: nacos
       elasticsearch: elasticsearch
+      kafka: kafka
   logger:                 #控制台日志与文件日志输出，logs包的输出
     level: debug
     out: console,file          #日志输出到控制台与文件
@@ -95,6 +97,9 @@ go:
     db: mongodb           #日志库，支持mongodb与elasticsearch
     req: MyappRequestLog  #接口访问日志表名称，在es中使用工程名称${go.application.project}_${go.log.req}作为索引名
     call: MyappCallLog    #微服务调用日志表，表名规则同上
+    kafka:
+      use: true           #接口日志是否发送到kafka
+      topic: myapp        #kafka消息主题
 ```
 + mysql配置范例 mysql-test.yml
 ```yaml
@@ -210,6 +215,7 @@ go:
     lan: true   #以内网地址注册，否则以公网地址注册
     lanNet: 192.168.3.    #网段前缀
 ```
+
 + Elasticsearch配置范例 elasticsearch-test.yml
 ```yaml
 go:
@@ -219,6 +225,42 @@ go:
     password: ***********
 ```
 
++ Kafka连接配置范例 Kafka-test.yml
+```yaml
+go:
+  data:
+    kafka:
+      servers: "xxx.xxx.xxx.xxx:9092,xxx.xxx.xxx.xxx:9092"   #集群多个服务器之间用逗号分隔
+      ack: all    #ack模式 no,local,all
+      auto_commit: true   #是否自动提交
+      partitioner: hash   #分区选择模式 hash,random,round-robin
+      version: 2.8.1    #kafka版本
+```
+
+#### kafka发送消息
+```go
+    db.Kafka.Send("my_topic", "测试消息")
+```
+
+#### kafka侦听主题消息并处理
+
+- 定义消息处理函数
+```go
+func handleMsg(msg string) error {
+	logs.Debug("收到Kafka消息:{}",msg)
+	return nil
+}
+
+```
+
+- 在main.go中添加侦听代码
+```go
+	//侦听kafka消息，说明，一个topic对应一个groupId
+	err := db.Kafka.MessageListener("my_group_id","my_topic",handleMsg)
+	if err != nil {
+		logs.Error("侦听kafka消息失败")
+	}
+```
 
 ### 微服务工程范例
 

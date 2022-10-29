@@ -83,6 +83,11 @@ func Init(configFile string) {
 		db.ElasticSearch.Init(config.Config.GetConfigUrl(config.Config.Config.Prefix.Elasticsearch))
 		logger.Info("连接ElasticSearch成功")
 	}
+	if strings.Contains(configs, "kafka") {
+		logger.Info("正在连接到Kafka")
+		db.Kafka.Init(config.Config.GetConfigUrl(config.Config.Config.Prefix.Kafka))
+		logger.Info("连接到Kafka成功")
+	}
 	if strings.Contains(configs, "nacos") {
 		logger.Info("正在注册到Nacos")
 		registry.Nacos.Register(config.Config.GetConfigUrl(config.Config.Config.Prefix.Nacos))
@@ -131,6 +136,13 @@ func (m *mgin) checkAll() {
 			logs.Error("ElasticSearch check failed： {}", err.Error())
 		}
 	}
+	if strings.Contains(configs, "kafka") {
+		logger.Info("正在检查kafka")
+		err = db.Kafka.Check()
+		if err != nil {
+			logs.Error("Kafka check failed： {}", err.Error())
+		}
+	}
 	if m.plugins != nil {
 		for dbConfigName, pl := range m.plugins {
 			if pl.CheckFunc != nil {
@@ -162,6 +174,10 @@ func (m *mgin) SafeExit() {
 	if strings.Contains(configs, "elasticsearch") {
 		logger.Info("正在关闭ElasticSearch连接")
 		db.ElasticSearch.Close()
+	}
+	if strings.Contains(configs, "kafka") {
+		logger.Info("正在关闭Kafka连接")
+		db.Kafka.Close()
 	}
 	if strings.Contains(configs, "nacos") {
 		logger.Info("正在注销Nacos")

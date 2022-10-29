@@ -9,7 +9,6 @@ import (
 	"github.com/maczh/mgin/config"
 	"github.com/maczh/mgin/i18n"
 	"github.com/maczh/mgin/logs"
-	"github.com/maczh/mgrabbit"
 	"net/http"
 	"os"
 	"os/signal"
@@ -49,7 +48,7 @@ func main() {
 	i18n.Init()
 
 	//加载RabbitMQ消息队列
-	mgin.MGin.Use("rabbitmq", mgrabbit.Rabbit.Init, mgrabbit.Rabbit.Close, nil)
+	//mgin.MGin.Use("rabbitmq", mgrabbit.Rabbit.Init, mgrabbit.Rabbit.Close, nil)
 
 	engine := setupRouter()
 

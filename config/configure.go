@@ -38,6 +38,7 @@ type appConfig struct {
 		Redis         string `json:"redis" bson:"redis"`
 		Nacos         string `json:"nacos" bson:"nacos"`
 		Elasticsearch string `json:"elasticsearch" bson:"elasticsearch"`
+		Kafka         string `json:"kafka" bson:"kafka"`
 	} `json:"prefix" bson:"prefix"`
 }
 
@@ -51,6 +52,10 @@ type appLog struct {
 	RequestTableName string `json:"request" bson:"request"`
 	CallTableName    string `json:"call" bson:"call"`
 	LogDb            string `json:"logDb" bson:"logDb"`
+	Kafka            struct {
+		Use   bool   `json:"use" bson:"use"`
+		Topic string `json:"topic" bson:"topic"`
+	} `json:"kafka" bson:"kafka"`
 }
 
 type discovery struct {
@@ -92,9 +97,15 @@ func (c *config) Init(cf string) {
 	c.Config.Prefix.Redis = c.Cnf.String("go.config.prefix.redis")
 	c.Config.Prefix.Elasticsearch = c.Cnf.String("go.config.prefix.elasticsearch")
 	c.Config.Prefix.Nacos = c.Cnf.String("go.config.prefix.nacos")
+	c.Config.Prefix.Kafka = c.Cnf.String("go.config.prefix.kafka")
 	c.Log.LogDb = c.Cnf.String("go.log.db")
 	c.Log.RequestTableName = c.Cnf.String("go.log.req")
 	c.Log.CallTableName = c.Cnf.String("go.log.call")
+	c.Log.Kafka.Use = c.Cnf.Bool("go.log.kafka.use")
+	c.Log.Kafka.Topic = c.Cnf.String("go.log.kafka.topic")
+	if c.Log.Kafka.Topic == "" {
+		c.Log.Kafka.Topic = c.App.Name
+	}
 	c.Logger.Level = c.Cnf.String("go.logger.level")
 	c.Logger.Out = c.Cnf.String("go.logger.out")
 	c.Logger.File = c.Cnf.String("go.logger.file")

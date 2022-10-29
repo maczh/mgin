@@ -21,3 +21,11 @@ func GinParamMap(c *gin.Context) map[string]string {
 		return params
 	}
 }
+
+func GinHeaders(c *gin.Context) map[string]string {
+	headers := make(map[string]string)
+	for k, v := range c.Request.Header {
+		headers[k] = v[0]
+	}
+	return headers
+}
