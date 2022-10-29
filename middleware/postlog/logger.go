@@ -111,7 +111,7 @@ func RequestLogger() gin.HandlerFunc {
 		logs.Debug("请求参数:{}", params)
 		logs.Debug("接口返回:{}", result)
 
-		if config.Config.Log.RequestTableName != "" {
+		if config.Config.Log.RequestTableName != "" || config.Config.Log.Kafka.Use {
 			accessChannel <- utils.ToJSON(postLog)
 		}
 	}
@@ -122,11 +122,18 @@ func handleAccessChannel() {
 		config.Config.Log.LogDb = "mongodb"
 	}
 	for accessLog := range accessChannel {
-		if config.Config.Log.RequestTableName == "" {
-			continue
+		//是否写入到kafka
+		if config.Config.Log.Kafka.Use {
+			err := db.Kafka.Send(config.Config.Log.Kafka.Topic, accessLog)
+			if err != nil {
+				logs.Error("接口日志发送到kafka失败:{}", err.Error())
+			}
 		}
 		var postLog models.PostLog
 		json.Unmarshal([]byte(accessLog), &postLog)
+		if config.Config.Log.RequestTableName == "" {
+			continue
+		}
 		switch config.Config.Log.LogDb {
 		case "mongodb":
 			conn, err := db.Mongo.GetConnection()
@@ -148,13 +155,6 @@ func handleAccessChannel() {
 				continue
 			}
 			logs.Debug("日志写入ElasticSearch返回:{}", resp)
-		}
-		//是否写入到kafka
-		if config.Config.Log.Kafka.Use && strings.Contains(config.Config.Config.Used, "kafka") {
-			err := db.Kafka.Send(config.Config.Log.Kafka.Topic, utils.ToJSON(postLog))
-			if err != nil {
-				logs.Error("接口日志发送到kafka失败:{}", err.Error())
-			}
 		}
 	}
 	return

@@ -25,10 +25,10 @@ type Kafka struct {
 var logger = gologger.GetLogger()
 
 func (k *Kafka) getConfig() *sarama.Config {
-	ack := k.conf.String("go.data.Kafka.ack")
-	autoCommit := k.conf.Bool("go.data.Kafka.auto_commit")
-	partitioner := k.conf.String("go.data.Kafka.partitioner")
-	ver := k.conf.String("go.data.Kafka.version")
+	ack := k.conf.String("go.data.kafka.ack")
+	autoCommit := k.conf.Bool("go.data.kafka.auto_commit")
+	partitioner := k.conf.String("go.data.kafka.partitioner")
+	ver := k.conf.String("go.data.kafka.version")
 	acks := map[string]sarama.RequiredAcks{
 		"no":    sarama.NoResponse,
 		"local": sarama.WaitForLocal,
@@ -74,7 +74,7 @@ func (k *Kafka) Init(kafkaConfigUrl string) {
 			return
 		}
 	}
-	k.servers = strings.Split(k.conf.String("go.data.Kafka.servers"), ",")
+	k.servers = strings.Split(k.conf.String("go.data.kafka.servers"), ",")
 	k.config = k.getConfig()
 	client, err := sarama.NewClient(k.servers, k.getConfig())
 	if err != nil {
@@ -165,6 +165,7 @@ func (k *Kafka) Send(topic, data string) error {
 		Value: sarama.StringEncoder(data),
 	}
 	producer.Input() <- msg
+	logger.Debug(fmt.Sprintf("Kafka发送消息到%s成功!内容:%s", topic, data))
 	return nil
 }
 
