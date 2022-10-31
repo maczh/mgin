@@ -124,9 +124,12 @@ func handleAccessChannel() {
 	for accessLog := range accessChannel {
 		//是否写入到kafka
 		if config.Config.Log.Kafka.Use {
-			err := db.Kafka.Send(config.Config.Log.Kafka.Topic, accessLog)
-			if err != nil {
-				logs.Error("接口日志发送到kafka失败:{}", err.Error())
+			topics := strings.Split(config.Config.Log.Kafka.Topic, ",")
+			for _, topic := range topics {
+				err := db.Kafka.Send(topic, accessLog)
+				if err != nil {
+					logs.Error("接口日志发送到kafka的{}主题失败:{}", topic, err.Error())
+				}
 			}
 		}
 		var postLog models.PostLog
