@@ -8,7 +8,7 @@ type PostLog struct {
 	ID            bson.ObjectId          `bson:"_id"`
 	Time          string                 `json:"time" bson:"time"`
 	RequestId     string                 `json:"requestId" bson:"requestId"`
-	Responsetime  string                 `json:"responsetime" bson:"responsetime"`
+	ResponseTime  string                 `json:"responseTime" bson:"responseTime"`
 	TTL           int                    `json:"ttl" bson:"ttl"`
 	AppName       string                 `json:"appName" bson:"appName"`
 	Apiname       string                 `json:"apiName" bson:"apiName"`
@@ -17,7 +17,7 @@ type PostLog struct {
 	Uri           string                 `json:"uri" bson:"uri"`
 	ClientIP      string                 `json:"clientIP" bson:"clientIP"`
 	RequestHeader map[string]string      `json:"requestHeader" bson:"requestHeader"`
-	Requestparam  interface{}            `json:"requestparam" bson:"requestparam"`
-	Responsestr   string                 `json:"responsestr" bson:"responsestr"`
-	Responsemap   map[string]interface{} `json:"responsemap" bson:"responsemap"`
+	RequestParam  interface{}            `json:"requestParam" bson:"requestParam"`
+	ResponseStr   string                 `json:"responseStr" bson:"responseStr"`
+	ResponseMap   map[string]interface{} `json:"responseMap" bson:"responseMap"`
 }

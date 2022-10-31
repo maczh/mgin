@@ -96,14 +96,17 @@ func RequestLogger() gin.HandlerFunc {
 		postLog.RequestId = trace.GetRequestId()
 		postLog.ContentType = c.ContentType()
 		postLog.RequestHeader = utils.GinHeaders(c)
-		ip := c.Request.Header.Get("X-Forward-For")
+		ip := c.GetHeader("X-Forward-For")
 		if ip == "" {
-			ip = c.ClientIP()
+			ip = c.GetHeader("X-Real-IP")
+			if ip == "" {
+				ip = c.ClientIP()
+			}
 		}
 		postLog.ClientIP = ip
-		postLog.Requestparam = params
-		postLog.Responsetime = endTime.Format("2006-01-02 15:04:05")
-		postLog.Responsemap = result
+		postLog.RequestParam = params
+		postLog.ResponseTime = endTime.Format("2006-01-02 15:04:05")
+		postLog.ResponseMap = result
 		postLog.TTL = int(endTime.UnixNano()/1e6 - startTime.UnixNano()/1e6)
 
 		accessLog := "|" + c.Request.Method + "|" + postLog.Uri + "|" + c.ClientIP() + "|" + endTime.Format("2006-01-02 15:04:05.012") + "|" + fmt.Sprintf("%vms", endTime.UnixNano()/1e6-startTime.UnixNano()/1e6)
