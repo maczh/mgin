@@ -99,7 +99,7 @@ go:
     call: MyappCallLog    #微服务调用日志表，表名规则同上
     kafka:
       use: true           #接口日志是否发送到kafka
-      topic: myapp        #kafka消息主题
+      topic: myapp        #kafka消息主题,支持多个topic，以逗号分隔
 ```
 + mysql配置范例 mysql-test.yml
 ```yaml
