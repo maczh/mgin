@@ -4,7 +4,7 @@ import "fmt"
 
 func DisplaySize(raw float64) string {
 	if raw < 1024 {
-		return fmt.Sprintf("%.1fB", raw)
+		return fmt.Sprintf("%.1f", raw)
 	}
 
 	if raw < 1024*1024 {
