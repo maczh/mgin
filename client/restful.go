@@ -40,7 +40,7 @@ func RestfulWithHeader(method, service string, uri string, pathparams map[string
 		}
 	}
 	for k, v := range pathparams {
-		strings.ReplaceAll(uri, fmt.Sprintf("{%s}", k), url.PathEscape(v))
+		uri = strings.ReplaceAll(uri, fmt.Sprintf("{%s}", k), url.PathEscape(v))
 	}
 	url := host + uri
 	logs.Debug("Nacos微服务请求:{}\n请求参数:{}", url, body)
