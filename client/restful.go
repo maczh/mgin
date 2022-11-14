@@ -49,6 +49,8 @@ func RestfulWithHeader(method, service string, uri string, pathparams map[string
 	}
 	header["X-Request-Id"] = trace.GetRequestId()
 	header["X-Lang"] = xlang.GetCurrentLanguage()
+	header["X-Real-IP"] = trace.GetClientIp()
+	header["X-User-Agent"] = trace.GetUserAgent()
 	header["Content-Type"] = "application/json"
 	var resp *grequests.Response
 	switch method {

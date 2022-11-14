@@ -17,12 +17,43 @@ func PutRequestId(c *gin.Context) {
 	}
 	routineId := getGoroutineID()
 	cache.OnGetCache("RequestId").Add(routineId, requestId, 5*time.Minute)
+	clientIp := c.ClientIP()
+	if c.GetHeader("X-Real-IP") != "" {
+		clientIp = c.GetHeader("X-Real-IP")
+	}
+	if c.GetHeader("X-Forwarded-For") != "" {
+		clientIp = c.GetHeader("X-Forwarded-For")
+	}
+	cache.OnGetCache("ClientIP").Add(routineId, clientIp, time.Minute)
+	userAgent := c.GetHeader("X-User-Agent")
+	if userAgent == "" {
+		userAgent = c.GetHeader("User-Agent")
+	}
+	cache.OnGetCache("UserAgent").Add(requestId, userAgent, time.Minute)
 }
 
 func GetRequestId() string {
 	requestId, found := cache.OnGetCache("RequestId").Value(getGoroutineID())
 	if found {
 		return requestId.(string)
+	} else {
+		return ""
+	}
+}
+
+func GetClientIp() string {
+	clientIp, found := cache.OnGetCache("ClientIP").Value(getGoroutineID())
+	if found {
+		return clientIp.(string)
+	} else {
+		return ""
+	}
+}
+
+func GetUserAgent() string {
+	userAgent, found := cache.OnGetCache("UserAgent").Value(getGoroutineID())
+	if found {
+		return userAgent.(string)
 	} else {
 		return ""
 	}
