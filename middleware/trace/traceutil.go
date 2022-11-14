@@ -24,12 +24,12 @@ func PutRequestId(c *gin.Context) {
 	if c.GetHeader("X-Forwarded-For") != "" {
 		clientIp = c.GetHeader("X-Forwarded-For")
 	}
-	cache.OnGetCache("ClientIP").Add(routineId, clientIp, time.Minute)
+	cache.OnGetCache("ClientIP").Add(routineId, clientIp, 5*time.Minute)
 	userAgent := c.GetHeader("X-User-Agent")
 	if userAgent == "" {
 		userAgent = c.GetHeader("User-Agent")
 	}
-	cache.OnGetCache("UserAgent").Add(requestId, userAgent, time.Minute)
+	cache.OnGetCache("UserAgent").Add(routineId, userAgent, 5*time.Minute)
 }
 
 func GetRequestId() string {
