@@ -60,7 +60,7 @@ func OutPrint(format string, v []interface{}) string {
 		case bool:
 			str = strconv.FormatBool(value.(bool))
 		case float32, float64:
-			str = strconv.FormatFloat(value.(float64), 'f', 6, 32)
+			str = fmt.Sprintf("%.6f", value)
 		case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, uintptr:
 			str = fmt.Sprintf("%d", value)
 		case string:
