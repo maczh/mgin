@@ -234,7 +234,7 @@ func localIPv4s(lan bool, lanNetwork string) ([]string, error) {
 	}
 
 	for _, a := range addrs {
-		if ipnet, ok := a.(*net.IPNet); ok && !ipnet.IP.IsGlobalUnicast() && ipnet.IP.To4() != nil {
+		if ipnet, ok := a.(*net.IPNet); ok && ipnet.IP.IsGlobalUnicast() && ipnet.IP.To4() != nil {
 			if ipnet.IP.IsPrivate() {
 				ipLans = append(ipLans, ipnet.IP.String())
 				if lan && strings.HasPrefix(ipnet.IP.String(), lanNetwork) {
