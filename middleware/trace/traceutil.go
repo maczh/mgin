@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"github.com/gin-gonic/gin"
 	"github.com/maczh/mgin/cache"
-	"github.com/maczh/mgin/utils"
 	"math/rand"
 	"runtime"
 	"strconv"
@@ -30,7 +29,7 @@ func PutRequestId(c *gin.Context) {
 	if headers["X-User-Agent"] == "" {
 		headers["X-User-Agent"] = headers["User-Agent"]
 	}
-	cache.OnGetCache("Header").Add(routineId, utils.ToJSON(headers), 5*time.Minute)
+	cache.OnGetCache("Header").Add(routineId, headers, 5*time.Minute)
 	//userAgent := c.GetHeader("X-User-Agent")
 	//if userAgent == "" {
 	//	userAgent = c.GetHeader("User-Agent")
@@ -41,8 +40,7 @@ func PutRequestId(c *gin.Context) {
 func GetRequestId() string {
 	headers, found := cache.OnGetCache("Header").Value(getGoroutineID())
 	if found {
-		h := make(map[string]string)
-		utils.FromJSON(headers.(string), &h)
+		h := headers.(map[string]string)
 		return h["X-Request-Id"]
 	} else {
 		return ""
@@ -52,8 +50,7 @@ func GetRequestId() string {
 func GetClientIp() string {
 	headers, found := cache.OnGetCache("Header").Value(getGoroutineID())
 	if found {
-		h := make(map[string]string)
-		utils.FromJSON(headers.(string), &h)
+		h := headers.(map[string]string)
 		return h["X-Real-IP"]
 	} else {
 		return ""
@@ -63,8 +60,7 @@ func GetClientIp() string {
 func GetUserAgent() string {
 	headers, found := cache.OnGetCache("Header").Value(getGoroutineID())
 	if found {
-		h := make(map[string]string)
-		utils.FromJSON(headers.(string), &h)
+		h := headers.(map[string]string)
 		return h["X-User-Agent"]
 	} else {
 		return ""
@@ -74,8 +70,7 @@ func GetUserAgent() string {
 func GetHeader(header string) string {
 	headers, found := cache.OnGetCache("Header").Value(getGoroutineID())
 	if found {
-		h := make(map[string]string)
-		utils.FromJSON(headers.(string), &h)
+		h := headers.(map[string]string)
 		return h[header]
 	} else {
 		return ""
