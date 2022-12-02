@@ -37,15 +37,17 @@ func JsonWithHeader(method, service, uri string, header map[string]string, body 
 	}
 
 	url := host + uri
-	logs.Debug("Nacos微服务请求:{}\n请求参数:{}", url, body)
 	if header == nil {
 		header = trace.GetHeaders()
 	} else {
 		for k, v := range trace.GetHeaders() {
-			header[k] = v
+			if header[k] == "" {
+				header[k] = v
+			}
 		}
 	}
 	header["Content-Type"] = "application/json"
+	logs.Debug("Nacos微服务请求:{}\n请求参数:{}\n请求头:{}", url, body, header)
 	var resp *grequests.Response
 	switch method {
 	case "GET":

@@ -144,14 +144,16 @@ func GetWithHeader(service string, uri string, params map[string]string, header 
 		}
 	}
 	url := host + uri
-	logs.Debug("Nacos微服务请求:{}\n请求参数:{}", url, params)
 	if header == nil {
 		header = trace.GetHeaders()
 	} else {
 		for k, v := range trace.GetHeaders() {
-			header[k] = v
+			if header[k] == "" {
+				header[k] = v
+			}
 		}
 	}
+	logs.Debug("Nacos微服务请求:{}\n请求参数:{}\n请求头:{}", url, params, header)
 	resp, err := grequests.Get(url, &grequests.RequestOptions{
 		Params:             params,
 		Headers:            header,
@@ -226,7 +228,9 @@ func CallWithHeader(service string, uri string, params map[string]string, header
 		header = trace.GetHeaders()
 	} else {
 		for k, v := range trace.GetHeaders() {
-			header[k] = v
+			if header[k] == "" {
+				header[k] = v
+			}
 		}
 	}
 	logs.Debug("Nacos微服务请求:{}\n请求参数:{}\n请求头:{}", url, params, header)
@@ -307,10 +311,12 @@ func CallWithFilesHeader(service string, uri string, params map[string]string, f
 		header = trace.GetHeaders()
 	} else {
 		for k, v := range trace.GetHeaders() {
-			header[k] = v
+			if header[k] == "" {
+				header[k] = v
+			}
 		}
 	}
-	logs.Debug("Nacos微服务请求:{}\n请求参数:{}", url, params)
+	logs.Debug("Nacos微服务请求:{}\n请求参数:{}\n请求头:{}", url, params, header)
 	resp, err := grequests.Post(url, &grequests.RequestOptions{
 		Data:               params,
 		Files:              files,
