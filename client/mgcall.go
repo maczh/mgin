@@ -40,7 +40,7 @@ func (c *mginClient) Call(service string, uri string, params ...interface{}) (st
 		if len(params) == 1 {
 			data = params[0].(map[string]string)
 		}
-		return CallWithHeader(service, uri, data, map[string]string{})
+		return CallWithHeader(service, uri, data, map[string]string{"Content-Type": "application/x-www-form-urlencoded"})
 	case "json":
 		var query map[string]string
 		if len(params) == 0 {
@@ -100,7 +100,7 @@ func (c *mginClient) Call(service string, uri string, params ...interface{}) (st
 }
 
 func (c *mginClient) CallForm(service string, uri string, params map[string]string) (string, error) {
-	return CallWithHeader(service, uri, params, map[string]string{})
+	return CallWithHeader(service, uri, params, map[string]string{"Content-Type": "application/x-www-form-urlencoded"})
 }
 
 func (c *mginClient) CallJson(service string, uri string, method string, queryParams map[string]string, jsonBody interface{}) (string, error) {
@@ -316,6 +316,7 @@ func CallWithFilesHeader(service string, uri string, params map[string]string, f
 			}
 		}
 	}
+	delete(header, "Content-Type")
 	logs.Debug("Nacos微服务请求:{}\n请求参数:{}\n请求头:{}", url, params, header)
 	resp, err := grequests.Post(url, &grequests.RequestOptions{
 		Data:               params,
