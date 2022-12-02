@@ -8,7 +8,6 @@ import (
 	"github.com/maczh/mgin/config"
 	"github.com/maczh/mgin/logs"
 	"github.com/maczh/mgin/middleware/trace"
-	"github.com/maczh/mgin/middleware/xlang"
 	"github.com/maczh/mgin/registry"
 	"github.com/nacos-group/nacos-sdk-go/model"
 	"github.com/nacos-group/nacos-sdk-go/vo"
@@ -146,10 +145,13 @@ func GetWithHeader(service string, uri string, params map[string]string, header 
 	}
 	url := host + uri
 	logs.Debug("Nacos微服务请求:{}\n请求参数:{}", url, params)
-	header["X-Request-Id"] = trace.GetRequestId()
-	header["X-Lang"] = xlang.GetCurrentLanguage()
-	header["X-Real-IP"] = trace.GetClientIp()
-	header["X-User-Agent"] = trace.GetUserAgent()
+	if header == nil {
+		header = trace.GetHeaders()
+	} else {
+		for k, v := range trace.GetHeaders() {
+			header[k] = v
+		}
+	}
 	resp, err := grequests.Get(url, &grequests.RequestOptions{
 		Params:             params,
 		Headers:            header,
@@ -220,10 +222,13 @@ func CallWithHeader(service string, uri string, params map[string]string, header
 		}
 	}
 	url := host + uri
-	header["X-Request-Id"] = trace.GetRequestId()
-	header["X-Lang"] = xlang.GetCurrentLanguage()
-	header["X-Real-IP"] = trace.GetClientIp()
-	header["X-User-Agent"] = trace.GetUserAgent()
+	if header == nil {
+		header = trace.GetHeaders()
+	} else {
+		for k, v := range trace.GetHeaders() {
+			header[k] = v
+		}
+	}
 	logs.Debug("Nacos微服务请求:{}\n请求参数:{}\n请求头:{}", url, params, header)
 	resp, err := grequests.Post(url, &grequests.RequestOptions{
 		Data:               params,
@@ -298,10 +303,13 @@ func CallWithFilesHeader(service string, uri string, params map[string]string, f
 		}
 	}
 	url := host + uri
-	header["X-Request-Id"] = trace.GetRequestId()
-	header["X-Lang"] = xlang.GetCurrentLanguage()
-	header["X-Real-IP"] = trace.GetClientIp()
-	header["X-User-Agent"] = trace.GetUserAgent()
+	if header == nil {
+		header = trace.GetHeaders()
+	} else {
+		for k, v := range trace.GetHeaders() {
+			header[k] = v
+		}
+	}
 	logs.Debug("Nacos微服务请求:{}\n请求参数:{}", url, params)
 	resp, err := grequests.Post(url, &grequests.RequestOptions{
 		Data:               params,

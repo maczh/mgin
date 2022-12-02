@@ -8,7 +8,6 @@ import (
 	"github.com/maczh/mgin/config"
 	"github.com/maczh/mgin/logs"
 	"github.com/maczh/mgin/middleware/trace"
-	"github.com/maczh/mgin/middleware/xlang"
 	"github.com/maczh/mgin/registry"
 	"net/url"
 	"strings"
@@ -45,12 +44,12 @@ func RestfulWithHeader(method, service string, uri string, pathparams map[string
 	url := host + uri
 	logs.Debug("Nacos微服务请求:{}\n请求参数:{}", url, body)
 	if header == nil {
-		header = make(map[string]string)
+		header = trace.GetHeaders()
+	} else {
+		for k, v := range trace.GetHeaders() {
+			header[k] = v
+		}
 	}
-	header["X-Request-Id"] = trace.GetRequestId()
-	header["X-Lang"] = xlang.GetCurrentLanguage()
-	header["X-Real-IP"] = trace.GetClientIp()
-	header["X-User-Agent"] = trace.GetUserAgent()
 	header["Content-Type"] = "application/json"
 	var resp *grequests.Response
 	switch method {

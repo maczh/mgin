@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"github.com/gin-gonic/gin"
 	"github.com/maczh/mgin/cache"
+	"github.com/maczh/mgin/utils"
 	"math/rand"
 	"runtime"
 	"strconv"
@@ -11,12 +12,13 @@ import (
 )
 
 func PutRequestId(c *gin.Context) {
-	requestId := c.GetHeader("X-Request-Id")
+	headers := getHeaders(c)
+	requestId := headers["X-Request-Id"]
 	if requestId == "" {
-		requestId = getRandomHexString(16)
+		headers["X-Request-Id"] = getRandomHexString(16)
 	}
 	routineId := getGoroutineID()
-	cache.OnGetCache("RequestId").Add(routineId, requestId, 5*time.Minute)
+	//cache.OnGetCache("RequestId").Add(routineId, requestId, 5*time.Minute)
 	clientIp := c.ClientIP()
 	if c.GetHeader("X-Real-IP") != "" {
 		clientIp = c.GetHeader("X-Real-IP")
@@ -24,38 +26,69 @@ func PutRequestId(c *gin.Context) {
 	if c.GetHeader("X-Forwarded-For") != "" {
 		clientIp = c.GetHeader("X-Forwarded-For")
 	}
-	cache.OnGetCache("ClientIP").Add(routineId, clientIp, 5*time.Minute)
-	userAgent := c.GetHeader("X-User-Agent")
-	if userAgent == "" {
-		userAgent = c.GetHeader("User-Agent")
+	headers["X-Real-IP"] = clientIp
+	if headers["X-User-Agent"] == "" {
+		headers["X-User-Agent"] = headers["User-Agent"]
 	}
-	cache.OnGetCache("UserAgent").Add(routineId, userAgent, 5*time.Minute)
+	cache.OnGetCache("Header").Add(routineId, utils.ToJSON(headers), 5*time.Minute)
+	//userAgent := c.GetHeader("X-User-Agent")
+	//if userAgent == "" {
+	//	userAgent = c.GetHeader("User-Agent")
+	//}
+	//cache.OnGetCache("UserAgent").Add(routineId, userAgent, 5*time.Minute)
 }
 
 func GetRequestId() string {
-	requestId, found := cache.OnGetCache("RequestId").Value(getGoroutineID())
+	headers, found := cache.OnGetCache("Header").Value(getGoroutineID())
 	if found {
-		return requestId.(string)
+		h := make(map[string]string)
+		utils.FromJSON(headers.(string), &h)
+		return h["X-Request-Id"]
 	} else {
 		return ""
 	}
 }
 
 func GetClientIp() string {
-	clientIp, found := cache.OnGetCache("ClientIP").Value(getGoroutineID())
+	headers, found := cache.OnGetCache("Header").Value(getGoroutineID())
 	if found {
-		return clientIp.(string)
+		h := make(map[string]string)
+		utils.FromJSON(headers.(string), &h)
+		return h["X-Real-IP"]
 	} else {
 		return ""
 	}
 }
 
 func GetUserAgent() string {
-	userAgent, found := cache.OnGetCache("UserAgent").Value(getGoroutineID())
+	headers, found := cache.OnGetCache("Header").Value(getGoroutineID())
 	if found {
-		return userAgent.(string)
+		h := make(map[string]string)
+		utils.FromJSON(headers.(string), &h)
+		return h["X-User-Agent"]
 	} else {
 		return ""
+	}
+}
+
+func GetHeader(header string) string {
+	headers, found := cache.OnGetCache("Header").Value(getGoroutineID())
+	if found {
+		h := make(map[string]string)
+		utils.FromJSON(headers.(string), &h)
+		return h[header]
+	} else {
+		return ""
+	}
+}
+
+func GetHeaders() map[string]string {
+	headers, found := cache.OnGetCache("Header").Value(getGoroutineID())
+	if found {
+		h := headers.(map[string]string)
+		return h
+	} else {
+		return map[string]string{}
 	}
 }
 
@@ -81,4 +114,12 @@ func getGoroutineID() uint64 {
 	b = b[:bytes.IndexByte(b, ' ')]
 	n, _ := strconv.ParseUint(string(b), 10, 64)
 	return n
+}
+
+func getHeaders(c *gin.Context) map[string]string {
+	headers := make(map[string]string)
+	for k, v := range c.Request.Header {
+		headers[k] = v[0]
+	}
+	return headers
 }

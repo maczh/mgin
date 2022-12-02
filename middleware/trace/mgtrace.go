@@ -9,3 +9,7 @@ func TraceId() gin.HandlerFunc {
 		PutRequestId(c)
 	}
 }
+
+func Headers() gin.HandlerFunc {
+	return TraceId()
+}
