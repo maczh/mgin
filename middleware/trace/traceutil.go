@@ -16,8 +16,7 @@ func PutRequestId(c *gin.Context) {
 	if requestId == "" {
 		headers["X-Request-Id"] = getRandomHexString(16)
 	}
-	routineId := getGoroutineID()
-	//cache.OnGetCache("RequestId").Add(routineId, requestId, 5*time.Minute)
+	routineId := GetGoroutineID()
 	clientIp := c.ClientIP()
 	if c.GetHeader("X-Real-IP") != "" {
 		clientIp = c.GetHeader("X-Real-IP")
@@ -30,11 +29,6 @@ func PutRequestId(c *gin.Context) {
 		headers["X-User-Agent"] = headers["User-Agent"]
 	}
 	cache.OnGetCache("Header").Add(routineId, headers, 5*time.Minute)
-	//userAgent := c.GetHeader("X-User-Agent")
-	//if userAgent == "" {
-	//	userAgent = c.GetHeader("User-Agent")
-	//}
-	//cache.OnGetCache("UserAgent").Add(routineId, userAgent, 5*time.Minute)
 }
 
 func GetRequestId() string {
@@ -55,7 +49,7 @@ func GetHeader(header string) string {
 }
 
 func GetHeaders() map[string]string {
-	headers, found := cache.OnGetCache("Header").Value(getGoroutineID())
+	headers, found := cache.OnGetCache("Header").Value(GetGoroutineID())
 	if found {
 		h := headers.(map[string]string)
 		headersMap := make(map[string]string)
@@ -83,7 +77,7 @@ func getRandomHexString(l int) string {
 	return generateRandString(str, l)
 }
 
-func getGoroutineID() uint64 {
+func GetGoroutineID() uint64 {
 	b := make([]byte, 64)
 	b = b[:runtime.Stack(b, false)]
 	b = bytes.TrimPrefix(b, []byte("goroutine "))
