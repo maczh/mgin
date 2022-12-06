@@ -15,7 +15,6 @@ require (
 	github.com/knadh/koanf v1.4.3
 	github.com/levigross/grequests v0.0.0-20190908174114-253788527a1a
 	github.com/mattn/go-isatty v0.0.14
-	github.com/muesli/cache2go v0.0.0-20211005105910-8e46465cca4a
 	github.com/nacos-group/nacos-sdk-go v1.0.9
 	github.com/olivere/elastic v6.2.37+incompatible
 	github.com/pkg/sftp v1.13.5
