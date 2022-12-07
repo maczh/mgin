@@ -11,6 +11,7 @@ require (
 	github.com/go-redis/redis v6.15.9+incompatible
 	github.com/gofrs/uuid v4.1.0+incompatible
 	github.com/henrylee2cn/mahonia v0.0.0-20150715080413-be6deb105fbc
+	github.com/huandu/go-clone v1.4.1
 	github.com/json-iterator/go v1.1.12
 	github.com/knadh/koanf v1.4.3
 	github.com/levigross/grequests v0.0.0-20190908174114-253788527a1a

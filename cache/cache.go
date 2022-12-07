@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"github.com/huandu/go-clone"
 	"sync"
 	"time"
 )
@@ -31,7 +32,7 @@ func OnGetCache(cachename string) *Cache {
 		mc.cache = make(map[string]*Cache)
 	}
 	if mc.cache[cachename] == nil {
-		mc.cache[cachename] = New(time.Hour)
+		mc.cache[cachename] = New(time.Minute)
 	}
 	return mc.cache[cachename]
 }
@@ -41,7 +42,8 @@ func OnGetCache(cachename string) *Cache {
 	lifeSpan:缓存时间，0表示永不超时
 */
 func (c *Cache) Add(key interface{}, value interface{}, lifeSpan time.Duration) {
-	c.Set(key, value, lifeSpan)
+	v := clone.Clone(value)
+	c.Set(key, v, lifeSpan)
 }
 
 /*
@@ -50,7 +52,8 @@ func (c *Cache) Add(key interface{}, value interface{}, lifeSpan time.Duration) 
 */
 
 func (c *Cache) Value(key interface{}) (interface{}, bool) {
-	return c.Get(key)
+	v, found := c.Get(key)
+	return clone.Clone(v), found
 }
 
 /*
