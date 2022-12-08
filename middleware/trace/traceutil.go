@@ -93,3 +93,11 @@ func getHeaders(c *gin.Context) map[string]string {
 	}
 	return headers
 }
+
+//从其他协程克隆headers到当前协程的缓存
+func CopyPreHeaderToCurRoutine(preRoutineId uint64) {
+	headers, found := cache.OnGetCache("Header").Value(preRoutineId)
+	if found {
+		cache.OnGetCache("Header").Add(GetGoroutineID(), headers, 5*time.Minute)
+	}
+}
