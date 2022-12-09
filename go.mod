@@ -1,6 +1,6 @@
 module github.com/maczh/mgin
 
-go 1.17
+go 1.19
 
 require (
 	github.com/Shopify/sarama v1.37.2
@@ -8,6 +8,7 @@ require (
 	github.com/ekyoung/gin-nice-recovery v0.0.0-20160510022553-1654dca486db
 	github.com/emirpasic/gods v1.18.1
 	github.com/gin-gonic/gin v1.8.1
+	github.com/go-errors/errors v1.0.1
 	github.com/go-redis/redis v6.15.9+incompatible
 	github.com/gofrs/uuid v4.1.0+incompatible
 	github.com/henrylee2cn/mahonia v0.0.0-20150715080413-be6deb105fbc
@@ -40,7 +41,6 @@ require (
 	github.com/eapache/queue v1.1.0 // indirect
 	github.com/fsnotify/fsnotify v1.4.9 // indirect
 	github.com/gin-contrib/sse v0.1.0 // indirect
-	github.com/go-errors/errors v1.0.1 // indirect
 	github.com/go-playground/locales v0.14.0 // indirect
 	github.com/go-playground/universal-translator v0.18.0 // indirect
 	github.com/go-playground/validator/v10 v10.10.0 // indirect

@@ -1,12 +1,13 @@
 package models
 
-/**
+/*
+*
 通用返回结果类
 */
-type Result struct {
+type Result[T any] struct {
 	Status int         `json:"status" bson:"status"`
 	Msg    string      `json:"msg" bson:"msg"`
-	Data   interface{} `json:"data" bson:"data"`
+	Data   T           `json:"data" bson:"data"`
 	Page   *ResultPage `json:"page" bson:"page"`
 }
 
@@ -17,8 +18,8 @@ type ResultPage struct {
 	Total int `json:"total"` //总记录数
 }
 
-func Success(d interface{}) Result {
-	result := Result{
+func Success[T any](d T) Result[T] {
+	result := Result[T]{
 		Status: 1,
 		Msg:    "Success",
 		Data:   d,
@@ -27,8 +28,8 @@ func Success(d interface{}) Result {
 	return result
 }
 
-func SuccessWithMsg(msg string, d interface{}) Result {
-	result := Result{
+func SuccessWithMsg[T any](msg string, d T) Result[T] {
+	result := Result[T]{
 		Status: 1,
 		Msg:    msg,
 		Data:   d,
@@ -37,13 +38,13 @@ func SuccessWithMsg(msg string, d interface{}) Result {
 	return result
 }
 
-func SuccessWithPage(d interface{}, count, index, size, total int) Result {
+func SuccessWithPage[T any](d T, count, index, size, total int) Result[T] {
 	page := new(ResultPage)
 	page.Count = count
 	page.Index = index
 	page.Size = size
 	page.Total = total
-	result := Result{
+	result := Result[T]{
 		Status: 1,
 		Msg:    "Success",
 		Data:   d,
@@ -52,8 +53,8 @@ func SuccessWithPage(d interface{}, count, index, size, total int) Result {
 	return result
 }
 
-func Error(s int, m string) Result {
-	result := Result{
+func Error(s int, m string) Result[any] {
+	result := Result[any]{
 		Status: s,
 		Msg:    m,
 		Data:   nil,

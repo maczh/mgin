@@ -59,8 +59,8 @@ func RequestLogger() gin.HandlerFunc {
 
 		responseBody := bodyLogWriter.body.String()
 
-		var req map[string]interface{}
-		var result map[string]interface{}
+		var req any
+		var result any
 
 		// 日志格式
 		if strings.Contains(c.Request.RequestURI, "/docs") || c.Request.RequestURI == "/" {
@@ -78,7 +78,7 @@ func RequestLogger() gin.HandlerFunc {
 		endTime := time.Now()
 
 		// 日志格式
-		var params interface{}
+		var params any
 		if strings.Contains(c.ContentType(), "application/json") && body != "" {
 			utils.FromJSON(body, &req)
 			params = req
