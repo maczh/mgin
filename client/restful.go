@@ -10,6 +10,7 @@ import (
 	"github.com/maczh/mgin/middleware/trace"
 	"github.com/maczh/mgin/registry"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -52,6 +53,15 @@ func RestfulWithHeader(method, service string, uri string, pathparams map[string
 		}
 	}
 	header["Content-Type"] = "application/json"
+	//通过X-Timeout来控制链路接口请求超时
+	timeout := 90 * time.Second
+	t := header["X-Timeout"]
+	if t != "" {
+		ti, _ := strconv.Atoi(t)
+		if ti > 0 {
+			timeout = time.Duration(ti) * time.Second
+		}
+	}
 	logs.Debug("Nacos微服务请求:{}\n请求参数:{}\n请求头:{}", url, body, header)
 	var resp *grequests.Response
 	switch method {
@@ -61,6 +71,7 @@ func RestfulWithHeader(method, service string, uri string, pathparams map[string
 			Params:             queryparams,
 			InsecureSkipVerify: true,
 			JSON:               body,
+			RequestTimeout:     timeout,
 		})
 	case "POST":
 		resp, err = grequests.Post(url, &grequests.RequestOptions{
@@ -68,6 +79,7 @@ func RestfulWithHeader(method, service string, uri string, pathparams map[string
 			Params:             queryparams,
 			InsecureSkipVerify: true,
 			JSON:               body,
+			RequestTimeout:     timeout,
 		})
 	case "DELETE":
 		resp, err = grequests.Delete(url, &grequests.RequestOptions{
@@ -75,6 +87,7 @@ func RestfulWithHeader(method, service string, uri string, pathparams map[string
 			Params:             queryparams,
 			InsecureSkipVerify: true,
 			JSON:               body,
+			RequestTimeout:     timeout,
 		})
 	case "PUT":
 		resp, err = grequests.Put(url, &grequests.RequestOptions{
@@ -82,6 +95,7 @@ func RestfulWithHeader(method, service string, uri string, pathparams map[string
 			Params:             queryparams,
 			InsecureSkipVerify: true,
 			JSON:               body,
+			RequestTimeout:     timeout,
 		})
 	case "OPTIONS":
 		resp, err = grequests.Options(url, &grequests.RequestOptions{
@@ -89,6 +103,7 @@ func RestfulWithHeader(method, service string, uri string, pathparams map[string
 			Params:             queryparams,
 			InsecureSkipVerify: true,
 			JSON:               body,
+			RequestTimeout:     timeout,
 		})
 	case "HEAD":
 		resp, err = grequests.Head(url, &grequests.RequestOptions{
@@ -96,6 +111,7 @@ func RestfulWithHeader(method, service string, uri string, pathparams map[string
 			Params:             queryparams,
 			InsecureSkipVerify: true,
 			JSON:               body,
+			RequestTimeout:     timeout,
 		})
 	}
 	logs.Debug("Nacos微服务返回结果:{}", resp.String())
@@ -128,6 +144,7 @@ func RestfulWithHeader(method, service string, uri string, pathparams map[string
 				Params:             queryparams,
 				InsecureSkipVerify: true,
 				JSON:               body,
+				RequestTimeout:     timeout,
 			})
 		case "POST":
 			resp, err = grequests.Post(url, &grequests.RequestOptions{
@@ -135,6 +152,7 @@ func RestfulWithHeader(method, service string, uri string, pathparams map[string
 				Params:             queryparams,
 				InsecureSkipVerify: true,
 				JSON:               body,
+				RequestTimeout:     timeout,
 			})
 		case "DELETE":
 			resp, err = grequests.Delete(url, &grequests.RequestOptions{
@@ -142,6 +160,7 @@ func RestfulWithHeader(method, service string, uri string, pathparams map[string
 				Params:             queryparams,
 				InsecureSkipVerify: true,
 				JSON:               body,
+				RequestTimeout:     timeout,
 			})
 		case "PUT":
 			resp, err = grequests.Put(url, &grequests.RequestOptions{
@@ -149,6 +168,7 @@ func RestfulWithHeader(method, service string, uri string, pathparams map[string
 				Params:             queryparams,
 				InsecureSkipVerify: true,
 				JSON:               body,
+				RequestTimeout:     timeout,
 			})
 		case "OPTIONS":
 			resp, err = grequests.Options(url, &grequests.RequestOptions{
@@ -156,6 +176,7 @@ func RestfulWithHeader(method, service string, uri string, pathparams map[string
 				Params:             queryparams,
 				InsecureSkipVerify: true,
 				JSON:               body,
+				RequestTimeout:     timeout,
 			})
 		case "HEAD":
 			resp, err = grequests.Head(url, &grequests.RequestOptions{
@@ -163,15 +184,22 @@ func RestfulWithHeader(method, service string, uri string, pathparams map[string
 				Params:             queryparams,
 				InsecureSkipVerify: true,
 				JSON:               body,
+				RequestTimeout:     timeout,
 			})
 		}
 		logs.Debug("Nacos微服务返回结果:{}", resp.String())
 		if err != nil {
+			if err != nil && strings.Contains(err.Error(), "dial tcp") {
+				return "", fmt.Errorf("Service unavailable")
+			}
 			return "", err
 		} else {
 			return resp.String(), nil
 		}
 	} else {
+		if err != nil && strings.Contains(err.Error(), "dial tcp") {
+			return "", fmt.Errorf("Service unavailable")
+		}
 		return resp.String(), err
 	}
 }

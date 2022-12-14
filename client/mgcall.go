@@ -153,11 +153,21 @@ func GetWithHeader(service string, uri string, params map[string]string, header 
 			}
 		}
 	}
+	//通过X-Timeout来控制链路接口请求超时
+	timeout := 90 * time.Second
+	t := header["X-Timeout"]
+	if t != "" {
+		ti, _ := strconv.Atoi(t)
+		if ti > 0 {
+			timeout = time.Duration(ti) * time.Second
+		}
+	}
 	logs.Debug("Nacos微服务请求:{}\n请求参数:{}\n请求头:{}", url, params, header)
 	resp, err := grequests.Get(url, &grequests.RequestOptions{
 		Params:             params,
 		Headers:            header,
 		InsecureSkipVerify: true,
+		RequestTimeout:     timeout,
 	})
 	logs.Debug("Nacos微服务返回结果:{}", resp.String())
 	if err != nil && strings.Contains(err.Error(), "connection refused") {
@@ -189,11 +199,17 @@ func GetWithHeader(service string, uri string, params map[string]string, header 
 		})
 		logs.Debug("Nacos微服务返回结果:{}", resp.String())
 		if err != nil {
+			if err != nil && strings.Contains(err.Error(), "dial tcp") {
+				return "", fmt.Errorf("Service unavailable")
+			}
 			return "", err
 		} else {
 			return resp.String(), nil
 		}
 	} else {
+		if err != nil && strings.Contains(err.Error(), "dial tcp") {
+			return "", fmt.Errorf("Service unavailable")
+		}
 		return resp.String(), err
 	}
 }
@@ -233,11 +249,21 @@ func CallWithHeader(service string, uri string, params map[string]string, header
 			}
 		}
 	}
+	//通过X-Timeout来控制链路接口请求超时
+	timeout := 90 * time.Second
+	t := header["X-Timeout"]
+	if t != "" {
+		ti, _ := strconv.Atoi(t)
+		if ti > 0 {
+			timeout = time.Duration(ti) * time.Second
+		}
+	}
 	logs.Debug("Nacos微服务请求:{}\n请求参数:{}\n请求头:{}", url, params, header)
 	resp, err := grequests.Post(url, &grequests.RequestOptions{
 		Data:               params,
 		Headers:            header,
 		InsecureSkipVerify: true,
+		RequestTimeout:     timeout,
 	})
 	logs.Debug("Nacos微服务返回结果:{}", resp.String())
 	if err != nil && strings.Contains(err.Error(), "connection refused") {
@@ -268,11 +294,17 @@ func CallWithHeader(service string, uri string, params map[string]string, header
 		})
 		logs.Debug("Nacos微服务返回结果:{}", resp.String())
 		if err != nil {
+			if strings.Contains(err.Error(), "dial tcp") {
+				return "", fmt.Errorf("Service unavailable")
+			}
 			return "", err
 		} else {
 			return resp.String(), nil
 		}
 	} else {
+		if err != nil && strings.Contains(err.Error(), "dial tcp") {
+			return "", fmt.Errorf("Service unavailable")
+		}
 		return resp.String(), err
 	}
 }
@@ -349,16 +381,23 @@ func CallWithFilesHeader(service string, uri string, params map[string]string, f
 		url = host + uri
 		resp, err = grequests.Post(url, &grequests.RequestOptions{
 			Data:               params,
+			Files:              files,
 			Headers:            header,
 			InsecureSkipVerify: true,
 		})
 		logs.Debug("Nacos微服务返回结果:{}", resp.String())
 		if err != nil {
+			if strings.Contains(err.Error(), "dial tcp") {
+				return "", fmt.Errorf("Service unavailable")
+			}
 			return "", err
 		} else {
 			return resp.String(), nil
 		}
 	} else {
+		if err != nil && strings.Contains(err.Error(), "dial tcp") {
+			return "", fmt.Errorf("Service unavailable")
+		}
 		return resp.String(), err
 	}
 }

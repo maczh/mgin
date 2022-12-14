@@ -2,12 +2,14 @@ package client
 
 import (
 	"errors"
+	"fmt"
 	"github.com/levigross/grequests"
 	"github.com/maczh/mgin/cache"
 	"github.com/maczh/mgin/config"
 	"github.com/maczh/mgin/logs"
 	"github.com/maczh/mgin/middleware/trace"
 	"github.com/maczh/mgin/registry"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -48,6 +50,15 @@ func JsonWithHeader(method, service, uri string, header map[string]string, body 
 		}
 	}
 	header["Content-Type"] = "application/json"
+	//通过X-Timeout来控制链路接口请求超时
+	timeout := 90 * time.Second
+	t := header["X-Timeout"]
+	if t != "" {
+		ti, _ := strconv.Atoi(t)
+		if ti > 0 {
+			timeout = time.Duration(ti) * time.Second
+		}
+	}
 	logs.Debug("Nacos微服务请求:{}\n请求参数:{}\n请求头:{}", url, body, header)
 	var resp *grequests.Response
 	switch method {
@@ -57,6 +68,7 @@ func JsonWithHeader(method, service, uri string, header map[string]string, body 
 			Params:             query,
 			InsecureSkipVerify: true,
 			JSON:               body,
+			RequestTimeout:     timeout,
 		})
 	case "POST":
 		resp, err = grequests.Post(url, &grequests.RequestOptions{
@@ -64,6 +76,7 @@ func JsonWithHeader(method, service, uri string, header map[string]string, body 
 			Params:             query,
 			InsecureSkipVerify: true,
 			JSON:               body,
+			RequestTimeout:     timeout,
 		})
 	case "DELETE":
 		resp, err = grequests.Delete(url, &grequests.RequestOptions{
@@ -71,6 +84,7 @@ func JsonWithHeader(method, service, uri string, header map[string]string, body 
 			Params:             query,
 			InsecureSkipVerify: true,
 			JSON:               body,
+			RequestTimeout:     timeout,
 		})
 	case "PUT":
 		resp, err = grequests.Put(url, &grequests.RequestOptions{
@@ -78,6 +92,7 @@ func JsonWithHeader(method, service, uri string, header map[string]string, body 
 			Params:             query,
 			InsecureSkipVerify: true,
 			JSON:               body,
+			RequestTimeout:     timeout,
 		})
 	case "OPTIONS":
 		resp, err = grequests.Options(url, &grequests.RequestOptions{
@@ -85,6 +100,7 @@ func JsonWithHeader(method, service, uri string, header map[string]string, body 
 			Params:             query,
 			InsecureSkipVerify: true,
 			JSON:               body,
+			RequestTimeout:     timeout,
 		})
 	case "HEAD":
 		resp, err = grequests.Head(url, &grequests.RequestOptions{
@@ -92,6 +108,7 @@ func JsonWithHeader(method, service, uri string, header map[string]string, body 
 			Params:             query,
 			InsecureSkipVerify: true,
 			JSON:               body,
+			RequestTimeout:     timeout,
 		})
 	}
 	logs.Debug("Nacos微服务返回结果:{}", resp.String())
@@ -124,6 +141,7 @@ func JsonWithHeader(method, service, uri string, header map[string]string, body 
 				Params:             query,
 				InsecureSkipVerify: true,
 				JSON:               body,
+				RequestTimeout:     timeout,
 			})
 		case "POST":
 			resp, err = grequests.Post(url, &grequests.RequestOptions{
@@ -131,6 +149,7 @@ func JsonWithHeader(method, service, uri string, header map[string]string, body 
 				Params:             query,
 				InsecureSkipVerify: true,
 				JSON:               body,
+				RequestTimeout:     timeout,
 			})
 		case "DELETE":
 			resp, err = grequests.Delete(url, &grequests.RequestOptions{
@@ -138,6 +157,7 @@ func JsonWithHeader(method, service, uri string, header map[string]string, body 
 				Params:             query,
 				InsecureSkipVerify: true,
 				JSON:               body,
+				RequestTimeout:     timeout,
 			})
 		case "PUT":
 			resp, err = grequests.Put(url, &grequests.RequestOptions{
@@ -145,6 +165,7 @@ func JsonWithHeader(method, service, uri string, header map[string]string, body 
 				Params:             query,
 				InsecureSkipVerify: true,
 				JSON:               body,
+				RequestTimeout:     timeout,
 			})
 		case "OPTIONS":
 			resp, err = grequests.Options(url, &grequests.RequestOptions{
@@ -152,6 +173,7 @@ func JsonWithHeader(method, service, uri string, header map[string]string, body 
 				Params:             query,
 				InsecureSkipVerify: true,
 				JSON:               body,
+				RequestTimeout:     timeout,
 			})
 		case "HEAD":
 			resp, err = grequests.Head(url, &grequests.RequestOptions{
@@ -159,15 +181,22 @@ func JsonWithHeader(method, service, uri string, header map[string]string, body 
 				Params:             query,
 				InsecureSkipVerify: true,
 				JSON:               body,
+				RequestTimeout:     timeout,
 			})
 		}
 		logs.Debug("Nacos微服务返回结果:{}", resp.String())
 		if err != nil {
+			if err != nil && strings.Contains(err.Error(), "dial tcp") {
+				return "", fmt.Errorf("Service unavailable")
+			}
 			return "", err
 		} else {
 			return resp.String(), nil
 		}
 	} else {
+		if err != nil && strings.Contains(err.Error(), "dial tcp") {
+			return "", fmt.Errorf("Service unavailable")
+		}
 		return resp.String(), err
 	}
 }
