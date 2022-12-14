@@ -8,6 +8,7 @@ import (
 	"github.com/maczh/mgin/logs"
 	"github.com/maczh/mgin/middleware/trace"
 	"github.com/maczh/mgin/registry"
+	"strings"
 	"time"
 )
 
@@ -94,7 +95,7 @@ func JsonWithHeader(method, service, uri string, header map[string]string, body 
 		})
 	}
 	logs.Debug("Nacos微服务返回结果:{}", resp.String())
-	if err != nil {
+	if err != nil && strings.Contains(err.Error(), "connection refused") {
 		cache.OnGetCache("nacos").Delete(service)
 		discovery := config.Config.Discovery.Registry
 		if discovery == "" {

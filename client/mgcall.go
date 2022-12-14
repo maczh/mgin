@@ -160,7 +160,7 @@ func GetWithHeader(service string, uri string, params map[string]string, header 
 		InsecureSkipVerify: true,
 	})
 	logs.Debug("Nacos微服务返回结果:{}", resp.String())
-	if err != nil {
+	if err != nil && strings.Contains(err.Error(), "connection refused") {
 		cache.OnGetCache("nacos").Delete(service)
 		discovery := config.Config.Discovery.Registry
 		if discovery == "" {
@@ -240,7 +240,7 @@ func CallWithHeader(service string, uri string, params map[string]string, header
 		InsecureSkipVerify: true,
 	})
 	logs.Debug("Nacos微服务返回结果:{}", resp.String())
-	if err != nil {
+	if err != nil && strings.Contains(err.Error(), "connection refused") {
 		cache.OnGetCache("nacos").Delete(service)
 		discovery := config.Config.Discovery.Registry
 		if discovery == "" {
@@ -325,7 +325,7 @@ func CallWithFilesHeader(service string, uri string, params map[string]string, f
 		InsecureSkipVerify: true,
 	})
 	logs.Debug("Nacos微服务返回结果:{}", resp.String())
-	if err != nil {
+	if err != nil && strings.Contains(err.Error(), "connection refused") {
 		cache.OnGetCache("nacos").Delete(service)
 		discovery := config.Config.Discovery.Registry
 		if discovery == "" {

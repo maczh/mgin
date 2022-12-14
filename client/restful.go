@@ -99,7 +99,7 @@ func RestfulWithHeader(method, service string, uri string, pathparams map[string
 		})
 	}
 	logs.Debug("Nacos微服务返回结果:{}", resp.String())
-	if err != nil {
+	if err != nil && strings.Contains(err.Error(), "connection refused") {
 		cache.OnGetCache("nacos").Delete(service)
 		discovery := config.Config.Discovery.Registry
 		if discovery == "" {

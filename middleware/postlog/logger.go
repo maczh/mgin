@@ -8,12 +8,10 @@ import (
 	"github.com/maczh/mgin/db"
 	"github.com/maczh/mgin/models"
 	"io/ioutil"
-	"net/http"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/maczh/mgin/cache"
 	"github.com/maczh/mgin/logs"
 	"github.com/maczh/mgin/middleware/trace"
 	"github.com/maczh/mgin/utils"
@@ -55,23 +53,6 @@ func RequestLogger() gin.HandlerFunc {
 		body := string(data)
 
 		c.Request.Body = ioutil.NopCloser(bytes.NewBuffer(data)) // 关键点
-		//若已经存在则直接返回
-		reqid := c.GetHeader("X-Request-Id")
-		if reqid == "" {
-			reqid = trace.GetRequestId()
-		}
-		hash := utils.MD5Encode(fmt.Sprintf("%s|%s|%s|%s", reqid, c.Request.Method, c.Request.URL.String(), body))
-		if v, f := cache.OnGetCache("Request").Get("resp:" + hash); f && len(v.(string)) > 0 {
-			contentType, _ := cache.OnGetCache("Request").Get("contentType:" + hash)
-			if contentType == "" {
-				contentType = gin.MIMEJSON
-			}
-			c.Data(http.StatusOK, contentType.(string), v.([]byte))
-			return
-		} else {
-			//这里有问题，一个reqid可能对应好几个不同的请求
-			cache.OnGetCache("Request").Add("req:"+reqid, hash, 5*time.Minute)
-		}
 		// 处理请求
 		c.Next()
 
