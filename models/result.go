@@ -62,3 +62,14 @@ func Error(s int, m string) Result[any] {
 	}
 	return result
 }
+
+func ErrorT[T any](s int, m string) Result[T] {
+	var d T
+	result := Result[T]{
+		Status: s,
+		Msg:    m,
+		Data:   d,
+		Page:   nil,
+	}
+	return result
+}

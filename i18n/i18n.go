@@ -96,10 +96,17 @@ func Error(code int, messageId string) models.Result[any] {
 	return models.Error(code, String(messageId))
 }
 
+func ErrorT[T any](code int, messageId string) models.Result[T] {
+	return models.ErrorT[T](code, String(messageId))
+}
+
 func ErrorWithMsg(code int, messageId, msg string) models.Result[any] {
 	return models.Error(code, fmt.Sprintf("%s:%s", String(messageId), msg))
 }
 
+func ErrorWithMsgT[T any](code int, messageId, msg string) models.Result[T] {
+	return models.ErrorT[T](code, fmt.Sprintf("%s:%s", String(messageId), msg))
+}
 func Success[T any](data T) models.Result[T] {
 	return models.SuccessWithMsg[T](String("success"), data)
 }
