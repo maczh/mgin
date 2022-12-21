@@ -92,20 +92,20 @@ func refreshXLangCache() {
 	}
 }
 
-func Error(code int, messageId string) models.Result {
+func Error(code int, messageId string) models.Result[any] {
 	return models.Error(code, String(messageId))
 }
 
-func ErrorWithMsg(code int, messageId, msg string) models.Result {
+func ErrorWithMsg(code int, messageId, msg string) models.Result[any] {
 	return models.Error(code, fmt.Sprintf("%s:%s", String(messageId), msg))
 }
 
-func Success(data interface{}) models.Result {
-	return models.SuccessWithMsg(String("success"), data)
+func Success[T any](data T) models.Result[T] {
+	return models.SuccessWithMsg[T](String("success"), data)
 }
 
-func SuccessWithPage(data interface{}, count, index, size, total int) models.Result {
-	return models.Result{
+func SuccessWithPage[T any](data T, count, index, size, total int) models.Result[T] {
+	return models.Result[T]{
 		Status: 1,
 		Msg:    String("success"),
 		Data:   data,
@@ -118,7 +118,7 @@ func SuccessWithPage(data interface{}, count, index, size, total int) models.Res
 	}
 }
 
-//String 将messageId根据当前协程X-Lang参数转换成当前语言字符串
+// String 将messageId根据当前协程X-Lang参数转换成当前语言字符串
 func String(messageId string) string {
 	lang := xlang.GetCurrentLanguage()
 	s := GetXLangString(messageId, lang)
@@ -128,7 +128,7 @@ func String(messageId string) string {
 	return messageId
 }
 
-//Format 格式化数据，messageId对应的内容为带{}的模板
+// Format 格式化数据，messageId对应的内容为带{}的模板
 func Format(messageId string, args ...interface{}) string {
 	format := String(messageId)
 	for _, value := range args {
@@ -156,20 +156,20 @@ func Format(messageId string, args ...interface{}) string {
 	return format
 }
 
-func ParamLostError(param string) models.Result {
+func ParamLostError(param string) models.Result[any] {
 	return models.Error(errcode.REQUEST_PARAMETER_LOST, Format("参数不可为空", param))
 }
 
-func ParamError(param string) models.Result {
+func ParamError(param string) models.Result[any] {
 	return models.Error(errcode.REQUEST_PARAMETER_LOST, Format("参数错误", param))
 }
 
-func CheckParametersLost(params map[string]string, paramNames ...string) models.Result {
+func CheckParametersLost(params map[string]string, paramNames ...string) models.Result[any] {
 	for _, param := range paramNames {
 		v := params[param]
 		if v == "" {
 			return ParamLostError(param)
 		}
 	}
-	return Success(nil)
+	return Success[any](nil)
 }

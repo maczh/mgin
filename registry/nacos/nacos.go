@@ -154,10 +154,13 @@ func (n *NacosClient) Register(nacosConfigUrl string) {
 
 }
 
-func (n *NacosClient) GetServiceURL(servicename string) (string, string) {
+func (n *NacosClient) GetServiceURL(servicename string, groupName ...string) (string, string) {
 	var instances []model.Instance
 	var err error
 	serviceGroup := n.group
+	if len(groupName) > 0 && groupName[0] != "" {
+		serviceGroup = groupName[0]
+	}
 	instances, err = n.client.SelectAllInstances(vo.SelectAllInstancesParam{
 		ServiceName: servicename,
 		Clusters:    []string{n.cluster},

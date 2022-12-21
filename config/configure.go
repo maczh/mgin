@@ -111,6 +111,9 @@ func (c *config) Init(cf string) {
 	c.Logger.File = c.Cnf.String("go.logger.file")
 	c.Discovery.Registry = c.Cnf.String("go.discovery.registry")
 	c.Discovery.CallType = c.Cnf.String("go.discovery.callType")
+	if c.Discovery.CallType == "" {
+		c.Discovery.CallType = "x-form"
+	}
 }
 
 func (c *config) GetConfigString(name string) string {

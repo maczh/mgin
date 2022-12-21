@@ -18,27 +18,27 @@ type ResultPage struct {
 	Total int `json:"total"` //总记录数
 }
 
-func Success[T any](d T) Result[T] {
+func Success[T any](data T) Result[T] {
 	result := Result[T]{
 		Status: 1,
 		Msg:    "Success",
-		Data:   d,
+		Data:   data,
 		Page:   nil,
 	}
 	return result
 }
 
-func SuccessWithMsg[T any](msg string, d T) Result[T] {
+func SuccessWithMsg[T any](msg string, data T) Result[T] {
 	result := Result[T]{
 		Status: 1,
 		Msg:    msg,
-		Data:   d,
+		Data:   data,
 		Page:   nil,
 	}
 	return result
 }
 
-func SuccessWithPage[T any](d T, count, index, size, total int) Result[T] {
+func SuccessWithPage[T any](data T, count, index, size, total int) Result[T] {
 	page := new(ResultPage)
 	page.Count = count
 	page.Index = index
@@ -47,7 +47,7 @@ func SuccessWithPage[T any](d T, count, index, size, total int) Result[T] {
 	result := Result[T]{
 		Status: 1,
 		Msg:    "Success",
-		Data:   d,
+		Data:   data,
 		Page:   page,
 	}
 	return result
