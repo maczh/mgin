@@ -136,7 +136,7 @@ func String(messageId string) string {
 }
 
 // Format 格式化数据，messageId对应的内容为带{}的模板
-func Format(messageId string, args ...interface{}) string {
+func Format(messageId string, args ...any) string {
 	format := String(messageId)
 	for _, value := range args {
 		str := ""

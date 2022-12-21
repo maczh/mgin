@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-func (e *ElasticSearch) AddDocument(database, table string, doc map[string]interface{}, searchFields []string) (string, error) {
+func (e *ElasticSearch) AddDocument(database, table string, doc map[string]any, searchFields []string) (string, error) {
 	indexName := fmt.Sprintf("%s_%s", database, table)
 	if table == "" {
 		indexName = database
@@ -49,7 +49,7 @@ func (e *ElasticSearch) AddDocument(database, table string, doc map[string]inter
 	}
 }
 
-func (e *ElasticSearch) AddDocuments(database, table string, docs []map[string]interface{}, searchFields []string) ([]string, error) {
+func (e *ElasticSearch) AddDocuments(database, table string, docs []map[string]any, searchFields []string) ([]string, error) {
 	indexName := fmt.Sprintf("%s_%s", database, table)
 	if table == "" {
 		indexName = database
@@ -134,7 +134,7 @@ func (e *ElasticSearch) DeleteDocuments(database, table string, ids []string) (b
 	}
 }
 
-func (e *ElasticSearch) UpdateDocument(database, table, id string, updateData map[string]interface{}) (bool, error) {
+func (e *ElasticSearch) UpdateDocument(database, table, id string, updateData map[string]any) (bool, error) {
 	indexName := fmt.Sprintf("%s_%s", database, table)
 	if table == "" {
 		indexName = database
@@ -182,44 +182,44 @@ func (e *ElasticSearch) DeleteDatabase(database string) (bool, error) {
 	}
 }
 
-func buildMappings(doc map[string]interface{}, serachFields []string) map[string]interface{} {
-	mappings := make(map[string]interface{})
-	properties := make(map[string]interface{})
+func buildMappings(doc map[string]any, serachFields []string) map[string]any {
+	mappings := make(map[string]any)
+	properties := make(map[string]any)
 	for k, v := range doc {
 		if len(k) > 3 && utils.Right(k, 3) == "Jpy" {
 			continue
 		}
-		fieldMapping := make(map[string]interface{})
+		fieldMapping := make(map[string]any)
 		switch v.(type) {
 		case string:
 			fieldMapping["type"] = "text"
-			subFieldMapping := make(map[string]interface{})
-			subFieldMapping["keyword"] = map[string]interface{}{"type": "keyword"}
+			subFieldMapping := make(map[string]any)
+			subFieldMapping["keyword"] = map[string]any{"type": "keyword"}
 			if utils.StringArrayContains(serachFields, k) {
-				subFieldMapping["wildcard"] = map[string]interface{}{
+				subFieldMapping["wildcard"] = map[string]any{
 					"type":         "wildcard",
 					"ignore_above": 102400,
 				}
-				//subFieldMapping["spy"] = map[string]interface{}{
+				//subFieldMapping["spy"] = map[string]any{
 				//	"type":     "text",
 				//	"analyzer": "pinyiSimpleIndexAnalyzer",
 				//}
-				//subFieldMapping["fpy"] = map[string]interface{}{
+				//subFieldMapping["fpy"] = map[string]any{
 				//	"type":     "text",
 				//	"analyzer": "pinyiFullIndexAnalyzer",
 				//}
-				//subFieldMapping["iks"] = map[string]interface{}{
+				//subFieldMapping["iks"] = map[string]any{
 				//	"type":     "text",
 				//	"analyzer": "ikSmartIndexAnalyzer",
 				//}
-				//subFieldMapping["ikm"] = map[string]interface{}{
+				//subFieldMapping["ikm"] = map[string]any{
 				//	"type":     "text",
 				//	"analyzer": "ikMaxIndexAnalyzer",
 				//}
-				//jpyMapping := map[string]interface{}{
+				//jpyMapping := map[string]any{
 				//	"type": "text",
-				//	"fields": map[string]interface{}{
-				//		"wildcard": map[string]interface{}{
+				//	"fields": map[string]any{
+				//		"wildcard": map[string]any{
 				//			"type":         "wildcard",
 				//			"ignore_above": 102400,
 				//		},
@@ -237,38 +237,38 @@ func buildMappings(doc map[string]interface{}, serachFields []string) map[string
 			}
 		case bool:
 			fieldMapping["type"] = "boolean"
-		case []interface{}:
-			vv := v.([]interface{})[0]
+		case []any:
+			vv := v.([]any)[0]
 			switch vv.(type) {
 			case string:
 				fieldMapping["type"] = "text"
-				subFieldMapping := make(map[string]interface{})
-				subFieldMapping["keyword"] = map[string]interface{}{"type": "keyword"}
+				subFieldMapping := make(map[string]any)
+				subFieldMapping["keyword"] = map[string]any{"type": "keyword"}
 				if utils.StringArrayContains(serachFields, k) {
-					subFieldMapping["wildcard"] = map[string]interface{}{
+					subFieldMapping["wildcard"] = map[string]any{
 						"type":         "wildcard",
 						"ignore_above": 102400,
 					}
-					//subFieldMapping["spy"] = map[string]interface{}{
+					//subFieldMapping["spy"] = map[string]any{
 					//	"type":     "text",
 					//	"analyzer": "pinyiSimpleIndexAnalyzer",
 					//}
-					//subFieldMapping["fpy"] = map[string]interface{}{
+					//subFieldMapping["fpy"] = map[string]any{
 					//	"type":     "text",
 					//	"analyzer": "pinyiFullIndexAnalyzer",
 					//}
-					//subFieldMapping["iks"] = map[string]interface{}{
+					//subFieldMapping["iks"] = map[string]any{
 					//	"type":     "text",
 					//	"analyzer": "ikSmartIndexAnalyzer",
 					//}
-					//subFieldMapping["ikm"] = map[string]interface{}{
+					//subFieldMapping["ikm"] = map[string]any{
 					//	"type":     "text",
 					//	"analyzer": "ikMaxIndexAnalyzer",
 					//}
-					//jpyMapping := map[string]interface{}{
+					//jpyMapping := map[string]any{
 					//	"type": "text",
-					//	"fields": map[string]interface{}{
-					//		"wildcard": map[string]interface{}{
+					//	"fields": map[string]any{
+					//		"wildcard": map[string]any{
 					//			"type":         "wildcard",
 					//			"ignore_above": 102400,
 					//		},
@@ -286,37 +286,37 @@ func buildMappings(doc map[string]interface{}, serachFields []string) map[string
 				}
 			case bool:
 				fieldMapping["type"] = "boolean"
-			case map[string]interface{}:
+			case map[string]any:
 				fieldMapping["type"] = "nested"
 			default:
 				fieldMapping["type"] = "text"
-				subFieldMapping := make(map[string]interface{})
-				subFieldMapping["keyword"] = map[string]interface{}{"type": "keyword"}
+				subFieldMapping := make(map[string]any)
+				subFieldMapping["keyword"] = map[string]any{"type": "keyword"}
 				if utils.StringArrayContains(serachFields, k) {
-					subFieldMapping["wildcard"] = map[string]interface{}{
+					subFieldMapping["wildcard"] = map[string]any{
 						"type":         "wildcard",
 						"ignore_above": 102400,
 					}
-					//subFieldMapping["spy"] = map[string]interface{}{
+					//subFieldMapping["spy"] = map[string]any{
 					//	"type":     "text",
 					//	"analyzer": "pinyiSimpleIndexAnalyzer",
 					//}
-					//subFieldMapping["fpy"] = map[string]interface{}{
+					//subFieldMapping["fpy"] = map[string]any{
 					//	"type":     "text",
 					//	"analyzer": "pinyiFullIndexAnalyzer",
 					//}
-					//subFieldMapping["iks"] = map[string]interface{}{
+					//subFieldMapping["iks"] = map[string]any{
 					//	"type":     "text",
 					//	"analyzer": "ikSmartIndexAnalyzer",
 					//}
-					//subFieldMapping["ikm"] = map[string]interface{}{
+					//subFieldMapping["ikm"] = map[string]any{
 					//	"type":     "text",
 					//	"analyzer": "ikMaxIndexAnalyzer",
 					//}
-					//jpyMapping := map[string]interface{}{
+					//jpyMapping := map[string]any{
 					//	"type": "text",
-					//	"fields": map[string]interface{}{
-					//		"wildcard": map[string]interface{}{
+					//	"fields": map[string]any{
+					//		"wildcard": map[string]any{
 					//			"type":         "wildcard",
 					//			"ignore_above": 102400,
 					//		},
@@ -326,37 +326,37 @@ func buildMappings(doc map[string]interface{}, serachFields []string) map[string
 				}
 				fieldMapping["fields"] = subFieldMapping
 			}
-		case map[string]interface{}:
+		case map[string]any:
 			fieldMapping["type"] = "nested"
 		default:
 			fieldMapping["type"] = "text"
-			subFieldMapping := make(map[string]interface{})
-			subFieldMapping["keyword"] = map[string]interface{}{"type": "keyword"}
+			subFieldMapping := make(map[string]any)
+			subFieldMapping["keyword"] = map[string]any{"type": "keyword"}
 			if utils.StringArrayContains(serachFields, k) {
-				subFieldMapping["wildcard"] = map[string]interface{}{
+				subFieldMapping["wildcard"] = map[string]any{
 					"type":         "wildcard",
 					"ignore_above": 102400,
 				}
-				//subFieldMapping["spy"] = map[string]interface{}{
+				//subFieldMapping["spy"] = map[string]any{
 				//	"type":     "text",
 				//	"analyzer": "pinyiSimpleIndexAnalyzer",
 				//}
-				//subFieldMapping["fpy"] = map[string]interface{}{
+				//subFieldMapping["fpy"] = map[string]any{
 				//	"type":     "text",
 				//	"analyzer": "pinyiFullIndexAnalyzer",
 				//}
-				//subFieldMapping["iks"] = map[string]interface{}{
+				//subFieldMapping["iks"] = map[string]any{
 				//	"type":     "text",
 				//	"analyzer": "ikSmartIndexAnalyzer",
 				//}
-				//subFieldMapping["ikm"] = map[string]interface{}{
+				//subFieldMapping["ikm"] = map[string]any{
 				//	"type":     "text",
 				//	"analyzer": "ikMaxIndexAnalyzer",
 				//}
-				//jpyMapping := map[string]interface{}{
+				//jpyMapping := map[string]any{
 				//	"type": "text",
-				//	"fields": map[string]interface{}{
-				//		"wildcard": map[string]interface{}{
+				//	"fields": map[string]any{
+				//		"wildcard": map[string]any{
 				//			"type":         "wildcard",
 				//			"ignore_above": 102400,
 				//		},
@@ -368,8 +368,8 @@ func buildMappings(doc map[string]interface{}, serachFields []string) map[string
 		}
 		if k == "id" {
 			fieldMapping["type"] = "text"
-			subFieldMapping := make(map[string]interface{})
-			subFieldMapping["keyword"] = map[string]interface{}{"type": "keyword"}
+			subFieldMapping := make(map[string]any)
+			subFieldMapping["keyword"] = map[string]any{"type": "keyword"}
 			fieldMapping["fields"] = subFieldMapping
 		}
 		properties[k] = fieldMapping
@@ -378,8 +378,8 @@ func buildMappings(doc map[string]interface{}, serachFields []string) map[string
 	return mappings
 }
 
-func buildIKPinyinSettings() map[string]interface{} {
-	//filterSpy := map[string]interface{}{
+func buildIKPinyinSettings() map[string]any {
+	//filterSpy := map[string]any{
 	//	"type":                       "pinyin",
 	//	"keep_first_letter":          true,
 	//	"keep_separate_first_letter": false,
@@ -389,7 +389,7 @@ func buildIKPinyinSettings() map[string]interface{} {
 	//	"limit_first_letter_length":  10240,
 	//	"lowercase":                  true,
 	//}
-	//filterFpy := map[string]interface{}{
+	//filterFpy := map[string]any{
 	//	"type":                         "pinyin",
 	//	"keep_first_letter":            false,
 	//	"keep_separate_first_letter":   false,
@@ -400,24 +400,24 @@ func buildIKPinyinSettings() map[string]interface{} {
 	//	"limit_first_letter_length":    10240,
 	//	"lowercase":                    true,
 	//}
-	filterNgram := map[string]interface{}{
+	filterNgram := map[string]any{
 		"type":     "edge_ngram",
 		"min_gram": 1,
 		"max_gram": 50,
 	}
-	filters := map[string]interface{}{
+	filters := map[string]any{
 		//"pinyin_simple_filter": filterSpy,
 		//"pinyin_full_filter":   filterFpy,
 		"edge_ngram_filter": filterNgram,
 	}
-	//analyzerFpy := map[string]interface{}{
+	//analyzerFpy := map[string]any{
 	//	"filter": []string{
 	//		"pinyin_full_filter",
 	//		"lowercase",
 	//	},
 	//	"tokenizer": "keyword",
 	//}
-	//analyzerSpy := map[string]interface{}{
+	//analyzerSpy := map[string]any{
 	//	"filter": []string{
 	//		"pinyin_simple_filter",
 	//		"edge_ngram_filter",
@@ -425,15 +425,15 @@ func buildIKPinyinSettings() map[string]interface{} {
 	//	},
 	//	"tokenizer": "keyword",
 	//}
-	//analyzerIKSmart := map[string]interface{}{
+	//analyzerIKSmart := map[string]any{
 	//	"type":      "custom",
 	//	"tokenizer": "ik_smart",
 	//}
-	//analyzerIKMax := map[string]interface{}{
+	//analyzerIKMax := map[string]any{
 	//	"type":      "custom",
 	//	"tokenizer": "ik_max_word",
 	//}
-	analyzerNgram := map[string]interface{}{
+	analyzerNgram := map[string]any{
 		"filter": []string{
 			"edge_ngram_filter",
 			"lowercase",
@@ -441,22 +441,22 @@ func buildIKPinyinSettings() map[string]interface{} {
 		"type":      "custom",
 		"tokenizer": "keyword",
 	}
-	analyzers := map[string]interface{}{
+	analyzers := map[string]any{
 		//"pinyiSimpleIndexAnalyzer": analyzerSpy,
 		//"pinyiFullIndexAnalyzer":   analyzerFpy,
 		//"ikSmartIndexAnalyzer":     analyzerIKSmart,
 		//"ikMaxIndexAnalyzer":       analyzerIKMax,
 		"ngramIndexAnalyzer": analyzerNgram,
 	}
-	analysis := map[string]interface{}{
+	analysis := map[string]any{
 		"filter":   filters,
 		"analyzer": analyzers,
 	}
-	settings := map[string]interface{}{
+	settings := map[string]any{
 		"analysis":           analysis,
 		"refresh_interval":   "5s",
 		"number_of_shards":   1,
 		"number_of_replicas": 1,
 	}
-	return map[string]interface{}{"settings": settings}
+	return map[string]any{"settings": settings}
 }

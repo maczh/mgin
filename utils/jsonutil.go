@@ -10,7 +10,7 @@ import (
 
 var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
-func ToJSON(o interface{}) string {
+func ToJSON(o any) string {
 	j, err := json.Marshal(o)
 	if err != nil {
 		return "{}"
@@ -23,7 +23,7 @@ func ToJSON(o interface{}) string {
 	}
 }
 
-func FromJSON(j string, o interface{}) *interface{} {
+func FromJSON(j string, o any) *any {
 	err := json.Unmarshal([]byte(j), &o)
 	if err != nil {
 		logs.Error("数据转换错误:{}", err.Error())

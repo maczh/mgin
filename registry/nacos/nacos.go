@@ -99,7 +99,7 @@ func (n *NacosClient) Register(nacosConfigUrl string) {
 			clientConfig.UpdateCacheWhenEmpty = n.conf.Bool("go.nacos.client.updateCacheWhenEmpty")
 		}
 		logger.Debug("Nacos客户端配置: " + toJSON(clientConfig))
-		n.client, err = clients.CreateNamingClient(map[string]interface{}{
+		n.client, err = clients.CreateNamingClient(map[string]any{
 			"serverConfigs": serverConfigs,
 			"clientConfig":  clientConfig,
 		})
@@ -264,7 +264,7 @@ func localIPv4s(lan bool, lanNetwork string) ([]string, error) {
 
 var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
-func toJSON(o interface{}) string {
+func toJSON(o any) string {
 	j, err := json.Marshal(o)
 	if err != nil {
 		return "{}"

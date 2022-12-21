@@ -40,7 +40,7 @@ func initConfig() {
 
 var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
-func toJSON(o interface{}) string {
+func toJSON(o any) string {
 	j, err := json.Marshal(o)
 	if err != nil {
 		return "{}"
@@ -53,7 +53,7 @@ func toJSON(o interface{}) string {
 	}
 }
 
-func OutPrint(format string, v []interface{}) string {
+func OutPrint(format string, v []any) string {
 	for _, value := range v {
 		str := ""
 		switch value.(type) {
@@ -81,7 +81,7 @@ func OutPrint(format string, v []interface{}) string {
 	return format
 }
 
-func Debug(format string, v ...interface{}) {
+func Debug(format string, v ...any) {
 	initConfig()
 	switch logLevel {
 	case "debug":
@@ -89,21 +89,21 @@ func Debug(format string, v ...interface{}) {
 	}
 }
 
-func Info(format string, v ...interface{}) {
+func Info(format string, v ...any) {
 	initConfig()
 	switch logLevel {
 	case "debug", "info":
 		logger.Info(OutPrint(format, v))
 	}
 }
-func Warn(format string, v ...interface{}) {
+func Warn(format string, v ...any) {
 	initConfig()
 	switch logLevel {
 	case "debug", "info", "warn":
 		logger.Warn(OutPrint(format, v))
 	}
 }
-func Error(format string, v ...interface{}) {
+func Error(format string, v ...any) {
 	initConfig()
 	switch logLevel {
 	case "debug", "info", "warn", "error":

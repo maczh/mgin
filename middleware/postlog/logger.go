@@ -70,7 +70,7 @@ func RequestLogger() gin.HandlerFunc {
 		if responseBody != "" && responseBody[0:1] == "{" {
 			err := json.Unmarshal([]byte(responseBody), &result)
 			if err != nil {
-				result = map[string]interface{}{"status": -1, "msg": "解析异常:" + err.Error()}
+				result = map[string]any{"status": -1, "msg": "解析异常:" + err.Error()}
 			}
 		}
 
@@ -154,7 +154,7 @@ func handleAccessChannel() {
 			}
 			db.Mongo.ReturnConnection(conn)
 		case "elasticsearch":
-			doc := make(map[string]interface{})
+			doc := make(map[string]any)
 			utils.FromJSON(utils.ToJSON(postLog), &doc)
 			resp, err := db.ElasticSearch.AddDocument(strings.ToLower(config.Config.App.Project), strings.ToLower(config.Config.Log.RequestTableName), doc, []string{})
 			if err != nil {

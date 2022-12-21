@@ -16,7 +16,7 @@ func MD5Encode(content string) (md string) {
 	return
 }
 
-//计算文件的MD5值
+// 计算文件的MD5值
 func FileMD5(filename string) (string, error) {
 	f, err := os.Open(filename) //打开文件
 	if nil != err {
@@ -42,7 +42,7 @@ func MapMD5(m map[string]string) string {
 		sortmap.Put(k, v)
 	}
 	signtext := ""
-	sortmap.Each(func(key interface{}, value interface{}) {
+	sortmap.Each(func(key any, value any) {
 		if key.(string) != "sign" && m[key.(string)] != "" {
 			signtext = signtext + key.(string) + "=" + value.(string) + "&"
 		}

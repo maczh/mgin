@@ -16,15 +16,15 @@ type Cache struct {
 
 // An item represents arbitrary data with expiration time.
 type item struct {
-	data    interface{}
+	data    any
 	expires int64
 }
 
 var mc *MyCache
 
 /*
-	初始化一个cache
-	cachename 缓存名字
+初始化一个cache
+cachename 缓存名字
 */
 func OnGetCache(cachename string) *Cache {
 	if mc == nil {
@@ -38,10 +38,10 @@ func OnGetCache(cachename string) *Cache {
 }
 
 /*
-	添加一个缓存
-	lifeSpan:缓存时间，0表示永不超时
+添加一个缓存
+lifeSpan:缓存时间，0表示永不超时
 */
-func (c *Cache) Add(key interface{}, value interface{}, lifeSpan time.Duration) {
+func (c *Cache) Add(key any, value any, lifeSpan time.Duration) {
 	v := clone.Clone(value)
 	c.Set(key, v, lifeSpan)
 }
@@ -51,15 +51,15 @@ func (c *Cache) Add(key interface{}, value interface{}, lifeSpan time.Duration) 
 	value 返回的值
 */
 
-func (c *Cache) Value(key interface{}) (interface{}, bool) {
+func (c *Cache) Value(key any) (any, bool) {
 	v, found := c.Get(key)
 	return clone.Clone(v), found
 }
 
 /*
-	判断key是否存在
+判断key是否存在
 */
-func (c *Cache) IsExist(key interface{}) bool {
+func (c *Cache) IsExist(key any) bool {
 	_, exists := c.Get(key)
 	return exists
 }
@@ -69,7 +69,7 @@ func (c *Cache) IsExist(key interface{}) bool {
 */
 
 /*
-	清空表內容
+清空表內容
 */
 func (c *Cache) Clear() bool {
 	c.Close()
@@ -92,7 +92,7 @@ func New(cleaningInterval time.Duration) *Cache {
 			case <-ticker.C:
 				now := time.Now().UnixNano()
 
-				cache.items.Range(func(key, value interface{}) bool {
+				cache.items.Range(func(key, value any) bool {
 					item := value.(item)
 
 					if item.expires > 0 && now > item.expires {
@@ -112,7 +112,7 @@ func New(cleaningInterval time.Duration) *Cache {
 }
 
 // Get gets the value for the given key.
-func (cache *Cache) Get(key interface{}) (interface{}, bool) {
+func (cache *Cache) Get(key any) (any, bool) {
 	obj, exists := cache.items.Load(key)
 
 	if !exists {
@@ -130,7 +130,7 @@ func (cache *Cache) Get(key interface{}) (interface{}, bool) {
 
 // Set sets a value for the given key with an expiration duration.
 // If the duration is 0 or less, it will be stored forever.
-func (cache *Cache) Set(key interface{}, value interface{}, duration time.Duration) {
+func (cache *Cache) Set(key any, value any, duration time.Duration) {
 	var expires int64
 
 	if duration > 0 {
@@ -145,10 +145,10 @@ func (cache *Cache) Set(key interface{}, value interface{}, duration time.Durati
 
 // Range calls f sequentially for each key and value present in the cache.
 // If f returns false, range stops the iteration.
-func (cache *Cache) Range(f func(key, value interface{}) bool) {
+func (cache *Cache) Range(f func(key, value any) bool) {
 	now := time.Now().UnixNano()
 
-	fn := func(key, value interface{}) bool {
+	fn := func(key, value any) bool {
 		item := value.(item)
 
 		if item.expires > 0 && now > item.expires {
@@ -162,7 +162,7 @@ func (cache *Cache) Range(f func(key, value interface{}) bool) {
 }
 
 // Delete deletes the key and its value from the cache.
-func (cache *Cache) Delete(key interface{}) {
+func (cache *Cache) Delete(key any) {
 	cache.items.Delete(key)
 }
 

@@ -1,7 +1,7 @@
 package utils
 
 // IfThen evaluates a condition, if true returns the parameters otherwise nil
-func IfThen(condition bool, a interface{}) interface{} {
+func IfThen(condition bool, a any) any {
 	if condition {
 		return a
 	}
@@ -9,7 +9,7 @@ func IfThen(condition bool, a interface{}) interface{} {
 }
 
 // IfThenElse evaluates a condition, if true returns the first parameter otherwise the second
-func IfThenElse(condition bool, a interface{}, b interface{}) interface{} {
+func IfThenElse(condition bool, a any, b any) any {
 	if condition {
 		return a
 	}
@@ -17,7 +17,7 @@ func IfThenElse(condition bool, a interface{}, b interface{}) interface{} {
 }
 
 // DefaultIfNil checks if the value is nil, if true returns the default value otherwise the original
-func DefaultIfNil(value interface{}, defaultValue interface{}) interface{} {
+func DefaultIfNil(value any, defaultValue any) any {
 	if value != nil {
 		return value
 	}
@@ -25,7 +25,7 @@ func DefaultIfNil(value interface{}, defaultValue interface{}) interface{} {
 }
 
 // FirstNonNil returns the first non nil parameter
-func FirstNonNil(values ...interface{}) interface{} {
+func FirstNonNil(values ...any) any {
 	for _, value := range values {
 		if value != nil {
 			return value

@@ -56,7 +56,7 @@ func Float64ArrayDelete(src []float64, index int) []float64 {
 	return dst
 }
 
-func SliceContains(sl []interface{}, v interface{}) bool {
+func SliceContains(sl []any, v any) bool {
 	for _, vv := range sl {
 		if vv == v {
 			return true
@@ -93,7 +93,7 @@ func SliceContainsString(sl []string, v string) bool {
 }
 
 // SliceMerge merges interface slices to one slice.
-func SliceMerge(slice1, slice2 []interface{}) (c []interface{}) {
+func SliceMerge(slice1, slice2 []any) (c []any) {
 	c = append(slice1, slice2...)
 	return
 }
@@ -203,8 +203,8 @@ func SliceSumFloat64(intslice []float64) (sum float64) {
 	return
 }
 
-//删除数组
-func DeleteArray(src []interface{}, index int) (result []interface{}) {
+// 删除数组
+func DeleteArray(src []any, index int) (result []any) {
 	result = append(src[:index], src[(index+1):]...)
 	return
 }
@@ -313,7 +313,7 @@ func UnionStringSlice(slice1, slice2 []string) []string {
 	return slice1
 }
 
-//求交集
+// 求交集
 func IntersectStringSlice(slice1, slice2 []string) []string {
 	m := make(map[string]int)
 	nn := make([]string, 0)
@@ -330,7 +330,7 @@ func IntersectStringSlice(slice1, slice2 []string) []string {
 	return nn
 }
 
-//求差集 slice1-并集
+// 求差集 slice1-并集
 func DifferenceStringSlice(slice1, slice2 []string) []string {
 	m := make(map[string]int)
 	nn := make([]string, 0)

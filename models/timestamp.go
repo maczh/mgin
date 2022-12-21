@@ -17,7 +17,7 @@ func (t Timestamp) MarshalJSON() ([]byte, error) {
 	return []byte(stamp), nil
 }
 
-func (t Timestamp) GetBSON() (interface{}, error) {
+func (t Timestamp) GetBSON() (any, error) {
 	return time.Time(t), nil
 }
 
@@ -46,7 +46,7 @@ func (t Timestamp) Value() (driver.Value, error) {
 	return time.Time(t), nil
 }
 
-func (t *Timestamp) Scan(v interface{}) error {
+func (t *Timestamp) Scan(v any) error {
 	value, ok := v.(time.Time)
 	if ok {
 		*t = Timestamp(value)

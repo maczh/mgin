@@ -141,7 +141,7 @@ var Output = ansicolor.NewAnsiColorWriter(os.Stdout)
 // string. It returns the number of bytes written and any write error
 // encountered. This is the standard fmt.Print() method wrapped with the given
 // color.
-func (c *Color) Print(a ...interface{}) (n int, err error) {
+func (c *Color) Print(a ...any) (n int, err error) {
 	c.Set()
 	defer c.unset()
 
@@ -151,7 +151,7 @@ func (c *Color) Print(a ...interface{}) (n int, err error) {
 // Printf formats according to a format specifier and writes to standard output.
 // It returns the number of bytes written and any write error encountered.
 // This is the standard fmt.Printf() method wrapped with the given color.
-func (c *Color) Printf(format string, a ...interface{}) (n int, err error) {
+func (c *Color) Printf(format string, a ...any) (n int, err error) {
 	c.Set()
 	defer c.unset()
 
@@ -163,7 +163,7 @@ func (c *Color) Printf(format string, a ...interface{}) (n int, err error) {
 // appended. It returns the number of bytes written and any write error
 // encountered. This is the standard fmt.Print() method wrapped with the given
 // color.
-func (c *Color) Println(a ...interface{}) (n int, err error) {
+func (c *Color) Println(a ...any) (n int, err error) {
 	c.Set()
 	defer c.unset()
 
@@ -172,20 +172,20 @@ func (c *Color) Println(a ...interface{}) (n int, err error) {
 
 // PrintFunc returns a new function that prints the passed arguments as
 // colorized with color.Print().
-func (c *Color) PrintFunc() func(a ...interface{}) {
-	return func(a ...interface{}) { c.Print(a...) }
+func (c *Color) PrintFunc() func(a ...any) {
+	return func(a ...any) { c.Print(a...) }
 }
 
 // PrintfFunc returns a new function that prints the passed arguments as
 // colorized with color.Printf().
-func (c *Color) PrintfFunc() func(format string, a ...interface{}) {
-	return func(format string, a ...interface{}) { c.Printf(format, a...) }
+func (c *Color) PrintfFunc() func(format string, a ...any) {
+	return func(format string, a ...any) { c.Printf(format, a...) }
 }
 
 // PrintlnFunc returns a new function that prints the passed arguments as
 // colorized with color.Println().
-func (c *Color) PrintlnFunc() func(a ...interface{}) {
-	return func(a ...interface{}) { c.Println(a...) }
+func (c *Color) PrintlnFunc() func(a ...any) {
+	return func(a ...any) { c.Println(a...) }
 }
 
 // SprintFunc returns a new function that returns colorized strings for the
@@ -194,8 +194,8 @@ func (c *Color) PrintlnFunc() func(a ...interface{}) {
 //
 //	put := New(FgYellow).SprintFunc()
 //	fmt.Fprintf(color.Output, "This is a %s", put("warning"))
-func (c *Color) SprintFunc() func(a ...interface{}) string {
-	return func(a ...interface{}) string {
+func (c *Color) SprintFunc() func(a ...any) string {
+	return func(a ...any) string {
 		return c.wrap(fmt.Sprint(a...))
 	}
 }
@@ -203,8 +203,8 @@ func (c *Color) SprintFunc() func(a ...interface{}) string {
 // SprintfFunc returns a new function that returns colorized strings for the
 // given arguments with fmt.Sprintf(). Useful to put into or mix into other
 // string. Windows users should use this in conjuction with color.Output.
-func (c *Color) SprintfFunc() func(format string, a ...interface{}) string {
-	return func(format string, a ...interface{}) string {
+func (c *Color) SprintfFunc() func(format string, a ...any) string {
+	return func(format string, a ...any) string {
 		return c.wrap(fmt.Sprintf(format, a...))
 	}
 }
@@ -212,8 +212,8 @@ func (c *Color) SprintfFunc() func(format string, a ...interface{}) string {
 // SprintlnFunc returns a new function that returns colorized strings for the
 // given arguments with fmt.Sprintln(). Useful to put into or mix into other
 // string. Windows users should use this in conjuction with color.Output.
-func (c *Color) SprintlnFunc() func(a ...interface{}) string {
-	return func(a ...interface{}) string {
+func (c *Color) SprintlnFunc() func(a ...any) string {
+	return func(a ...any) string {
 		return c.wrap(fmt.Sprintln(a...))
 	}
 }
@@ -301,37 +301,37 @@ func boolPtr(v bool) *bool {
 
 // Black is an convenient helper function to print with black foreground. A
 // newline is appended to format by default.
-func Black(format string, a ...interface{}) { printColor(format, FgBlack, a...) }
+func Black(format string, a ...any) { printColor(format, FgBlack, a...) }
 
 // Red is an convenient helper function to print with red foreground. A
 // newline is appended to format by default.
-func Red(format string, a ...interface{}) { printColor(format, FgRed, a...) }
+func Red(format string, a ...any) { printColor(format, FgRed, a...) }
 
 // Green is an convenient helper function to print with green foreground. A
 // newline is appended to format by default.
-func Green(format string, a ...interface{}) { printColor(format, FgGreen, a...) }
+func Green(format string, a ...any) { printColor(format, FgGreen, a...) }
 
 // Yellow is an convenient helper function to print with yellow foreground.
 // A newline is appended to format by default.
-func Yellow(format string, a ...interface{}) { printColor(format, FgYellow, a...) }
+func Yellow(format string, a ...any) { printColor(format, FgYellow, a...) }
 
 // Blue is an convenient helper function to print with blue foreground. A
 // newline is appended to format by default.
-func Blue(format string, a ...interface{}) { printColor(format, FgBlue, a...) }
+func Blue(format string, a ...any) { printColor(format, FgBlue, a...) }
 
 // Magenta is an convenient helper function to print with magenta foreground.
 // A newline is appended to format by default.
-func Magenta(format string, a ...interface{}) { printColor(format, FgMagenta, a...) }
+func Magenta(format string, a ...any) { printColor(format, FgMagenta, a...) }
 
 // Cyan is an convenient helper function to print with cyan foreground. A
 // newline is appended to format by default.
-func Cyan(format string, a ...interface{}) { printColor(format, FgCyan, a...) }
+func Cyan(format string, a ...any) { printColor(format, FgCyan, a...) }
 
 // White is an convenient helper function to print with white foreground. A
 // newline is appended to format by default.
-func White(format string, a ...interface{}) { printColor(format, FgWhite, a...) }
+func White(format string, a ...any) { printColor(format, FgWhite, a...) }
 
-func printColor(format string, p Attribute, a ...interface{}) {
+func printColor(format string, p Attribute, a ...any) {
 	if !strings.HasSuffix(format, "\n") {
 		format += "\n"
 	}
@@ -342,48 +342,48 @@ func printColor(format string, p Attribute, a ...interface{}) {
 
 // BlackString is an convenient helper function to return a string with black
 // foreground.
-func BlackString(format string, a ...interface{}) string {
+func BlackString(format string, a ...any) string {
 	return New(FgBlack).SprintfFunc()(format, a...)
 }
 
 // RedString is an convenient helper function to return a string with red
 // foreground.
-func RedString(format string, a ...interface{}) string {
+func RedString(format string, a ...any) string {
 	return New(FgRed).SprintfFunc()(format, a...)
 }
 
 // GreenString is an convenient helper function to return a string with green
 // foreground.
-func GreenString(format string, a ...interface{}) string {
+func GreenString(format string, a ...any) string {
 	return New(FgGreen).SprintfFunc()(format, a...)
 }
 
 // YellowString is an convenient helper function to return a string with yellow
 // foreground.
-func YellowString(format string, a ...interface{}) string {
+func YellowString(format string, a ...any) string {
 	return New(FgYellow).SprintfFunc()(format, a...)
 }
 
 // BlueString is an convenient helper function to return a string with blue
 // foreground.
-func BlueString(format string, a ...interface{}) string {
+func BlueString(format string, a ...any) string {
 	return New(FgBlue).SprintfFunc()(format, a...)
 }
 
 // MagentaString is an convenient helper function to return a string with magenta
 // foreground.
-func MagentaString(format string, a ...interface{}) string {
+func MagentaString(format string, a ...any) string {
 	return New(FgMagenta).SprintfFunc()(format, a...)
 }
 
 // CyanString is an convenient helper function to return a string with cyan
 // foreground.
-func CyanString(format string, a ...interface{}) string {
+func CyanString(format string, a ...any) string {
 	return New(FgCyan).SprintfFunc()(format, a...)
 }
 
 // WhiteString is an convenient helper function to return a string with white
 // foreground.
-func WhiteString(format string, a ...interface{}) string {
+func WhiteString(format string, a ...any) string {
 	return New(FgWhite).SprintfFunc()(format, a...)
 }
