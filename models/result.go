@@ -18,12 +18,23 @@ type ResultPage struct {
 	Total int `json:"total"` //总记录数
 }
 
+// 从泛型转any
 func (r Result[T]) ToAny() Result[any] {
 	return Result[any]{
 		Status: r.Status,
 		Msg:    r.Msg,
 		Data:   r.Data,
 		Page:   r.Page,
+	}
+}
+
+// 从any转指定泛型
+func ToAny[T any](result Result[any]) Result[T] {
+	return Result[T]{
+		Status: result.Status,
+		Msg:    result.Msg,
+		Data:   result.Data,
+		Page:   result.Page,
 	}
 }
 
