@@ -267,3 +267,6 @@ func handleMsg(msg string) error {
 * 服务端参见 examples/mgin-server项目
 * 客户端参见 examples/mgin-client项目
 
+### 版本更新
+- v1.19.1 Result实现any与泛型T互转函数
+- v1.19.0 支持go 1.19，Result改用泛型,重构client.Call函数，支持泛型返回
