@@ -18,6 +18,15 @@ type ResultPage struct {
 	Total int `json:"total"` //总记录数
 }
 
+func (r Result[T]) ToAny() Result[any] {
+	return Result[any]{
+		Status: r.Status,
+		Msg:    r.Msg,
+		Data:   r.Data,
+		Page:   r.Page,
+	}
+}
+
 func Success[T any](data T) Result[T] {
 	result := Result[T]{
 		Status: 1,
