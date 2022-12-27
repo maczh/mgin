@@ -59,7 +59,6 @@ func RequestLogger() gin.HandlerFunc {
 
 		responseBody := bodyLogWriter.body.String()
 
-		var req any
 		var result any
 
 		// 日志格式
@@ -78,15 +77,11 @@ func RequestLogger() gin.HandlerFunc {
 		endTime := time.Now()
 
 		// 日志格式
-		var params any
+		var params, reqBody any
 		if strings.Contains(c.ContentType(), "application/json") && body != "" {
-			utils.FromJSON(body, &req)
-			params = req
-		} else if strings.Contains(c.ContentType(), "x-www-form-urlencoded") || strings.Contains(c.ContentType(), "multipart/form-data") {
-			params = utils.GinParamMap(c)
-		} else if c.Request.Method != "GET" && c.Request.Method != "DELETE" {
-			return
+			utils.FromJSON(body, &reqBody)
 		}
+		params = utils.GinParamMap(c)
 		postLog := new(models.PostLog)
 		postLog.ID = bson.NewObjectId()
 		postLog.Time = startTime.Format("2006-01-02 15:04:05")
@@ -105,6 +100,7 @@ func RequestLogger() gin.HandlerFunc {
 		}
 		postLog.ClientIP = ip
 		postLog.RequestParam = params
+		postLog.RequestBody = reqBody
 		postLog.ResponseTime = endTime.Format("2006-01-02 15:04:05")
 		postLog.ResponseMap = result
 		postLog.TTL = int(endTime.UnixNano()/1e6 - startTime.UnixNano()/1e6)

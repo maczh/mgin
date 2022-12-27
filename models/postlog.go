@@ -18,6 +18,7 @@ type PostLog struct {
 	ClientIP      string            `json:"clientIP" bson:"clientIP"`
 	RequestHeader map[string]string `json:"requestHeader" bson:"requestHeader"`
 	RequestParam  any               `json:"requestParam" bson:"requestParam"`
+	RequestBody   any               `json:"requestBody" bson:"requestBody"`
 	ResponseStr   string            `json:"responseStr" bson:"responseStr"`
 	ResponseMap   any               `json:"responseMap" bson:"responseMap"`
 }

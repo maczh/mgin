@@ -28,12 +28,12 @@ func (r Result[T]) ToAny() Result[any] {
 	}
 }
 
-// 从any转指定泛型
+// 从any转指定泛型，必须明确Data的类型一致，否则断言可能panic
 func ToAny[T any](result Result[any]) Result[T] {
 	return Result[T]{
 		Status: result.Status,
 		Msg:    result.Msg,
-		Data:   result.Data,
+		Data:   result.Data.(T),
 		Page:   result.Page,
 	}
 }
