@@ -31,6 +31,7 @@ type NacosClient struct {
 	lanNetwork string
 	conf       *koanf.Koanf
 	confUrl    string
+	Subscribes map[string]*vo.SubscribeParam
 }
 
 var logger = gologger.GetLogger()
@@ -89,12 +90,13 @@ func (n *NacosClient) Register(nacosConfigUrl string) {
 			serverConfigs = append(serverConfigs, serverConfig)
 		}
 		logger.Debug("Nacos服务器配置: " + toJSON(serverConfigs))
-		clientConfig := constant.ClientConfig{}
-		clientConfig.LogLevel = "error"
+		clientConfig := constant.ClientConfig{
+			UpdateCacheWhenEmpty: true,
+			LogLevel:             "error",
+		}
 		if n.conf.Exists("go.nacos.clientConfig.logLevel") {
 			clientConfig.LogLevel = n.conf.String("go.nacos.clientConfig.logLevel")
 		}
-		clientConfig.UpdateCacheWhenEmpty = true
 		if n.conf.Exists("go.nacos.clientConfig.updateCacheWhenEmpty") {
 			clientConfig.UpdateCacheWhenEmpty = n.conf.Bool("go.nacos.client.updateCacheWhenEmpty")
 		}
@@ -138,18 +140,19 @@ func (n *NacosClient) Register(nacosConfigUrl string) {
 			logger.Error("Nacos注册服务失败:" + regerr.Error())
 			return
 		}
-
-		err = n.client.Subscribe(&vo.SubscribeParam{
+		subsParam := &vo.SubscribeParam{
 			ServiceName: config.Config.App.Name,
 			Clusters:    []string{n.cluster},
 			GroupName:   n.group,
 			SubscribeCallback: func(services []model.SubscribeService, err error) {
 				logger.Debug("callback return services:" + toJSON(services))
 			},
-		})
+		}
+		err = n.client.Subscribe(subsParam)
 		if err != nil {
 			logger.Error("Nacos服务订阅失败:" + err.Error())
 		}
+		n.Subscribes[config.Config.App.Name] = subsParam
 	}
 
 }
@@ -199,16 +202,11 @@ func (n *NacosClient) GetServiceURL(servicename string, groupName ...string) (st
 }
 
 func (n *NacosClient) DeRegister() {
-	err := n.client.Unsubscribe(&vo.SubscribeParam{
-		ServiceName: config.Config.App.Name,
-		Clusters:    []string{n.cluster},
-		GroupName:   n.group,
-		SubscribeCallback: func(services []model.SubscribeService, err error) {
-			logger.Debug("callback return services:" + toJSON(services))
-		},
-	})
-	if err != nil {
-		logger.Error("Nacos服务订阅失败:" + err.Error())
+	for _, subs := range n.Subscribes {
+		err := n.client.Unsubscribe(subs)
+		if err != nil {
+			logger.Error("Nacos服务" + subs.ServiceName + "退订失败:" + err.Error())
+		}
 	}
 	ips, _ := localIPv4s(n.lan, n.lanNetwork)
 	ip := ips[0]

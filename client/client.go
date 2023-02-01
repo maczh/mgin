@@ -67,10 +67,7 @@ func Call(service, uri string, op *Options) (string, error) {
 	}
 	if host != "" {
 		cache.OnGetCache("nacos").Add(service, host, 5*time.Minute)
-		if !cache.OnGetCache("nacos").IsExist("nacos:subscribe:" + service) {
-			subscribeNacos(service, op.Group)
-			cache.OnGetCache("nacos").Add("nacos:subscribe:"+service, "true", 0)
-		}
+		subscribeNacos(service, op.Group)
 	} else {
 		return "", errors.New("微服务获取" + service + "服务主机IP端口失败")
 	}
@@ -145,20 +142,24 @@ func getHostFromCache(serviceName string) (string, error) {
 }
 
 func subscribeNacos(serviceName, groupName string) {
-	logs.Debug("Nacos微服务订阅服务名:{}", serviceName)
 	if groupName == "" {
 		groupName = "DEFAULT_GROUP"
 	}
-	err := registry.Nacos.GetNacosClient().Subscribe(&vo.SubscribeParam{
-		ServiceName: serviceName,
-		Clusters:    []string{"DEFAULT"},
-		GroupName:   groupName,
-		SubscribeCallback: func(services []model.SubscribeService, err error) {
-			subscribeNacosCallback(services, err)
-		},
-	})
-	if err != nil {
-		logs.Error("Nacos订阅错误:{}", err.Error())
+	if _, ok := registry.Nacos.Subscribes[serviceName]; !ok {
+		logs.Debug("Nacos微服务订阅服务名:{}", serviceName)
+		subsParams := &vo.SubscribeParam{
+			ServiceName: serviceName,
+			Clusters:    []string{"DEFAULT"},
+			GroupName:   groupName,
+			SubscribeCallback: func(services []model.SubscribeService, err error) {
+				subscribeNacosCallback(services, err)
+			},
+		}
+		err := registry.Nacos.GetNacosClient().Subscribe(subsParams)
+		if err != nil {
+			logs.Error("Nacos订阅错误:{}", err.Error())
+		}
+		registry.Nacos.Subscribes[serviceName] = subsParams
 	}
 }
 
