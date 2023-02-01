@@ -23,7 +23,7 @@ type mginClient struct {
 
 var Nacos = &mginClient{}
 
-//Call 微服务调用其他服务的接口
+// Call 微服务调用其他服务的接口
 // x-form模式 Call(service string, uri string, params map[string]string)
 // json模式 Call(service string, uri string, method string, queryParams map[string]string, jsonBody interface{})
 // restful模式 Call(service string, uri string, method string, pathParams map[string]string, queryparams map[string]string, header map[string]string, jsonBody interface{})
@@ -214,7 +214,7 @@ func GetWithHeader(service string, uri string, params map[string]string, header 
 	}
 }
 
-//微服务调用其他服务的接口,带header
+// 微服务调用其他服务的接口,带header
 func CallWithHeader(service string, uri string, params map[string]string, header map[string]string) (string, error) {
 	host, err := getHostFromCache(service)
 	group := "DEFAULT_GROUP"
@@ -313,7 +313,7 @@ func CallWithFiles(service string, uri string, params map[string]string, files [
 	return CallWithFilesHeader(service, uri, params, files, map[string]string{})
 }
 
-//微服务调用其他服务的接口,带文件
+// 微服务调用其他服务的接口,带文件
 func CallWithFilesHeader(service string, uri string, params map[string]string, files []grequests.FileUpload, header map[string]string) (string, error) {
 	host, err := getHostFromCache(service)
 	group := "DEFAULT_GROUP"
@@ -415,20 +415,24 @@ func getHostFromCache(serviceName string) (string, error) {
 }
 
 func subscribeNacos(serviceName, groupName string) {
-	logs.Debug("Nacos微服务订阅服务名:{}", serviceName)
 	if groupName == "" {
 		groupName = "DEFAULT_GROUP"
 	}
-	err := registry.Nacos.GetNacosClient().Subscribe(&vo.SubscribeParam{
-		ServiceName: serviceName,
-		Clusters:    []string{"DEFAULT"},
-		GroupName:   groupName,
-		SubscribeCallback: func(services []model.SubscribeService, err error) {
-			subscribeNacosCallback(services, err)
-		},
-	})
-	if err != nil {
-		logs.Error("Nacos订阅错误:{}", err.Error())
+	if _, ok := registry.Nacos.Subscribes[serviceName]; !ok {
+		logs.Debug("Nacos微服务订阅服务名:{}", serviceName)
+		subsParams := &vo.SubscribeParam{
+			ServiceName: serviceName,
+			Clusters:    []string{"DEFAULT"},
+			GroupName:   groupName,
+			SubscribeCallback: func(services []model.SubscribeService, err error) {
+				subscribeNacosCallback(services, err)
+			},
+		}
+		err := registry.Nacos.GetNacosClient().Subscribe(subsParams)
+		if err != nil {
+			logs.Error("Nacos订阅错误:{}", err.Error())
+		}
+		registry.Nacos.Subscribes[serviceName] = subsParams
 	}
 }
 
