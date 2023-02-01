@@ -5,7 +5,6 @@ go 1.19
 require (
 	github.com/Shopify/sarama v1.37.2
 	github.com/araddon/dateparse v0.0.0-20210429162001-6b43995a97de
-	github.com/ekyoung/gin-nice-recovery v0.0.0-20160510022553-1654dca486db
 	github.com/emirpasic/gods v1.18.1
 	github.com/gin-gonic/gin v1.8.1
 	github.com/go-errors/errors v1.0.1
@@ -17,7 +16,7 @@ require (
 	github.com/knadh/koanf v1.4.3
 	github.com/levigross/grequests v0.0.0-20190908174114-253788527a1a
 	github.com/mattn/go-isatty v0.0.14
-	github.com/nacos-group/nacos-sdk-go v1.0.9
+	github.com/nacos-group/nacos-sdk-go v1.1.4
 	github.com/olivere/elastic v6.2.37+incompatible
 	github.com/pkg/sftp v1.13.5
 	github.com/sadlil/gologger v0.0.0-20180131031757-2507bf651df8
@@ -64,8 +63,6 @@ require (
 	github.com/klauspost/compress v1.15.11 // indirect
 	github.com/kr/fs v0.1.0 // indirect
 	github.com/leodido/go-urn v1.2.1 // indirect
-	github.com/lestrrat/go-file-rotatelogs v0.0.0-20180223000712-d3151e2a480f // indirect
-	github.com/lestrrat/go-strftime v0.0.0-20180220042222-ba3bf9c1d042 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mattbaird/elastigo v0.0.0-20170123220020-2fe47fd29e4b // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
@@ -79,15 +76,16 @@ require (
 	github.com/pierrec/lz4/v4 v4.1.17 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475 // indirect
-	github.com/toolkits/concurrent v0.0.0-20150624120057-a4371d70e3e3 // indirect
 	github.com/ugorji/go/codec v1.2.7 // indirect
 	go.uber.org/atomic v1.7.0 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
 	go.uber.org/zap v1.17.0 // indirect
 	golang.org/x/net v0.0.0-20220927171203-f486391704dc // indirect
+	golang.org/x/sync v0.0.0-20220923202941-7f9b1623fab7 // indirect
 	golang.org/x/sys v0.0.0-20220728004956-3c1f35247d10 // indirect
 	google.golang.org/protobuf v1.28.0 // indirect
 	gopkg.in/ini.v1 v1.42.0 // indirect
+	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
