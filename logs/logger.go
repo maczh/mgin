@@ -1,8 +1,8 @@
 package logs
 
 import (
+	"encoding/json"
 	"fmt"
-	jsoniter "github.com/json-iterator/go"
 	"github.com/maczh/mgin/config"
 	"github.com/maczh/mgin/middleware/trace"
 	"reflect"
@@ -37,8 +37,6 @@ func initConfig() {
 		logLevel = level
 	}
 }
-
-var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 func toJSON(o any) string {
 	j, err := json.Marshal(o)
