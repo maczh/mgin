@@ -2,13 +2,10 @@ package utils
 
 import (
 	"bytes"
-	j "encoding/json"
-	jsoniter "github.com/json-iterator/go"
+	"encoding/json"
 	"github.com/maczh/mgin/logs"
 	"strings"
 )
-
-var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 func ToJSON(o interface{}) string {
 	j, err := json.Marshal(o)
@@ -36,7 +33,7 @@ func FromJSON(j string, o interface{}) *interface{} {
 // JSONPrettyPrint pretty print raw json string to indent string
 func JSONPretty(in, prefix, indent string) string {
 	var out bytes.Buffer
-	if err := j.Indent(&out, []byte(in), prefix, indent); err != nil {
+	if err := json.Indent(&out, []byte(in), prefix, indent); err != nil {
 		return in
 	}
 	return out.String()
@@ -45,7 +42,7 @@ func JSONPretty(in, prefix, indent string) string {
 // CompactJSON compact json input with insignificant space characters elided
 func CompactJSON(in string) string {
 	var out bytes.Buffer
-	if err := j.Compact(&out, []byte(in)); err != nil {
+	if err := json.Compact(&out, []byte(in)); err != nil {
 		return in
 	}
 	return out.String()
