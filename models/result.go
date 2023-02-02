@@ -20,11 +20,20 @@ type ResultPage struct {
 
 // 从泛型转any
 func (r Result[T]) ToAny() Result[any] {
-	return Result[any]{
-		Status: r.Status,
-		Msg:    r.Msg,
-		Data:   r.Data,
-		Page:   r.Page,
+	if r.Status != 1 {
+		return Result[any]{
+			Status: r.Status,
+			Msg:    r.Msg,
+			Data:   nil,
+			Page:   nil,
+		}
+	} else {
+		return Result[any]{
+			Status: r.Status,
+			Msg:    r.Msg,
+			Data:   r.Data,
+			Page:   r.Page,
+		}
 	}
 }
 
