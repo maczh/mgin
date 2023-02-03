@@ -32,9 +32,9 @@ type Options struct {
 	Method   string                 `json:"method"`   //接口方法 GET|POST|PUT|DELETE
 	Protocol string                 `json:"protocol"` //协议 x-form|json|restful
 	Group    string                 `json:"group"`    //应用分组，用于nacos中分组，不传为当前nacos分组及默认分组
-	Header   map[string]string      `json:"header"`   //额外的头部参数
-	Query    map[string]string      `json:"query"`    //URL Query参数
-	Data     map[string]string      `json:"data"`     //x-form Postform参数
+	Header   any                    `json:"header"`   //额外的头部参数
+	Query    any                    `json:"query"`    //URL Query参数
+	Data     any                    `json:"data"`     //x-form Postform参数
 	Json     any                    `json:"json"`     //json或restful模式的body参数
 	Path     map[string]string      `json:"path"`     //restful模式的路径参数
 	Files    []grequests.FileUpload //文件上传数据
@@ -46,8 +46,8 @@ func Call(service, uri string, op *Options) (string, error) {
 		op.Protocol = config.Config.Discovery.CallType
 	}
 	headers := trace.GetHeaders()
-	if op.Header != nil && len(op.Header) > 0 {
-		for k, v := range op.Header {
+	if op.Header != nil {
+		for k, v := range utils.AnyToMap(op.Header) {
 			headers[k] = v
 		}
 	}
@@ -79,25 +79,25 @@ func Call(service, uri string, op *Options) (string, error) {
 	logs.Debug("微服务{}请求: {} {}\n请求头: {}\nQuery:{}\n请求参数: {}\n请求体:{}", service, op.Method, url, op.Header, op.Query, op.Data, op.Json)
 	switch op.Protocol {
 	case CONTENT_TYPE_FORM:
-		op.Header["Content-Type"] = gin.MIMEPOSTForm
+		headers["Content-Type"] = gin.MIMEPOSTForm
 		resp, err = grequests.DoRegularRequest(op.Method, url, &grequests.RequestOptions{
-			Data:    op.Data,
-			Params:  op.Query,
-			Headers: op.Header,
+			Data:    utils.AnyToMap(op.Data),
+			Params:  utils.AnyToMap(op.Query),
+			Headers: headers,
 		})
 	case CONTENT_TYPE_JSON, CONTENT_TYPE_RESTFUL:
-		op.Header["Content-Type"] = gin.MIMEJSON
+		headers["Content-Type"] = gin.MIMEJSON
 		resp, err = grequests.DoRegularRequest(op.Method, url, &grequests.RequestOptions{
 			JSON:    op.Json,
-			Params:  op.Query,
-			Headers: op.Header,
+			Params:  utils.AnyToMap(op.Query),
+			Headers: utils.AnyToMap(op.Header),
 		})
 	case CONTENT_TYPE_FILE:
-		delete(op.Header, "Content-Type")
+		delete(headers, "Content-Type")
 		resp, err = grequests.Post(url, &grequests.RequestOptions{
-			Data:    op.Data,
-			Params:  op.Query,
-			Headers: op.Header,
+			Data:    utils.AnyToMap(op.Data),
+			Params:  utils.AnyToMap(op.Query),
+			Headers: headers,
 			Files:   op.Files,
 		})
 	}
