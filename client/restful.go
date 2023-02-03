@@ -9,13 +9,14 @@ import (
 	"github.com/maczh/mgin/logs"
 	"github.com/maczh/mgin/middleware/trace"
 	"github.com/maczh/mgin/registry"
+	"github.com/maczh/mgin/utils"
 	"net/url"
 	"strconv"
 	"strings"
 	"time"
 )
 
-func RestfulWithHeader(method, service string, uri string, pathparams map[string]string, queryparams map[string]string, header map[string]string, body interface{}) (string, error) {
+func RestfulWithHeader(method, service string, uri string, pathparams, queryparams, header, body interface{}) (string, error) {
 	host, err := getHostFromCache(service)
 	group := "DEFAULT_GROUP"
 	if err != nil || host == "" {
@@ -39,23 +40,23 @@ func RestfulWithHeader(method, service string, uri string, pathparams map[string
 			return "", errors.New("微服务获取" + service + "服务主机IP端口失败")
 		}
 	}
-	for k, v := range pathparams {
+	for k, v := range utils.AnyToMap(pathparams) {
 		uri = strings.ReplaceAll(uri, fmt.Sprintf("{%s}", k), url.PathEscape(v))
 	}
 	url := host + uri
+	headers := trace.GetHeaders()
 	if header == nil {
-		header = trace.GetHeaders()
-	} else {
-		for k, v := range trace.GetHeaders() {
-			if header[k] == "" {
-				header[k] = v
+		h := utils.AnyToMap(header)
+		for k, v := range h {
+			if headers[k] == "" {
+				headers[k] = v
 			}
 		}
 	}
-	header["Content-Type"] = "application/json"
+	headers["Content-Type"] = "application/json"
 	//通过X-Timeout来控制链路接口请求超时
 	timeout := 90 * time.Second
-	t := header["X-Timeout"]
+	t := headers["X-Timeout"]
 	if t != "" {
 		ti, _ := strconv.Atoi(t)
 		if ti > 0 {
@@ -67,48 +68,48 @@ func RestfulWithHeader(method, service string, uri string, pathparams map[string
 	switch method {
 	case "GET":
 		resp, err = grequests.Get(url, &grequests.RequestOptions{
-			Headers:            header,
-			Params:             queryparams,
+			Headers:            headers,
+			Params:             utils.AnyToMap(queryparams),
 			InsecureSkipVerify: true,
 			JSON:               body,
 			RequestTimeout:     timeout,
 		})
 	case "POST":
 		resp, err = grequests.Post(url, &grequests.RequestOptions{
-			Headers:            header,
-			Params:             queryparams,
+			Headers:            headers,
+			Params:             utils.AnyToMap(queryparams),
 			InsecureSkipVerify: true,
 			JSON:               body,
 			RequestTimeout:     timeout,
 		})
 	case "DELETE":
 		resp, err = grequests.Delete(url, &grequests.RequestOptions{
-			Headers:            header,
-			Params:             queryparams,
+			Headers:            headers,
+			Params:             utils.AnyToMap(queryparams),
 			InsecureSkipVerify: true,
 			JSON:               body,
 			RequestTimeout:     timeout,
 		})
 	case "PUT":
 		resp, err = grequests.Put(url, &grequests.RequestOptions{
-			Headers:            header,
-			Params:             queryparams,
+			Headers:            headers,
+			Params:             utils.AnyToMap(queryparams),
 			InsecureSkipVerify: true,
 			JSON:               body,
 			RequestTimeout:     timeout,
 		})
 	case "OPTIONS":
 		resp, err = grequests.Options(url, &grequests.RequestOptions{
-			Headers:            header,
-			Params:             queryparams,
+			Headers:            headers,
+			Params:             utils.AnyToMap(queryparams),
 			InsecureSkipVerify: true,
 			JSON:               body,
 			RequestTimeout:     timeout,
 		})
 	case "HEAD":
 		resp, err = grequests.Head(url, &grequests.RequestOptions{
-			Headers:            header,
-			Params:             queryparams,
+			Headers:            headers,
+			Params:             utils.AnyToMap(queryparams),
 			InsecureSkipVerify: true,
 			JSON:               body,
 			RequestTimeout:     timeout,
@@ -140,48 +141,48 @@ func RestfulWithHeader(method, service string, uri string, pathparams map[string
 		switch method {
 		case "GET":
 			resp, err = grequests.Get(url, &grequests.RequestOptions{
-				Headers:            header,
-				Params:             queryparams,
+				Headers:            headers,
+				Params:             utils.AnyToMap(queryparams),
 				InsecureSkipVerify: true,
 				JSON:               body,
 				RequestTimeout:     timeout,
 			})
 		case "POST":
 			resp, err = grequests.Post(url, &grequests.RequestOptions{
-				Headers:            header,
-				Params:             queryparams,
+				Headers:            headers,
+				Params:             utils.AnyToMap(queryparams),
 				InsecureSkipVerify: true,
 				JSON:               body,
 				RequestTimeout:     timeout,
 			})
 		case "DELETE":
 			resp, err = grequests.Delete(url, &grequests.RequestOptions{
-				Headers:            header,
-				Params:             queryparams,
+				Headers:            headers,
+				Params:             utils.AnyToMap(queryparams),
 				InsecureSkipVerify: true,
 				JSON:               body,
 				RequestTimeout:     timeout,
 			})
 		case "PUT":
 			resp, err = grequests.Put(url, &grequests.RequestOptions{
-				Headers:            header,
-				Params:             queryparams,
+				Headers:            headers,
+				Params:             utils.AnyToMap(queryparams),
 				InsecureSkipVerify: true,
 				JSON:               body,
 				RequestTimeout:     timeout,
 			})
 		case "OPTIONS":
 			resp, err = grequests.Options(url, &grequests.RequestOptions{
-				Headers:            header,
-				Params:             queryparams,
+				Headers:            headers,
+				Params:             utils.AnyToMap(queryparams),
 				InsecureSkipVerify: true,
 				JSON:               body,
 				RequestTimeout:     timeout,
 			})
 		case "HEAD":
 			resp, err = grequests.Head(url, &grequests.RequestOptions{
-				Headers:            header,
-				Params:             queryparams,
+				Headers:            headers,
+				Params:             utils.AnyToMap(queryparams),
 				InsecureSkipVerify: true,
 				JSON:               body,
 				RequestTimeout:     timeout,

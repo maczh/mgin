@@ -23,13 +23,17 @@ func Struct2Map(obj interface{}) map[string]interface{} {
 		case reflect.Struct:
 			node := Struct2Map(objV.Field(i).Interface())
 			data[getFieldName(objT.Field(i))] = node
+		case reflect.Map:
+			data[getFieldName(objT.Field(i))] = objV.Field(i).Interface()
 		case reflect.Slice:
 			target := objV.Field(i).Interface()
-			tmp := make([]map[string]interface{}, reflect.ValueOf(target).Len())
+			tmp := make([]interface{}, reflect.ValueOf(target).Len())
 			for j := 0; j < reflect.ValueOf(target).Len(); j++ {
 				if reflect.ValueOf(target).Index(j).Kind() == reflect.Struct {
 					node := Struct2Map(reflect.ValueOf(target).Index(j).Interface())
 					tmp[j] = node
+				} else {
+					tmp[j] = reflect.ValueOf(target).Index(j).Interface()
 				}
 			}
 			data[getFieldName(objT.Field(i))] = tmp
@@ -39,7 +43,6 @@ func Struct2Map(obj interface{}) map[string]interface{} {
 	}
 	return data
 }
-
 func Struct2MapString(obj interface{}) map[string]string {
 	objT := reflect.TypeOf(obj)
 	if objT.Kind() != reflect.Struct {
@@ -85,4 +88,34 @@ func GetStructJsonTags(obj interface{}) []string {
 		fields = append(fields, t.Field(i).Tag.Get("json"))
 	}
 	return fields
+}
+
+func AnyToMap(obj interface{}) map[string]string {
+	if obj == nil {
+		return map[string]string{}
+	}
+	switch reflect.ValueOf(obj).Type().Kind() {
+	case reflect.Map:
+		rs := make(map[string]string)
+		m, ok := obj.(map[string]interface{})
+		if ok {
+			for k, v := range m {
+				switch reflect.ValueOf(v).Type().Kind() {
+				case reflect.String:
+					rs[k] = v.(string)
+				case reflect.Struct, reflect.Slice, reflect.Map:
+					rs[k] = ToJSON(v)
+				default:
+					rs[k] = fmt.Sprintf("%v", v)
+				}
+			}
+			return rs
+		} else {
+			return obj.(map[string]string)
+		}
+	case reflect.Struct:
+		return Struct2MapString(obj)
+	default:
+		return map[string]string{}
+	}
 }

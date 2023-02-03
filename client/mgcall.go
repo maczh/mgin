@@ -9,6 +9,7 @@ import (
 	"github.com/maczh/mgin/logs"
 	"github.com/maczh/mgin/middleware/trace"
 	"github.com/maczh/mgin/registry"
+	"github.com/maczh/mgin/utils"
 	"github.com/nacos-group/nacos-sdk-go/model"
 	"github.com/nacos-group/nacos-sdk-go/vo"
 	"math/rand"
@@ -36,19 +37,15 @@ func (c *mginClient) Call(service string, uri string, params ...interface{}) (st
 	}
 	switch c.reqType {
 	case "x-form":
-		var data map[string]string
-		if len(params) == 1 {
-			data = params[0].(map[string]string)
-		}
-		return CallWithHeader(service, uri, data, map[string]string{"Content-Type": "application/x-www-form-urlencoded"})
+		return CallWithHeader(service, uri, params[0], map[string]string{"Content-Type": "application/x-www-form-urlencoded"})
 	case "json":
-		var query map[string]string
+		var query interface{}
 		if len(params) == 0 {
 			return GetJson(service, uri, nil, nil)
 		}
 		var body interface{}
 		if len(params) == 3 {
-			query = params[2].(map[string]string)
+			query = params[2]
 			body = params[1]
 		} else if len(params) == 2 {
 			body = params[1]
@@ -61,7 +58,7 @@ func (c *mginClient) Call(service string, uri string, params ...interface{}) (st
 		}
 	case "restful":
 		method := "GET"
-		var pathParams, queryParams, header map[string]string
+		var pathParams, queryParams, header interface{}
 		var body interface{}
 		switch len(params) {
 		case 0:
@@ -70,27 +67,27 @@ func (c *mginClient) Call(service string, uri string, params ...interface{}) (st
 			method = params[0].(string)
 		case 2:
 			method = params[0].(string)
-			pathParams = params[1].(map[string]string)
+			pathParams = params[1]
 		case 3:
 			method = params[0].(string)
-			pathParams = params[1].(map[string]string)
+			pathParams = params[1]
 			body = params[2]
 		case 4:
 			method = params[0].(string)
-			pathParams = params[1].(map[string]string)
-			queryParams = params[2].(map[string]string)
+			pathParams = params[1]
+			queryParams = params[2]
 			body = params[3]
 		case 5:
 			method = params[0].(string)
-			pathParams = params[1].(map[string]string)
-			queryParams = params[2].(map[string]string)
+			pathParams = params[1]
+			queryParams = params[2]
 			header = params[3].(map[string]string)
 			body = params[4]
 		default:
 			method = params[0].(string)
-			pathParams = params[1].(map[string]string)
-			queryParams = params[2].(map[string]string)
-			header = params[3].(map[string]string)
+			pathParams = params[1]
+			queryParams = params[2]
+			header = params[3]
 			body = params[4]
 		}
 		return RestfulWithHeader(method, service, uri, pathParams, queryParams, header, body)
@@ -99,27 +96,27 @@ func (c *mginClient) Call(service string, uri string, params ...interface{}) (st
 	}
 }
 
-func (c *mginClient) CallForm(service string, uri string, params map[string]string) (string, error) {
-	return CallWithHeader(service, uri, params, map[string]string{"Content-Type": "application/x-www-form-urlencoded"})
+func (c *mginClient) CallForm(service string, uri string, params interface{}) (string, error) {
+	return CallWithHeader(service, uri, utils.AnyToMap(params), map[string]string{"Content-Type": "application/x-www-form-urlencoded"})
 }
 
-func (c *mginClient) CallJson(service string, uri string, method string, queryParams map[string]string, jsonBody interface{}) (string, error) {
+func (c *mginClient) CallJson(service string, uri string, method string, queryParams interface{}, jsonBody interface{}) (string, error) {
 	if method == "POST" {
-		return PostJson(service, uri, jsonBody, queryParams)
+		return PostJson(service, uri, jsonBody, utils.AnyToMap(queryParams))
 	} else {
-		return GetJson(service, uri, jsonBody, queryParams)
+		return GetJson(service, uri, jsonBody, utils.AnyToMap(queryParams))
 	}
 }
 
-func (c *mginClient) CallRestful(service string, uri string, method string, pathParams, queryParams, header map[string]string, jsonBody interface{}) (string, error) {
-	return RestfulWithHeader(method, service, uri, pathParams, queryParams, header, jsonBody)
+func (c *mginClient) CallRestful(service string, uri string, method string, pathParams, queryParams, header, jsonBody interface{}) (string, error) {
+	return RestfulWithHeader(method, service, uri, utils.AnyToMap(pathParams), utils.AnyToMap(queryParams), utils.AnyToMap(header), jsonBody)
 }
 
-func Get(service string, uri string, params map[string]string) (string, error) {
+func Get(service string, uri string, params interface{}) (string, error) {
 	return GetWithHeader(service, uri, params, map[string]string{})
 }
 
-func GetWithHeader(service string, uri string, params map[string]string, header map[string]string) (string, error) {
+func GetWithHeader(service string, uri string, params, header interface{}) (string, error) {
 	host, err := getHostFromCache(service)
 	group := "DEFAULT_GROUP"
 	if err != nil || host == "" {
@@ -144,18 +141,18 @@ func GetWithHeader(service string, uri string, params map[string]string, header 
 		}
 	}
 	url := host + uri
-	if header == nil {
-		header = trace.GetHeaders()
-	} else {
-		for k, v := range trace.GetHeaders() {
-			if header[k] == "" {
-				header[k] = v
+	headers := trace.GetHeaders()
+	if header != nil {
+		h := utils.AnyToMap(header)
+		for k, v := range h {
+			if headers[k] == "" {
+				headers[k] = v
 			}
 		}
 	}
 	//通过X-Timeout来控制链路接口请求超时
 	timeout := 90 * time.Second
-	t := header["X-Timeout"]
+	t := headers["X-Timeout"]
 	if t != "" {
 		ti, _ := strconv.Atoi(t)
 		if ti > 0 {
@@ -164,8 +161,8 @@ func GetWithHeader(service string, uri string, params map[string]string, header 
 	}
 	logs.Debug("Nacos微服务请求:{}\n请求参数:{}\n请求头:{}", url, params, header)
 	resp, err := grequests.Get(url, &grequests.RequestOptions{
-		Params:             params,
-		Headers:            header,
+		Params:             utils.AnyToMap(params),
+		Headers:            headers,
 		InsecureSkipVerify: true,
 		RequestTimeout:     timeout,
 	})
@@ -193,8 +190,8 @@ func GetWithHeader(service string, uri string, params map[string]string, header 
 		}
 		url = host + uri
 		resp, err = grequests.Get(url, &grequests.RequestOptions{
-			Params:             params,
-			Headers:            header,
+			Params:             utils.AnyToMap(params),
+			Headers:            headers,
 			InsecureSkipVerify: true,
 		})
 		logs.Debug("Nacos微服务返回结果:{}", resp.String())
@@ -215,7 +212,7 @@ func GetWithHeader(service string, uri string, params map[string]string, header 
 }
 
 // 微服务调用其他服务的接口,带header
-func CallWithHeader(service string, uri string, params map[string]string, header map[string]string) (string, error) {
+func CallWithHeader(service string, uri string, params, header interface{}) (string, error) {
 	host, err := getHostFromCache(service)
 	group := "DEFAULT_GROUP"
 	if err != nil || host == "" {
@@ -240,18 +237,18 @@ func CallWithHeader(service string, uri string, params map[string]string, header
 		}
 	}
 	url := host + uri
+	headers := trace.GetHeaders()
 	if header == nil {
-		header = trace.GetHeaders()
-	} else {
-		for k, v := range trace.GetHeaders() {
-			if header[k] == "" {
-				header[k] = v
+		h := utils.AnyToMap(header)
+		for k, v := range h {
+			if headers[k] == "" {
+				headers[k] = v
 			}
 		}
 	}
 	//通过X-Timeout来控制链路接口请求超时
 	timeout := 90 * time.Second
-	t := header["X-Timeout"]
+	t := headers["X-Timeout"]
 	if t != "" {
 		ti, _ := strconv.Atoi(t)
 		if ti > 0 {
@@ -260,8 +257,8 @@ func CallWithHeader(service string, uri string, params map[string]string, header
 	}
 	logs.Debug("Nacos微服务请求:{}\n请求参数:{}\n请求头:{}", url, params, header)
 	resp, err := grequests.Post(url, &grequests.RequestOptions{
-		Data:               params,
-		Headers:            header,
+		Data:               utils.AnyToMap(params),
+		Headers:            headers,
 		InsecureSkipVerify: true,
 		RequestTimeout:     timeout,
 	})
@@ -289,8 +286,8 @@ func CallWithHeader(service string, uri string, params map[string]string, header
 		}
 		url = host + uri
 		resp, err = grequests.Post(url, &grequests.RequestOptions{
-			Data:    params,
-			Headers: header,
+			Data:    utils.AnyToMap(params),
+			Headers: headers,
 		})
 		logs.Debug("Nacos微服务返回结果:{}", resp.String())
 		if err != nil {
@@ -309,12 +306,12 @@ func CallWithHeader(service string, uri string, params map[string]string, header
 	}
 }
 
-func CallWithFiles(service string, uri string, params map[string]string, files []grequests.FileUpload) (string, error) {
+func CallWithFiles(service string, uri string, params interface{}, files []grequests.FileUpload) (string, error) {
 	return CallWithFilesHeader(service, uri, params, files, map[string]string{})
 }
 
 // 微服务调用其他服务的接口,带文件
-func CallWithFilesHeader(service string, uri string, params map[string]string, files []grequests.FileUpload, header map[string]string) (string, error) {
+func CallWithFilesHeader(service string, uri string, params interface{}, files []grequests.FileUpload, header interface{}) (string, error) {
 	host, err := getHostFromCache(service)
 	group := "DEFAULT_GROUP"
 	if err != nil || host == "" {
@@ -339,21 +336,21 @@ func CallWithFilesHeader(service string, uri string, params map[string]string, f
 		}
 	}
 	url := host + uri
+	headers := trace.GetHeaders()
 	if header == nil {
-		header = trace.GetHeaders()
-	} else {
-		for k, v := range trace.GetHeaders() {
-			if header[k] == "" {
-				header[k] = v
+		h := utils.AnyToMap(header)
+		for k, v := range h {
+			if headers[k] == "" {
+				headers[k] = v
 			}
 		}
 	}
-	delete(header, "Content-Type")
+	delete(headers, "Content-Type")
 	logs.Debug("Nacos微服务请求:{}\n请求参数:{}\n请求头:{}", url, params, header)
 	resp, err := grequests.Post(url, &grequests.RequestOptions{
-		Data:               params,
+		Data:               utils.AnyToMap(params),
 		Files:              files,
-		Headers:            header,
+		Headers:            headers,
 		InsecureSkipVerify: true,
 	})
 	logs.Debug("Nacos微服务返回结果:{}", resp.String())
@@ -380,9 +377,9 @@ func CallWithFilesHeader(service string, uri string, params map[string]string, f
 		}
 		url = host + uri
 		resp, err = grequests.Post(url, &grequests.RequestOptions{
-			Data:               params,
+			Data:               utils.AnyToMap(params),
 			Files:              files,
-			Headers:            header,
+			Headers:            headers,
 			InsecureSkipVerify: true,
 		})
 		logs.Debug("Nacos微服务返回结果:{}", resp.String())
