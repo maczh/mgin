@@ -95,6 +95,7 @@ go:
     file: /opt/logs/myapp      #日志文件路径与前缀，后面自动加上.yyyy-MM-dd.log，目录必须已创建
   log:                    #controller接口访问日志与微服务调用请求日志
     db: mongodb           #日志库，支持mongodb与elasticsearch
+    dbName: Partner-Id    #多库使用时，从http header中获取参数名作为库名标签
     req: MyappRequestLog  #接口访问日志表名称，在es中使用工程名称${go.application.project}_${go.log.req}作为索引名
     call: MyappCallLog    #微服务调用日志表，表名规则同上
     kafka:
@@ -268,5 +269,11 @@ func handleMsg(msg string) error {
 * 客户端参见 examples/mgin-client项目
 
 ### 版本更新
+- v1.19.9 postlog支持多库根据header中的指定参数切库
+- v1.19.8 client.Options各参数改成any类型
+- v1.19.7 新增Struct2Map与AnyToMap函数
+- v1.19.5 nacos订阅统一管理与统一退订
+- v1.19.4 nacos sdk升级成1.1.4
+- v1.19.3 增加跨域自定义标头支持
 - v1.19.1 Result实现any与泛型T互转函数
 - v1.19.0 支持go 1.19，Result改用泛型,重构client.Call函数，支持泛型返回

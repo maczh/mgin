@@ -22,6 +22,7 @@ type Mongodb struct {
 	mongos     map[string]*mgo.Session
 	mgoDbNames map[string]string
 	mongoUrls  map[string]string
+	conns      []string
 	max        int
 	conf       *koanf.Koanf
 	confUrl    string
@@ -37,6 +38,7 @@ func (m *Mongodb) Init(mongodbConfigUrl string) {
 		logger.Error("MongoDB配置Url为空")
 		return
 	}
+	m.conns = make([]string, 0)
 	var err error
 	if m.conn == nil && len(m.mongos) == 0 {
 		if m.conf == nil {
@@ -74,6 +76,7 @@ func (m *Mongodb) Init(mongodbConfigUrl string) {
 						continue
 					}
 					m.mongos[dbName] = session
+					m.conns = append(m.conns, dbName)
 					m.mgoDbNames[dbName] = m.conf.String(fmt.Sprintf("go.data.Mongodb.%s.db", dbName))
 					if m.conf.Int("go.data.mongo_pool.max") > 1 {
 						m.max = m.conf.Int("go.data.mongo_pool.max")
@@ -166,6 +169,9 @@ func (m *Mongodb) GetConnection(dbName ...string) (*mgo.Database, error) {
 		if len(dbName) > 1 || len(dbName) == 0 {
 			return nil, errors.New("Multidb Mongodb get connection must be specified one dbName")
 		}
+		if dbName[0] == "" {
+			dbName[0] = m.conns[0]
+		}
 		err := m.mgoCheck(dbName[0])
 		if err != nil {
 			return nil, err
@@ -182,4 +188,8 @@ func (m *Mongodb) GetConnection(dbName ...string) (*mgo.Database, error) {
 
 func (m *Mongodb) ReturnConnection(conn *mgo.Database) {
 	conn.Session.Close()
+}
+
+func (m *Mongodb) IsMultiDB() bool {
+	return m.multi
 }
