@@ -193,3 +193,7 @@ func (m *Mongodb) ReturnConnection(conn *mgo.Database) {
 func (m *Mongodb) IsMultiDB() bool {
 	return m.multi
 }
+
+func (m *Mongodb) ListConnNames() []string {
+	return m.conns
+}
