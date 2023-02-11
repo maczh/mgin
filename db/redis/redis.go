@@ -212,7 +212,7 @@ func (r *RedisClient) GetConnection(dbName ...string) (*redis.Client, error) {
 	}
 }
 
-func (r *RedisClient) IsMultDB() bool {
+func (r *RedisClient) IsMultiDB() bool {
 	return r.multi
 }
 
