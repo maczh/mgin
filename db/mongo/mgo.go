@@ -68,8 +68,8 @@ func (m *Mongodb) Init(mongodbConfigUrl string) {
 			m.mongoUrls = make(map[string]string)
 			dbNames := strings.Split(m.conf.String("go.data.mongodb.dbNames"), ",")
 			for _, dbName := range dbNames {
-				if dbName != "" && m.conf.Exists(fmt.Sprintf("go.data.Mongodb.%s.uri", dbName)) {
-					m.mongoUrls[dbName] = m.conf.String(fmt.Sprintf("go.data.Mongodb.%s.uri", dbName))
+				if dbName != "" && m.conf.Exists(fmt.Sprintf("go.data.mongodb.%s.uri", dbName)) {
+					m.mongoUrls[dbName] = m.conf.String(fmt.Sprintf("go.data.mongodb.%s.uri", dbName))
 					session, err := mgo.Dial(m.mongoUrls[dbName])
 					if err != nil {
 						logger.Error(dbName + " MongoDB连接错误:" + err.Error())
@@ -77,7 +77,7 @@ func (m *Mongodb) Init(mongodbConfigUrl string) {
 					}
 					m.mongos[dbName] = session
 					m.conns = append(m.conns, dbName)
-					m.mgoDbNames[dbName] = m.conf.String(fmt.Sprintf("go.data.Mongodb.%s.db", dbName))
+					m.mgoDbNames[dbName] = m.conf.String(fmt.Sprintf("go.data.mongodb.%s.db", dbName))
 					if m.conf.Int("go.data.mongo_pool.max") > 1 {
 						m.max = m.conf.Int("go.data.mongo_pool.max")
 						if m.max < 10 {
