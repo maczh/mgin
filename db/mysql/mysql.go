@@ -48,7 +48,7 @@ func (m *MysqlClient) Init(mysqlConfigUrl string) {
 			}
 		}
 		m.multi = false
-		if m.conf.Exists("go.data.mysql.multi") && m.conf.Bool("go.data.mysql.multi") {
+		if m.conf.Exists("go.data.mysql.multidb") && m.conf.Bool("go.data.mysql.multidb") {
 			m.multi = true
 			m.mysqls = make(map[string]*gorm.DB)
 			m.conns = make([]string, 0)
