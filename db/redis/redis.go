@@ -198,6 +198,9 @@ func (r *RedisClient) GetConnection(dbName ...string) (*redis.Client, error) {
 		if len(dbName) == 0 || len(dbName) > 1 {
 			return nil, errors.New("Multidb Get RedisClient connection must specify one database name")
 		}
+		if _, ok := r.clients[dbName[0]]; !ok {
+			return nil, errors.New("Redis multidb db name invalid")
+		}
 		err := r.redisCheck(dbName[0])
 		if err != nil {
 			return nil, err

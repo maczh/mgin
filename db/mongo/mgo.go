@@ -172,6 +172,9 @@ func (m *Mongodb) GetConnection(dbName ...string) (*mgo.Database, error) {
 		if dbName[0] == "" {
 			dbName[0] = m.conns[0]
 		}
+		if _, ok := m.mongos[dbName[0]]; !ok {
+			return nil, errors.New("MongoDB multidb db name invalid")
+		}
 		err := m.mgoCheck(dbName[0])
 		if err != nil {
 			return nil, err
