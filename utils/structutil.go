@@ -97,6 +97,9 @@ func AnyToMap(obj any) map[string]string {
 	}
 	switch reflect.ValueOf(obj).Type().Kind() {
 	case reflect.Map:
+		if m, ok := obj.(map[string]string); ok {
+			return m
+		}
 		rs := make(map[string]string)
 		m, ok := obj.(map[string]any)
 		if ok {
