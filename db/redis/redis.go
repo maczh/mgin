@@ -21,6 +21,7 @@ type RedisClient struct {
 	cfgs    map[string]*redis.Options
 	conf    *koanf.Koanf
 	confUrl string
+	conns   []string
 }
 
 var logger = gologger.GetLogger()
@@ -53,6 +54,7 @@ func (r *RedisClient) Init(redisConfigUrl string) {
 		if r.multi {
 			r.clients = make(map[string]*redis.Client)
 			r.cfgs = make(map[string]*redis.Options)
+			r.conns = make([]string, 0)
 			dbNames := strings.Split(r.conf.String("go.data.redis.dbNames"), ",")
 			for _, dbName := range dbNames {
 				if dbName != "" && r.conf.Exists(fmt.Sprintf("go.data.redis.%s.host", dbName)) {
@@ -69,6 +71,7 @@ func (r *RedisClient) Init(redisConfigUrl string) {
 						},
 					}
 					r.cfgs[dbName] = &ropt
+					r.conns = append(r.conns, dbName)
 				}
 			}
 		} else {
@@ -195,6 +198,9 @@ func (r *RedisClient) GetConnection(dbName ...string) (*redis.Client, error) {
 		if len(dbName) == 0 || len(dbName) > 1 {
 			return nil, errors.New("Multidb Get RedisClient connection must specify one database name")
 		}
+		if _, ok := r.clients[dbName[0]]; !ok {
+			return nil, errors.New("Redis multidb db name invalid")
+		}
 		err := r.redisCheck(dbName[0])
 		if err != nil {
 			return nil, err
@@ -207,4 +213,12 @@ func (r *RedisClient) GetConnection(dbName ...string) (*redis.Client, error) {
 		}
 		return r.client, nil
 	}
+}
+
+func (r *RedisClient) IsMultiDB() bool {
+	return r.multi
+}
+
+func (r *RedisClient) ListConnNames() []string {
+	return r.conns
 }

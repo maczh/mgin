@@ -22,6 +22,7 @@ type Mongodb struct {
 	mongos     map[string]*mgo.Session
 	mgoDbNames map[string]string
 	mongoUrls  map[string]string
+	conns      []string
 	max        int
 	conf       *koanf.Koanf
 	confUrl    string
@@ -38,6 +39,7 @@ func (m *Mongodb) Init(mongodbConfigUrl string) {
 		return
 	}
 	var err error
+	m.conns = make([]string, 0)
 	if m.conn == nil && len(m.mongos) == 0 {
 		if m.conf == nil {
 			resp, err := grequests.Get(m.confUrl, nil)
@@ -66,15 +68,16 @@ func (m *Mongodb) Init(mongodbConfigUrl string) {
 			m.mongoUrls = make(map[string]string)
 			dbNames := strings.Split(m.conf.String("go.data.mongodb.dbNames"), ",")
 			for _, dbName := range dbNames {
-				if dbName != "" && m.conf.Exists(fmt.Sprintf("go.data.Mongodb.%s.uri", dbName)) {
-					m.mongoUrls[dbName] = m.conf.String(fmt.Sprintf("go.data.Mongodb.%s.uri", dbName))
+				if dbName != "" && m.conf.Exists(fmt.Sprintf("go.data.mongodb.%s.uri", dbName)) {
+					m.mongoUrls[dbName] = m.conf.String(fmt.Sprintf("go.data.mongodb.%s.uri", dbName))
 					session, err := mgo.Dial(m.mongoUrls[dbName])
 					if err != nil {
 						logger.Error(dbName + " MongoDB连接错误:" + err.Error())
 						continue
 					}
 					m.mongos[dbName] = session
-					m.mgoDbNames[dbName] = m.conf.String(fmt.Sprintf("go.data.Mongodb.%s.db", dbName))
+					m.conns = append(m.conns, dbName)
+					m.mgoDbNames[dbName] = m.conf.String(fmt.Sprintf("go.data.mongodb.%s.db", dbName))
 					if m.conf.Int("go.data.mongo_pool.max") > 1 {
 						m.max = m.conf.Int("go.data.mongo_pool.max")
 						if m.max < 10 {
@@ -166,6 +169,12 @@ func (m *Mongodb) GetConnection(dbName ...string) (*mgo.Database, error) {
 		if len(dbName) > 1 || len(dbName) == 0 {
 			return nil, errors.New("Multidb Mongodb get connection must be specified one dbName")
 		}
+		if dbName[0] == "" {
+			dbName[0] = m.conns[0]
+		}
+		if _, ok := m.mongos[dbName[0]]; !ok {
+			return nil, errors.New("MongoDB multidb db name invalid")
+		}
 		err := m.mgoCheck(dbName[0])
 		if err != nil {
 			return nil, err
@@ -182,4 +191,12 @@ func (m *Mongodb) GetConnection(dbName ...string) (*mgo.Database, error) {
 
 func (m *Mongodb) ReturnConnection(conn *mgo.Database) {
 	conn.Session.Close()
+}
+
+func (m *Mongodb) IsMultiDB() bool {
+	return m.multi
+}
+
+func (m *Mongodb) ListConnNames() []string {
+	return m.conns
 }

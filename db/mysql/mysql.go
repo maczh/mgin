@@ -19,6 +19,7 @@ type MysqlClient struct {
 	multi   bool
 	conf    *koanf.Koanf
 	confUrl string
+	conns   []string
 }
 
 var logger = gologger.GetLogger()
@@ -50,6 +51,7 @@ func (m *MysqlClient) Init(mysqlConfigUrl string) {
 		if m.conf.Exists("go.data.mysql.multi") && m.conf.Bool("go.data.mysql.multi") {
 			m.multi = true
 			m.mysqls = make(map[string]*gorm.DB)
+			m.conns = make([]string, 0)
 			dbNames := strings.Split(m.conf.String("go.data.mysql.dbNames"), ",")
 			for _, dbName := range dbNames {
 				if dbName != "" && m.conf.String("go.data.mysql."+dbName) != "" {
@@ -59,6 +61,7 @@ func (m *MysqlClient) Init(mysqlConfigUrl string) {
 						continue
 					}
 					m.mysqls[dbName] = conn
+					m.conns = append(m.conns, dbName)
 				}
 			}
 		} else {
@@ -200,4 +203,12 @@ func (m *MysqlClient) GetConnection(dbName ...string) (*gorm.DB, error) {
 		return nil, errors.New(dbName[0] + " mysql connection not found or failed")
 	}
 	return conn, nil
+}
+
+func (m *MysqlClient) IsMultiDB() bool {
+	return m.multi
+}
+
+func (m *MysqlClient) ListConnNames() []string {
+	return m.conns
 }

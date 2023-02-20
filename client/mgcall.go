@@ -109,7 +109,7 @@ func (c *mginClient) CallJson(service string, uri string, method string, queryPa
 }
 
 func (c *mginClient) CallRestful(service string, uri string, method string, pathParams, queryParams, header, jsonBody interface{}) (string, error) {
-	return RestfulWithHeader(method, service, uri, utils.AnyToMap(pathParams), utils.AnyToMap(queryParams), utils.AnyToMap(header), jsonBody)
+	return RestfulWithHeader(method, service, uri, pathParams, queryParams, header, jsonBody)
 }
 
 func Get(service string, uri string, params interface{}) (string, error) {
@@ -238,7 +238,7 @@ func CallWithHeader(service string, uri string, params, header interface{}) (str
 	}
 	url := host + uri
 	headers := trace.GetHeaders()
-	if header == nil {
+	if header != nil {
 		h := utils.AnyToMap(header)
 		for k, v := range h {
 			if headers[k] == "" {
@@ -337,7 +337,7 @@ func CallWithFilesHeader(service string, uri string, params interface{}, files [
 	}
 	url := host + uri
 	headers := trace.GetHeaders()
-	if header == nil {
+	if header != nil {
 		h := utils.AnyToMap(header)
 		for k, v := range h {
 			if headers[k] == "" {

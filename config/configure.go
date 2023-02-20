@@ -52,6 +52,7 @@ type appLog struct {
 	RequestTableName string `json:"request" bson:"request"`
 	CallTableName    string `json:"call" bson:"call"`
 	LogDb            string `json:"logDb" bson:"logDb"`
+	DbName           string `json:"dbName" bson:"dbName"`
 	Kafka            struct {
 		Use   bool   `json:"use" bson:"use"`
 		Topic string `json:"topic" bson:"topic"`
@@ -99,6 +100,7 @@ func (c *config) Init(cf string) {
 	c.Config.Prefix.Nacos = c.Cnf.String("go.config.prefix.nacos")
 	c.Config.Prefix.Kafka = c.Cnf.String("go.config.prefix.kafka")
 	c.Log.LogDb = c.Cnf.String("go.log.db")
+	c.Log.DbName = c.Cnf.String("go.log.dbName")
 	c.Log.RequestTableName = c.Cnf.String("go.log.req")
 	c.Log.CallTableName = c.Cnf.String("go.log.call")
 	c.Log.Kafka.Use = c.Cnf.Bool("go.log.kafka.use")

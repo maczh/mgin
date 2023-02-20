@@ -42,7 +42,7 @@ func JsonWithHeader(method, service, uri string, header, body, query interface{}
 
 	url := host + uri
 	headers := trace.GetHeaders()
-	if header == nil {
+	if header != nil {
 		h := utils.AnyToMap(header)
 		for k, v := range h {
 			if headers[k] == "" {

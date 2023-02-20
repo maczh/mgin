@@ -45,7 +45,7 @@ func RestfulWithHeader(method, service string, uri string, pathparams, querypara
 	}
 	url := host + uri
 	headers := trace.GetHeaders()
-	if header == nil {
+	if header != nil {
 		h := utils.AnyToMap(header)
 		for k, v := range h {
 			if headers[k] == "" {
