@@ -74,7 +74,7 @@ func OutPrint(format string, v []any) string {
 			str = toJSON(value)
 		}
 		if str == "{}" {
-			str = "nil"
+			str = "{ }"
 		}
 		format = strings.Replace(format, "{}", str, 1)
 	}
