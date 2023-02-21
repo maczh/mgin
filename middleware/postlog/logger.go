@@ -107,7 +107,7 @@ func RequestLogger() gin.HandlerFunc {
 
 		accessLog := "|" + c.Request.Method + "|" + postLog.Uri + "|" + c.ClientIP() + "|" + endTime.Format("2006-01-02 15:04:05.012") + "|" + fmt.Sprintf("%vms", endTime.UnixNano()/1e6-startTime.UnixNano()/1e6)
 		logs.Debug(accessLog)
-		logs.Debug("请求参数:{},body: {}", params, reqBody)
+		logs.Debug("请求参数:{},body: {}", params, body)
 		logs.Debug("请求头:{}", postLog.RequestHeader)
 		logs.Debug("接口返回:{}", result)
 

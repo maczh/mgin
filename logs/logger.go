@@ -41,7 +41,7 @@ func initConfig() {
 func toJSON(o any) string {
 	j, err := json.Marshal(o)
 	if err != nil {
-		return "{}"
+		return "nil"
 	} else {
 		js := string(j)
 		js = strings.Replace(js, "\\u003c", "<", -1)
@@ -54,6 +54,9 @@ func toJSON(o any) string {
 func OutPrint(format string, v []any) string {
 	for _, value := range v {
 		str := ""
+		if value == nil {
+			value = "nil"
+		}
 		switch value.(type) {
 		case bool:
 			str = strconv.FormatBool(value.(bool))
@@ -69,6 +72,9 @@ func OutPrint(format string, v []any) string {
 			str = toJSON(value)
 		default:
 			str = toJSON(value)
+		}
+		if str == "{}" {
+			str = "nil"
 		}
 		format = strings.Replace(format, "{}", str, 1)
 	}
