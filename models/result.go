@@ -7,8 +7,8 @@ package models
 type Result[T any] struct {
 	Status int         `json:"status" bson:"status"`
 	Msg    string      `json:"msg" bson:"msg"`
-	Data   T           `json:"data" bson:"data"`
-	Page   *ResultPage `json:"page" bson:"page"`
+	Data   T           `json:"data,omitempty" bson:"data,omitempty"`
+	Page   *ResultPage `json:"page,omitempty" bson:"page,omitempty"`
 }
 
 type ResultPage struct {
@@ -63,6 +63,15 @@ func SuccessWithMsg[T any](msg string, data T) Result[T] {
 		Msg:    msg,
 		Data:   data,
 		Page:   nil,
+	}
+	return result
+}
+func SuccessPage[T any](data T, page *ResultPage) Result[T] {
+	result := Result[T]{
+		Status: 1,
+		Msg:    "Success",
+		Data:   data,
+		Page:   page,
 	}
 	return result
 }

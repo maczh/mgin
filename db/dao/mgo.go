@@ -10,14 +10,15 @@ import (
 // MgoDao 注意使用前必须先将CollectionName赋值
 type MgoDao[E any] struct {
 	CollectionName string
+	Tag            func() string
 }
 
 // Insert mongo动态插入数据
-func (m *MgoDao[E]) Insert(entity *E, tag ...string) error {
+func (m *MgoDao[E]) Insert(entity *E) error {
 	if m.CollectionName == "" {
 		return errors.New("CollectionName未定义")
 	}
-	conn, err := db.Mongo.GetConnection(tag...)
+	conn, err := db.Mongo.GetConnection(m.Tag())
 	if err != nil {
 		logger.Error("数据库连接失败: " + err.Error())
 		return errors.New("数据库连接失败")
@@ -31,11 +32,11 @@ func (m *MgoDao[E]) Insert(entity *E, tag ...string) error {
 }
 
 // Delete mongo动态删除数据
-func (m *MgoDao[E]) Delete(query bson.M, tag ...string) error {
+func (m *MgoDao[E]) Delete(query bson.M) error {
 	if m.CollectionName == "" {
 		return errors.New("CollectionName未定义")
 	}
-	conn, err := db.Mongo.GetConnection(tag...)
+	conn, err := db.Mongo.GetConnection(m.Tag())
 	if err != nil {
 		logger.Error("数据库连接失败: " + err.Error())
 		return errors.New("数据库连接失败")
@@ -49,11 +50,11 @@ func (m *MgoDao[E]) Delete(query bson.M, tag ...string) error {
 }
 
 // Updates mongo动态更新数据
-func (m *MgoDao[E]) Updates(id bson.ObjectId, fields bson.M, tag ...string) error {
+func (m *MgoDao[E]) Updates(id bson.ObjectId, fields bson.M) error {
 	if m.CollectionName == "" {
 		return errors.New("CollectionName未定义")
 	}
-	conn, err := db.Mongo.GetConnection(tag...)
+	conn, err := db.Mongo.GetConnection(m.Tag())
 	if err != nil {
 		logger.Error("数据库连接失败: " + err.Error())
 		return errors.New("数据库连接失败")
@@ -67,11 +68,11 @@ func (m *MgoDao[E]) Updates(id bson.ObjectId, fields bson.M, tag ...string) erro
 }
 
 // All mongo动态查询数据
-func (m *MgoDao[E]) All(query bson.M, tag ...string) ([]E, error) {
+func (m *MgoDao[E]) All(query bson.M) ([]E, error) {
 	if m.CollectionName == "" {
 		return nil, errors.New("CollectionName未定义")
 	}
-	conn, err := db.Mongo.GetConnection(tag...)
+	conn, err := db.Mongo.GetConnection(m.Tag())
 	if err != nil {
 		logger.Error("数据库连接失败: " + err.Error())
 		return nil, errors.New("数据库连接失败")
@@ -87,11 +88,11 @@ func (m *MgoDao[E]) All(query bson.M, tag ...string) ([]E, error) {
 }
 
 // One mongo动态查询一条数据
-func (m *MgoDao[E]) One(query bson.M, tag ...string) (*E, error) {
+func (m *MgoDao[E]) One(query bson.M) (*E, error) {
 	if m.CollectionName == "" {
 		return nil, errors.New("CollectionName未定义")
 	}
-	conn, err := db.Mongo.GetConnection(tag...)
+	conn, err := db.Mongo.GetConnection(m.Tag())
 	if err != nil {
 		logger.Error("数据库连接失败: " + err.Error())
 		return nil, errors.New("数据库连接失败")
@@ -106,11 +107,11 @@ func (m *MgoDao[E]) One(query bson.M, tag ...string) (*E, error) {
 }
 
 // Pager mongo简单分页查询数据
-func (m *MgoDao[E]) Pager(query bson.M, page, size int, tag ...string) ([]E, *models.ResultPage, error) {
+func (m *MgoDao[E]) Pager(query bson.M, page, size int) ([]E, *models.ResultPage, error) {
 	if m.CollectionName == "" {
 		return nil, nil, errors.New("CollectionName未定义")
 	}
-	conn, err := db.Mongo.GetConnection(tag...)
+	conn, err := db.Mongo.GetConnection(m.Tag())
 	if err != nil {
 		logger.Error("数据库连接失败: " + err.Error())
 		return nil, nil, errors.New("数据库连接失败")

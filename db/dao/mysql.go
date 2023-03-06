@@ -10,18 +10,21 @@ import (
 
 type MySQLDao[E schema.Tabler] struct {
 	debug bool
+	Tag   func() string
 }
 
 var logger = gologger.GetLogger()
 
 func (m *MySQLDao[E]) Debug() *MySQLDao[E] {
-	m.debug = true
-	return m
+	return &MySQLDao[E]{
+		debug: true,
+		Tag:   m.Tag,
+	}
 }
 
 // Create mysql动态插入数据
-func (receiver *MySQLDao[E]) Create(entity *E, tag ...string) error {
-	conn, err := db.Mysql.GetConnection(tag...)
+func (receiver *MySQLDao[E]) Create(entity *E) error {
+	conn, err := db.Mysql.GetConnection(receiver.Tag())
 	if err != nil {
 		logger.Error("数据库连接失败: " + err.Error())
 		return errors.New("数据库连接失败")
@@ -41,8 +44,8 @@ func (receiver *MySQLDao[E]) Create(entity *E, tag ...string) error {
 }
 
 // MultiCreate mysql动态插入多条数据
-func (receiver *MySQLDao[E]) MultiCreate(entities []*E, tag ...string) error {
-	conn, err := db.Mysql.GetConnection(tag...)
+func (receiver *MySQLDao[E]) MultiCreate(entities []*E) error {
+	conn, err := db.Mysql.GetConnection(receiver.Tag())
 	if err != nil {
 		logger.Error("数据库连接失败: " + err.Error())
 		return errors.New("数据库连接失败")
@@ -62,8 +65,8 @@ func (receiver *MySQLDao[E]) MultiCreate(entities []*E, tag ...string) error {
 }
 
 // Delete mysql动态删除数据
-func (receiver *MySQLDao[E]) Delete(entity E, tag ...string) error {
-	conn, err := db.Mysql.GetConnection(tag...)
+func (receiver *MySQLDao[E]) Delete(entity E) error {
+	conn, err := db.Mysql.GetConnection(receiver.Tag())
 	if err != nil {
 		logger.Error("数据库连接失败: " + err.Error())
 		return errors.New("数据库连接失败")
@@ -84,8 +87,8 @@ func (receiver *MySQLDao[E]) Delete(entity E, tag ...string) error {
 }
 
 // Updates mysql动态更新数据
-func (receiver *MySQLDao[E]) Updates(entity *E, tag ...string) error {
-	conn, err := db.Mysql.GetConnection(tag...)
+func (receiver *MySQLDao[E]) Updates(entity *E) error {
+	conn, err := db.Mysql.GetConnection(receiver.Tag())
 	if err != nil {
 		logger.Error("数据库连接失败: " + err.Error())
 		return errors.New("数据库连接失败")
@@ -105,8 +108,8 @@ func (receiver *MySQLDao[E]) Updates(entity *E, tag ...string) error {
 }
 
 // Save mysql动态保存数据
-func (receiver *MySQLDao[E]) Save(entity *E, tag ...string) error {
-	conn, err := db.Mysql.GetConnection(tag...)
+func (receiver *MySQLDao[E]) Save(entity *E) error {
+	conn, err := db.Mysql.GetConnection(receiver.Tag())
 	if err != nil {
 		logger.Error("数据库连接失败: " + err.Error())
 		return errors.New("数据库连接失败")
@@ -126,8 +129,8 @@ func (receiver *MySQLDao[E]) Save(entity *E, tag ...string) error {
 }
 
 // All mysql动态查询数据
-func (receiver *MySQLDao[E]) All(entity E, tag ...string) ([]E, error) {
-	conn, err := db.Mysql.GetConnection(tag...)
+func (receiver *MySQLDao[E]) All(entity E) ([]E, error) {
+	conn, err := db.Mysql.GetConnection(receiver.Tag())
 	if err != nil {
 		logger.Error("数据库连接失败: " + err.Error())
 		return nil, errors.New("数据库连接失败")
@@ -149,8 +152,8 @@ func (receiver *MySQLDao[E]) All(entity E, tag ...string) ([]E, error) {
 }
 
 // One mysql动态查询一条数据
-func (receiver *MySQLDao[E]) One(entity E, tag ...string) (*E, error) {
-	conn, err := db.Mysql.GetConnection(tag...)
+func (receiver *MySQLDao[E]) One(entity E) (*E, error) {
+	conn, err := db.Mysql.GetConnection(receiver.Tag())
 	if err != nil {
 		logger.Error("数据库连接失败: " + err.Error())
 		return nil, errors.New("数据库连接失败")
@@ -171,8 +174,8 @@ func (receiver *MySQLDao[E]) One(entity E, tag ...string) (*E, error) {
 }
 
 // Pager mysql简单分页查询数据
-func (receiver *MySQLDao[E]) Pager(entity E, page, size int, tag ...string) ([]E, *models.ResultPage, error) {
-	conn, err := db.Mysql.GetConnection(tag...)
+func (receiver *MySQLDao[E]) Pager(entity E, page, size int) ([]E, *models.ResultPage, error) {
+	conn, err := db.Mysql.GetConnection(receiver.Tag())
 	if err != nil {
 		logger.Error("数据库连接失败: " + err.Error())
 		return nil, nil, errors.New("数据库连接失败")
