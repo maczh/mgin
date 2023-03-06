@@ -8,9 +8,16 @@ import (
 	"gorm.io/gorm/schema"
 )
 
-type MySQLDao[E schema.Tabler] struct{}
+type MySQLDao[E schema.Tabler] struct {
+	debug bool
+}
 
 var logger = gologger.GetLogger()
+
+func (m *MySQLDao[E]) Debug() *MySQLDao[E] {
+	m.debug = true
+	return m
+}
 
 // Create mysql动态插入数据
 func (receiver *MySQLDao[E]) Create(entity *E, tag ...string) error {
@@ -19,10 +26,16 @@ func (receiver *MySQLDao[E]) Create(entity *E, tag ...string) error {
 		logger.Error("数据库连接失败: " + err.Error())
 		return errors.New("数据库连接失败")
 	}
-	err = conn.Debug().Create(entity).Error
+	if receiver.debug {
+		conn = conn.Debug()
+	}
+	err = conn.Create(entity).Error
 	if err != nil {
 		logger.Error("数据库插入失败: " + err.Error())
 		return errors.New("数据库插入失败")
+	}
+	if receiver.debug {
+		receiver.debug = false
 	}
 	return nil
 }
@@ -34,10 +47,16 @@ func (receiver *MySQLDao[E]) MultiCreate(entities []*E, tag ...string) error {
 		logger.Error("数据库连接失败: " + err.Error())
 		return errors.New("数据库连接失败")
 	}
-	err = conn.Debug().Create(entities).Error
+	if receiver.debug {
+		conn = conn.Debug()
+	}
+	err = conn.Create(entities).Error
 	if err != nil {
 		logger.Error("数据库插入失败: " + err.Error())
 		return errors.New("数据库插入失败")
+	}
+	if receiver.debug {
+		receiver.debug = false
 	}
 	return nil
 }
@@ -50,10 +69,16 @@ func (receiver *MySQLDao[E]) Delete(entity E, tag ...string) error {
 		return errors.New("数据库连接失败")
 	}
 	var e E
-	err = conn.Debug().Where(entity).Delete(&e).Error
+	if receiver.debug {
+		conn = conn.Debug()
+	}
+	err = conn.Where(entity).Delete(&e).Error
 	if err != nil {
 		logger.Error("数据库删除失败: " + err.Error())
 		return errors.New("数据库删除失败")
+	}
+	if receiver.debug {
+		receiver.debug = false
 	}
 	return nil
 }
@@ -65,10 +90,16 @@ func (receiver *MySQLDao[E]) Updates(entity *E, tag ...string) error {
 		logger.Error("数据库连接失败: " + err.Error())
 		return errors.New("数据库连接失败")
 	}
-	err = conn.Debug().Updates(entity).Error
+	if receiver.debug {
+		conn = conn.Debug()
+	}
+	err = conn.Updates(entity).Error
 	if err != nil {
 		logger.Error("数据库更新失败: " + err.Error())
 		return errors.New("数据库更新失败")
+	}
+	if receiver.debug {
+		receiver.debug = false
 	}
 	return nil
 }
@@ -80,10 +111,16 @@ func (receiver *MySQLDao[E]) Save(entity *E, tag ...string) error {
 		logger.Error("数据库连接失败: " + err.Error())
 		return errors.New("数据库连接失败")
 	}
-	err = conn.Debug().Save(entity).Error
+	if receiver.debug {
+		conn = conn.Debug()
+	}
+	err = conn.Save(entity).Error
 	if err != nil {
 		logger.Error("数据库保存失败: " + err.Error())
 		return errors.New("数据库保存失败")
+	}
+	if receiver.debug {
+		receiver.debug = false
 	}
 	return nil
 }
@@ -97,10 +134,16 @@ func (receiver *MySQLDao[E]) All(entity E, tag ...string) ([]E, error) {
 	}
 
 	var result = make([]E, 0)
-	err = conn.Debug().Where(entity).Find(&result).Error
+	if receiver.debug {
+		conn = conn.Debug()
+	}
+	err = conn.Where(entity).Find(&result).Error
 	if err != nil {
 		logger.Error("数据库查询失败: " + err.Error())
 		return nil, errors.New("数据库查询失败")
+	}
+	if receiver.debug {
+		receiver.debug = false
 	}
 	return result, nil
 }
@@ -113,10 +156,16 @@ func (receiver *MySQLDao[E]) One(entity E, tag ...string) (*E, error) {
 		return nil, errors.New("数据库连接失败")
 	}
 	var result *E
-	err = conn.Debug().Where(entity).Find(&result).Error
+	if receiver.debug {
+		conn = conn.Debug()
+	}
+	err = conn.Where(entity).Find(&result).Error
 	if err != nil {
 		logger.Error("数据库查询失败: " + err.Error())
 		return nil, errors.New("数据库查询失败")
+	}
+	if receiver.debug {
+		receiver.debug = false
 	}
 	return result, nil
 }
@@ -138,7 +187,10 @@ func (receiver *MySQLDao[E]) Pager(entity E, page, size int, tag ...string) ([]E
 		Index: page,
 		Size:  size,
 	}
-	err = conn.Debug().Where(entity).Count(&count).Error
+	if receiver.debug {
+		conn = conn.Debug()
+	}
+	err = conn.Where(entity).Count(&count).Error
 	if err != nil {
 		logger.Error("数据库查询失败: " + err.Error())
 		return nil, nil, errors.New("数据库查询失败")
@@ -148,10 +200,13 @@ func (receiver *MySQLDao[E]) Pager(entity E, page, size int, tag ...string) ([]E
 	if count == 0 || count < int64((page-1)*size) {
 		return result, &p, err
 	}
-	err = conn.Debug().Where(entity).Offset((page - 1) * size).Limit(size).Find(&result).Error
+	err = conn.Where(entity).Offset((page - 1) * size).Limit(size).Find(&result).Error
 	if err != nil {
 		logger.Error("数据库查询失败: " + err.Error())
 		return nil, nil, errors.New("数据库查询失败")
+	}
+	if receiver.debug {
+		receiver.debug = false
 	}
 	return result, &p, nil
 }

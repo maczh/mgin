@@ -3,6 +3,7 @@ package utils
 import (
 	"errors"
 	"fmt"
+	"github.com/maczh/mgin/logs"
 	"reflect"
 )
 
@@ -122,4 +123,43 @@ func AnyToMap(obj any) map[string]string {
 	default:
 		return map[string]string{}
 	}
+}
+
+func deepCopy(from, to interface{}) {
+	fromValue := reflect.ValueOf(from)
+	if fromValue.Kind() != reflect.Struct {
+		logs.Error("源对象不是结构体类型")
+		return
+	}
+	val := reflect.ValueOf(to)
+	if val.Kind() != reflect.Ptr {
+		logs.Error("目标对象不是结构体指针")
+		return
+	}
+	toValue := val.Elem()
+
+	for i := 0; i < fromValue.NumField(); i++ {
+		fromFieldValue := fromValue.Field(i)
+		toFieldValue := toValue.FieldByName(fromValue.Type().Field(i).Name)
+
+		if !toFieldValue.IsValid() {
+			continue
+		}
+
+		if fromFieldValue.Type() == toFieldValue.Type() {
+			toFieldValue.Set(fromFieldValue)
+		} else if fromFieldValue.Kind() == reflect.Struct && toFieldValue.Kind() == reflect.Struct {
+			deepCopy(fromFieldValue.Addr().Interface(), toFieldValue.Addr().Interface())
+		}
+	}
+}
+
+func CopyStruct(src, dst any) {
+	deepCopy(src, dst)
+}
+
+func DeepCopy[D any](src any) D {
+	var dst D
+	deepCopy(src, &dst)
+	return dst
 }
