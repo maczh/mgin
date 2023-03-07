@@ -5,6 +5,7 @@ import (
 	"github.com/maczh/mgin/db"
 	"github.com/maczh/mgin/models"
 	"github.com/sadlil/gologger"
+	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
 )
 
@@ -174,12 +175,7 @@ func (receiver *MySQLDao[E]) One(entity E) (*E, error) {
 }
 
 // Pager mysql简单分页查询数据
-func (receiver *MySQLDao[E]) Pager(entity E, page, size int) ([]E, *models.ResultPage, error) {
-	conn, err := db.Mysql.GetConnection(receiver.Tag())
-	if err != nil {
-		logger.Error("数据库连接失败: " + err.Error())
-		return nil, nil, errors.New("数据库连接失败")
-	}
+func (receiver *MySQLDao[E]) Pager(conn *gorm.DB, page, size int) ([]E, *models.ResultPage, error) {
 	// 默认分页大小为20条
 	if size == 0 {
 		size = 20
@@ -193,7 +189,8 @@ func (receiver *MySQLDao[E]) Pager(entity E, page, size int) ([]E, *models.Resul
 	if receiver.debug {
 		conn = conn.Debug()
 	}
-	err = conn.Where(entity).Count(&count).Error
+	var e E
+	err := conn.Model(e).Count(&count).Error
 	if err != nil {
 		logger.Error("数据库查询失败: " + err.Error())
 		return nil, nil, errors.New("数据库查询失败")
@@ -203,7 +200,7 @@ func (receiver *MySQLDao[E]) Pager(entity E, page, size int) ([]E, *models.Resul
 	if count == 0 || count < int64((page-1)*size) {
 		return result, &p, err
 	}
-	err = conn.Where(entity).Offset((page - 1) * size).Limit(size).Find(&result).Error
+	err = conn.Offset((page - 1) * size).Limit(size).Find(&result).Error
 	if err != nil {
 		logger.Error("数据库查询失败: " + err.Error())
 		return nil, nil, errors.New("数据库查询失败")
