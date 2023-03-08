@@ -38,9 +38,6 @@ func (receiver *MySQLDao[E]) Create(entity *E) error {
 		logger.Error("数据库插入失败: " + err.Error())
 		return errors.New("数据库插入失败")
 	}
-	if receiver.debug {
-		receiver.debug = false
-	}
 	return nil
 }
 
@@ -58,9 +55,6 @@ func (receiver *MySQLDao[E]) MultiCreate(entities []*E) error {
 	if err != nil {
 		logger.Error("数据库插入失败: " + err.Error())
 		return errors.New("数据库插入失败")
-	}
-	if receiver.debug {
-		receiver.debug = false
 	}
 	return nil
 }
@@ -81,9 +75,6 @@ func (receiver *MySQLDao[E]) Delete(entity E) error {
 		logger.Error("数据库删除失败: " + err.Error())
 		return errors.New("数据库删除失败")
 	}
-	if receiver.debug {
-		receiver.debug = false
-	}
 	return nil
 }
 
@@ -102,9 +93,6 @@ func (receiver *MySQLDao[E]) Updates(entity *E) error {
 		logger.Error("数据库更新失败: " + err.Error())
 		return errors.New("数据库更新失败")
 	}
-	if receiver.debug {
-		receiver.debug = false
-	}
 	return nil
 }
 
@@ -122,9 +110,6 @@ func (receiver *MySQLDao[E]) Save(entity *E) error {
 	if err != nil {
 		logger.Error("数据库保存失败: " + err.Error())
 		return errors.New("数据库保存失败")
-	}
-	if receiver.debug {
-		receiver.debug = false
 	}
 	return nil
 }
@@ -146,9 +131,6 @@ func (receiver *MySQLDao[E]) All(entity E) ([]E, error) {
 		logger.Error("数据库查询失败: " + err.Error())
 		return nil, errors.New("数据库查询失败")
 	}
-	if receiver.debug {
-		receiver.debug = false
-	}
 	return result, nil
 }
 
@@ -164,12 +146,12 @@ func (receiver *MySQLDao[E]) One(entity E) (*E, error) {
 		conn = conn.Debug()
 	}
 	err = conn.Where(entity).First(&result).Error
-	if err != nil && err != gorm.ErrRecordNotFound {
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
 		logger.Error("数据库查询失败: " + err.Error())
 		return nil, errors.New("数据库查询失败")
-	}
-	if receiver.debug {
-		receiver.debug = false
 	}
 	return result, nil
 }
@@ -204,9 +186,6 @@ func (receiver *MySQLDao[E]) Pager(conn *gorm.DB, page, size int) ([]E, *models.
 	if err != nil {
 		logger.Error("数据库查询失败: " + err.Error())
 		return nil, nil, errors.New("数据库查询失败")
-	}
-	if receiver.debug {
-		receiver.debug = false
 	}
 	return result, &p, nil
 }

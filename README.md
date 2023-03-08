@@ -269,6 +269,7 @@ func handleMsg(msg string) error {
 * 客户端参见 examples/mgin-client项目
 
 ### 版本更新
+- v1.19.21 dao层查询单条无记录时不返回error,返回数据为nil
 - v1.19.19 增加了mongo和mysql的dao，并且做了一些优化与修复了一些bug，并且新增了CopyStruct函数
 - v1.19.10 mysql/mongo/redis多库新增IsMultiDB与ListConnNames函数
 - v1.19.9 postlog支持多库根据header中的指定参数切库

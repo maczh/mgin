@@ -105,7 +105,10 @@ func (m *MgoDao[E]) One(query bson.M) (*E, error) {
 	defer db.Mongo.ReturnConnection(conn)
 	var result *E
 	err = conn.C(m.CollectionName).Find(query).One(result)
-	if err != nil && err != mgo.ErrNotFound {
+	if err != nil {
+		if err == mgo.ErrNotFound {
+			return nil, nil
+		}
 		logger.Error("数据库查询失败: " + err.Error())
 		return nil, errors.New("数据库查询失败")
 	}
