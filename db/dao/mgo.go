@@ -4,6 +4,7 @@ import (
 	"errors"
 	"github.com/maczh/mgin/db"
 	"github.com/maczh/mgin/models"
+	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
 )
 
@@ -104,7 +105,7 @@ func (m *MgoDao[E]) One(query bson.M) (*E, error) {
 	defer db.Mongo.ReturnConnection(conn)
 	var result *E
 	err = conn.C(m.CollectionName).Find(query).One(result)
-	if err != nil {
+	if err != nil && err != mgo.ErrNotFound {
 		logger.Error("数据库查询失败: " + err.Error())
 		return nil, errors.New("数据库查询失败")
 	}

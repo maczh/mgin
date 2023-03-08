@@ -163,8 +163,8 @@ func (receiver *MySQLDao[E]) One(entity E) (*E, error) {
 	if receiver.debug {
 		conn = conn.Debug()
 	}
-	err = conn.Where(entity).Find(&result).Error
-	if err != nil {
+	err = conn.Where(entity).First(&result).Error
+	if err != nil && err != gorm.ErrRecordNotFound {
 		logger.Error("数据库查询失败: " + err.Error())
 		return nil, errors.New("数据库查询失败")
 	}
