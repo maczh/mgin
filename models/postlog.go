@@ -1,11 +1,7 @@
 package models
 
-import (
-	"gopkg.in/mgo.v2/bson"
-)
-
 type PostLog struct {
-	ID            bson.ObjectId     `bson:"_id"`
+	//ID            bson.ObjectId     `bson:"_id"`
 	Time          string            `json:"time" bson:"time"`
 	RequestId     string            `json:"requestId" bson:"requestId"`
 	ResponseTime  string            `json:"responseTime" bson:"responseTime"`

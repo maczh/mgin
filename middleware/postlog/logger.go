@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/maczh/mgin/config"
 	"github.com/maczh/mgin/db"
+	"github.com/maczh/mgin/db/dao"
 	"github.com/maczh/mgin/models"
 	"io/ioutil"
 	"strings"
@@ -15,12 +16,36 @@ import (
 	"github.com/maczh/mgin/logs"
 	"github.com/maczh/mgin/middleware/trace"
 	"github.com/maczh/mgin/utils"
-	"gopkg.in/mgo.v2/bson"
 )
 
 type bodyLogWriter struct {
 	gin.ResponseWriter
 	body *bytes.Buffer
+}
+
+type mongo[E any] struct {
+	//insert    func(entity *E) error
+	isMultiDB func() bool
+	mgodao    dao.Dao[E]
+}
+
+func getTag() string {
+	if db.Mongo.IsMultiDB() {
+		return trace.GetHeader(config.Config.Log.DbName)
+	} else {
+		return "0"
+	}
+}
+
+var Mgo = mongo[models.PostLog]{
+	//insert:    postlogDao.Insert,
+	isMultiDB: db.Mongo.IsMultiDB,
+	//mgodao:    &postlogDao,
+}
+
+func (m *mongo[E]) Set(mgodao dao.Dao[E], isMultiDBFunc func() bool) {
+	m.mgodao = mgodao
+	m.isMultiDB = isMultiDBFunc
 }
 
 var accessChannel = make(chan string, 100)
@@ -36,6 +61,11 @@ func (w bodyLogWriter) WriteString(s string) (int, error) {
 }
 
 func RequestLogger() gin.HandlerFunc {
+	var postlogDao = dao.MgoDao[models.PostLog]{
+		CollectionName: config.Config.Log.RequestTableName,
+		Tag:            getTag,
+	}
+	Mgo.mgodao = &postlogDao
 
 	go handleAccessChannel()
 
@@ -83,7 +113,7 @@ func RequestLogger() gin.HandlerFunc {
 		}
 		params = utils.GinParamMap(c)
 		postLog := new(models.PostLog)
-		postLog.ID = bson.NewObjectId()
+		//postLog.ID = bson.NewObjectId()
 		postLog.Time = startTime.Format("2006-01-02 15:04:05")
 		postLog.Uri = c.Request.RequestURI
 		postLog.Method = c.Request.Method
@@ -141,7 +171,7 @@ func handleAccessChannel() {
 				}
 			}
 		}
-		if dbName == "" && db.Mongo.IsMultiDB() {
+		if dbName == "" && Mgo.isMultiDB() {
 			logs.Error("日志多库header配置{}错误，请求头中无此参数值", config.Config.Log.DbName)
 			continue
 		}
@@ -150,16 +180,20 @@ func handleAccessChannel() {
 		}
 		switch config.Config.Log.LogDb {
 		case "mongodb":
-			conn, err := db.Mongo.GetConnection(dbName)
-			if err != nil {
-				logs.Error("MongoDB连接失败:{}", err.Error())
-				continue
-			}
-			err = conn.C(config.Config.Log.RequestTableName).Insert(postLog)
+			//conn, err := db.Mongo.GetConnection(dbName)
+			//if err != nil {
+			//	logs.Error("MongoDB连接失败:{}", err.Error())
+			//	continue
+			//}
+			//err = conn.C(config.Config.Log.RequestTableName).insert(postLog)
+			//if err != nil {
+			//	logs.Error("MongoDB写入错误:" + err.Error())
+			//}
+			//db.Mongo.ReturnConnection(conn)
+			err := Mgo.mgodao.Insert(&postLog)
 			if err != nil {
 				logs.Error("MongoDB写入错误:" + err.Error())
 			}
-			db.Mongo.ReturnConnection(conn)
 		case "elasticsearch":
 			doc := make(map[string]any)
 			utils.FromJSON(utils.ToJSON(postLog), &doc)
