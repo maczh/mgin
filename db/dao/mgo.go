@@ -136,7 +136,7 @@ func (m MgoDao[E]) Pager(query bson.M, sort []string, page, size int) ([]E, *mod
 		Index: page,
 		Size:  size,
 	}
-	count, err = conn.C(m.CollectionName).Count()
+	count, err = conn.C(m.CollectionName).Find(query).Count()
 	if err != nil {
 		logger.Error("数据库查询失败: " + err.Error())
 		return nil, nil, errors.New("数据库查询失败")
