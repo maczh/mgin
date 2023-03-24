@@ -103,8 +103,8 @@ func (m MgoDao[E]) One(query bson.M) (*E, error) {
 		return nil, errors.New("数据库连接失败")
 	}
 	defer db.Mongo.ReturnConnection(conn)
-	var result *E
-	err = conn.C(m.CollectionName).Find(query).One(result)
+	var result E
+	err = conn.C(m.CollectionName).Find(query).One(&result)
 	if err != nil {
 		if err == mgo.ErrNotFound {
 			return nil, nil
@@ -112,7 +112,7 @@ func (m MgoDao[E]) One(query bson.M) (*E, error) {
 		logger.Error("数据库查询失败: " + err.Error())
 		return nil, errors.New("数据库查询失败")
 	}
-	return result, nil
+	return &result, nil
 }
 
 // Pager mongo简单分页查询数据

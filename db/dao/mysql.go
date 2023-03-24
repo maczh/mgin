@@ -141,7 +141,7 @@ func (receiver *MySQLDao[E]) One(entity E) (*E, error) {
 		logger.Error("数据库连接失败: " + err.Error())
 		return nil, errors.New("数据库连接失败")
 	}
-	var result *E
+	var result E
 	if receiver.debug {
 		conn = conn.Debug()
 	}
@@ -153,7 +153,7 @@ func (receiver *MySQLDao[E]) One(entity E) (*E, error) {
 		logger.Error("数据库查询失败: " + err.Error())
 		return nil, errors.New("数据库查询失败")
 	}
-	return result, nil
+	return &result, nil
 }
 
 // Pager mysql简单分页查询数据
