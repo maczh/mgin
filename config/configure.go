@@ -7,6 +7,7 @@ import (
 	"github.com/sadlil/gologger"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 type config struct {
@@ -32,6 +33,7 @@ type app struct {
 type appConfig struct {
 	Server string `json:"server" bson:"server"`
 	Type   string `json:"type" bson:"type"`
+	Path   string `json:"path" bson:"path"`
 	Env    string `json:"env" bson:"env"`
 	Used   string `json:"used" bson:"used"`
 	Prefix struct {
@@ -93,6 +95,7 @@ func (c *config) Init(cf string) {
 	c.App.IpAddr = c.Cnf.String("go.application.ip")
 	c.Config.Server = c.Cnf.String("go.config.server")
 	c.Config.Type = c.Cnf.String("go.config.server_type")
+	c.Config.Path = c.Cnf.String("go.config.path")
 	c.Config.Env = c.Cnf.String("go.config.env")
 	c.Config.Used = c.Cnf.String("go.config.used")
 	c.Config.Prefix.Mysql = c.Cnf.String("go.config.prefix.mysql")
@@ -171,6 +174,9 @@ func (c *config) GetConfigUrl(prefix string) string {
 		configUrl = configUrl + prefix + "-" + c.Config.Env + ".yml"
 	case "file":
 		path, _ := filepath.Abs(filepath.Dir(os.Args[0]))
+		if c.Config.Path != "" {
+			path = strings.TrimSuffix(c.Config.Path, "/")
+		}
 		configUrl = path + "/" + prefix + "-" + c.Config.Env + ".yml"
 	default:
 		configUrl = configUrl + prefix + "-" + c.Config.Env + ".yml"
