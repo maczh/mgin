@@ -31,7 +31,7 @@ type callerInfo struct {
 func retrieveCallInfo() *callerInfo {
 	pc, file, line, _ := runtime.Caller(4)
 	_, fileName := path.Split(file)
-	parts := strings.Split(runtime.FuncForPC(pc).Name(), ".")
+	parts := strings.Split(strings.ReplaceAll(runtime.FuncForPC(pc).Name(), "[...]", ""), ".")
 	pl := len(parts)
 	packageName := ""
 	funcName := parts[pl-1]
