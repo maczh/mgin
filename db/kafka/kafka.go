@@ -10,6 +10,7 @@ import (
 	"github.com/knadh/koanf/providers/rawbytes"
 	"github.com/levigross/grequests"
 	"github.com/sadlil/gologger"
+	"io/ioutil"
 	"strings"
 )
 
@@ -61,13 +62,24 @@ func (k *Kafka) Init(kafkaConfigUrl string) {
 	}
 	if k.conf == nil {
 		logger.Debug("正在获取kafka配置: " + k.confUrl)
-		resp, err := grequests.Get(k.confUrl, nil)
-		if err != nil {
-			logger.Error("kafka配置下载失败! " + err.Error())
-			return
+		var confData []byte
+		var err error
+		if strings.HasPrefix(k.confUrl, "http://") {
+			resp, err := grequests.Get(k.confUrl, nil)
+			if err != nil {
+				logger.Error("Kafka配置下载失败! " + err.Error())
+				return
+			}
+			confData = []byte(resp.String())
+		} else {
+			confData, err = ioutil.ReadFile(k.confUrl)
+			if err != nil {
+				logger.Error(fmt.Sprintf("Kafka本地配置文件%s读取失败:%s", k.confUrl, err.Error()))
+				return
+			}
 		}
 		k.conf = koanf.New(".")
-		err = k.conf.Load(rawbytes.Provider([]byte(resp.String())), yaml.Parser())
+		err = k.conf.Load(rawbytes.Provider(confData), yaml.Parser())
 		if err != nil {
 			logger.Error("Kafka配置文件解析错误:" + err.Error())
 			k.conf = nil

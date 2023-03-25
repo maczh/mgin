@@ -2,6 +2,7 @@ package mysql
 
 import (
 	"errors"
+	"fmt"
 	"github.com/knadh/koanf"
 	"github.com/knadh/koanf/parsers/yaml"
 	"github.com/knadh/koanf/providers/rawbytes"
@@ -9,6 +10,7 @@ import (
 	"github.com/sadlil/gologger"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
+	"io/ioutil"
 	"strings"
 	"time"
 )
@@ -34,13 +36,24 @@ func (m *MysqlClient) Init(mysqlConfigUrl string) {
 	}
 	if m.mysql == nil && len(m.mysqls) == 0 {
 		if m.conf == nil {
-			resp, err := grequests.Get(m.confUrl, nil)
-			if err != nil {
-				logger.Error("MySQL配置下载失败! " + err.Error())
-				return
+			var confData []byte
+			var err error
+			if strings.HasPrefix(m.confUrl, "http://") {
+				resp, err := grequests.Get(m.confUrl, nil)
+				if err != nil {
+					logger.Error("MySQL配置下载失败! " + err.Error())
+					return
+				}
+				confData = []byte(resp.String())
+			} else {
+				confData, err = ioutil.ReadFile(m.confUrl)
+				if err != nil {
+					logger.Error(fmt.Sprintf("MySQL本地配置文件%s读取失败:%s", m.confUrl, err.Error()))
+					return
+				}
 			}
 			m.conf = koanf.New(".")
-			err = m.conf.Load(rawbytes.Provider([]byte(resp.String())), yaml.Parser())
+			err = m.conf.Load(rawbytes.Provider(confData), yaml.Parser())
 			if err != nil {
 				logger.Error("MySQL配置格式解析错误:" + err.Error())
 				m.conf = nil

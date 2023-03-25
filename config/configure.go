@@ -5,6 +5,8 @@ import (
 	"github.com/knadh/koanf/parsers/yaml"
 	"github.com/knadh/koanf/providers/file"
 	"github.com/sadlil/gologger"
+	"os"
+	"path/filepath"
 )
 
 type config struct {
@@ -167,6 +169,9 @@ func (c *config) GetConfigUrl(prefix string) string {
 		configUrl = configUrl + "v1/kv/" + prefix + "-" + c.Config.Env + ".yml" + "?dc=dc1&raw=true"
 	case "springconfig":
 		configUrl = configUrl + prefix + "-" + c.Config.Env + ".yml"
+	case "file":
+		path, _ := filepath.Abs(filepath.Dir(os.Args[0]))
+		configUrl = path + "/" + prefix + "-" + c.Config.Env + ".yml"
 	default:
 		configUrl = configUrl + prefix + "-" + c.Config.Env + ".yml"
 	}

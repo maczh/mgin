@@ -9,6 +9,7 @@ import (
 	"github.com/levigross/grequests"
 	"github.com/sadlil/gologger"
 	"gopkg.in/mgo.v2"
+	"io/ioutil"
 	"log"
 	"os"
 	"strings"
@@ -45,13 +46,24 @@ func (m *Mongodb) Init(mongodbConfigUrl string) {
 	}
 	if len(m.conns) == 0 {
 		if m.conf == nil {
-			resp, err := grequests.Get(m.confUrl, nil)
-			if err != nil {
-				logger.Error("MongoDB配置下载失败! " + err.Error())
-				return
+			var confData []byte
+			var err error
+			if strings.HasPrefix(m.confUrl, "http://") {
+				resp, err := grequests.Get(m.confUrl, nil)
+				if err != nil {
+					logger.Error("MongoDB配置下载失败! " + err.Error())
+					return
+				}
+				confData = []byte(resp.String())
+			} else {
+				confData, err = ioutil.ReadFile(m.confUrl)
+				if err != nil {
+					logger.Error(fmt.Sprintf("MongoDB本地配置文件%s读取失败:%s", m.confUrl, err.Error()))
+					return
+				}
 			}
 			m.conf = koanf.New(".")
-			err = m.conf.Load(rawbytes.Provider([]byte(resp.String())), yaml.Parser())
+			err = m.conf.Load(rawbytes.Provider(confData), yaml.Parser())
 			if err != nil {
 				logger.Error("MongoDB配置解析错误:" + err.Error())
 				m.conf = nil

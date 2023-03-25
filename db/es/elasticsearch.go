@@ -8,8 +8,10 @@ import (
 	"github.com/levigross/grequests"
 	"github.com/olivere/elastic"
 	"github.com/sadlil/gologger"
+	"io/ioutil"
 	"log"
 	"os"
+	"strings"
 )
 
 type ElasticSearch struct {
@@ -31,9 +33,24 @@ func (e *ElasticSearch) Init(elasticConfigUrl string) {
 	var err error
 	if e.Elastic == nil {
 		if e.conf == nil {
-			resp, err := grequests.Get(e.confUrl, nil)
+			var confData []byte
+			var err error
+			if strings.HasPrefix(e.confUrl, "http://") {
+				resp, err := grequests.Get(e.confUrl, nil)
+				if err != nil {
+					logger.Error("ElasticSearch配置下载失败! " + err.Error())
+					return
+				}
+				confData = []byte(resp.String())
+			} else {
+				confData, err = ioutil.ReadFile(e.confUrl)
+				if err != nil {
+					logger.Error(fmt.Sprintf("ElasticSearch本地配置文件%s读取失败:%s", e.confUrl, err.Error()))
+					return
+				}
+			}
 			e.conf = koanf.New(".")
-			err = e.conf.Load(rawbytes.Provider([]byte(resp.String())), yaml.Parser())
+			err = e.conf.Load(rawbytes.Provider(confData), yaml.Parser())
 			if err != nil {
 				logger.Error("ElasticSearch配置解析错误:" + err.Error())
 				e.conf = nil

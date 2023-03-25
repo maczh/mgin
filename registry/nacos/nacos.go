@@ -1,10 +1,12 @@
 package nacos
 
 import (
+	"fmt"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/maczh/mgin/cache"
 	"github.com/maczh/mgin/config"
 	"github.com/sadlil/gologger"
+	"io/ioutil"
 	"net"
 	"os"
 	"path/filepath"
@@ -49,15 +51,26 @@ func (n *NacosClient) Register(nacosConfigUrl string) {
 		return
 	}
 	if n.conf == nil {
-		resp, err := grequests.Get(n.confUrl, nil)
-		if err != nil {
-			logger.Error("Nacos配置下载失败! " + err.Error())
-			return
+		var confData []byte
+		var err error
+		if strings.HasPrefix(n.confUrl, "http://") {
+			resp, err := grequests.Get(n.confUrl, nil)
+			if err != nil {
+				logger.Error("Nacos注册中心配置下载失败! " + err.Error())
+				return
+			}
+			confData = []byte(resp.String())
+		} else {
+			confData, err = ioutil.ReadFile(n.confUrl)
+			if err != nil {
+				logger.Error(fmt.Sprintf("Nacos注册中心本地配置文件%s读取失败:%s", n.confUrl, err.Error()))
+				return
+			}
 		}
 		n.conf = koanf.New(".")
-		err = n.conf.Load(rawbytes.Provider([]byte(resp.String())), yaml.Parser())
+		err = n.conf.Load(rawbytes.Provider(confData), yaml.Parser())
 		if err != nil {
-			logger.Error("Nacos配置文件解析错误:" + err.Error())
+			logger.Error("Nacos注册中心配置文件解析错误:" + err.Error())
 			n.conf = nil
 			return
 		}
