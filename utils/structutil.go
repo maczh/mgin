@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/maczh/mgin/logs"
 	"reflect"
+	"strings"
 )
 
 func Clone(src any, dst any) {
@@ -58,7 +59,10 @@ func Struct2MapString(obj any) map[string]string {
 			val := ToJSON(objV.Field(i).Interface())
 			data[getFieldName(objT.Field(i))] = val
 		case reflect.String:
-			data[getFieldName(objT.Field(i))] = objV.Field(i).String()
+			k, v := getFieldName(objT.Field(i)), objV.Field(i).String()
+			if k != "-" && v != "" {
+				data[k] = v
+			}
 		default:
 			data[getFieldName(objT.Field(i))] = fmt.Sprintf("%v", objV.Field(i).Interface())
 		}
@@ -88,6 +92,9 @@ func getFieldName(f reflect.StructField) string {
 	field := f.Tag.Get("json")
 	if field == "" {
 		field = f.Name
+	}
+	if strings.Contains(field, ",") {
+		field = strings.Split(field, ",")[0]
 	}
 	return field
 }
