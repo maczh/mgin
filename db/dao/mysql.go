@@ -25,6 +25,9 @@ func (m *MySQLDao[E]) Debug() *MySQLDao[E] {
 
 // Create mysql动态插入数据
 func (receiver *MySQLDao[E]) Create(entity *E) error {
+	if receiver.Tag == nil {
+		receiver.Tag = notag
+	}
 	conn, err := db.Mysql.GetConnection(receiver.Tag())
 	if err != nil {
 		logger.Error("数据库连接失败: " + err.Error())
@@ -43,6 +46,9 @@ func (receiver *MySQLDao[E]) Create(entity *E) error {
 
 // MultiCreate mysql动态插入多条数据
 func (receiver *MySQLDao[E]) MultiCreate(entities []*E) error {
+	if receiver.Tag == nil {
+		receiver.Tag = notag
+	}
 	conn, err := db.Mysql.GetConnection(receiver.Tag())
 	if err != nil {
 		logger.Error("数据库连接失败: " + err.Error())
@@ -61,6 +67,9 @@ func (receiver *MySQLDao[E]) MultiCreate(entities []*E) error {
 
 // Delete mysql动态删除数据
 func (receiver *MySQLDao[E]) Delete(entity E) error {
+	if receiver.Tag == nil {
+		receiver.Tag = notag
+	}
 	conn, err := db.Mysql.GetConnection(receiver.Tag())
 	if err != nil {
 		logger.Error("数据库连接失败: " + err.Error())
@@ -80,6 +89,9 @@ func (receiver *MySQLDao[E]) Delete(entity E) error {
 
 // Updates mysql动态更新数据
 func (receiver *MySQLDao[E]) Updates(entity *E) error {
+	if receiver.Tag == nil {
+		receiver.Tag = notag
+	}
 	conn, err := db.Mysql.GetConnection(receiver.Tag())
 	if err != nil {
 		logger.Error("数据库连接失败: " + err.Error())
@@ -98,6 +110,9 @@ func (receiver *MySQLDao[E]) Updates(entity *E) error {
 
 // Save mysql动态保存数据
 func (receiver *MySQLDao[E]) Save(entity *E) error {
+	if receiver.Tag == nil {
+		receiver.Tag = notag
+	}
 	conn, err := db.Mysql.GetConnection(receiver.Tag())
 	if err != nil {
 		logger.Error("数据库连接失败: " + err.Error())
@@ -116,6 +131,9 @@ func (receiver *MySQLDao[E]) Save(entity *E) error {
 
 // All mysql动态查询数据
 func (receiver *MySQLDao[E]) All(entity E) ([]E, error) {
+	if receiver.Tag == nil {
+		receiver.Tag = notag
+	}
 	conn, err := db.Mysql.GetConnection(receiver.Tag())
 	if err != nil {
 		logger.Error("数据库连接失败: " + err.Error())
@@ -136,6 +154,9 @@ func (receiver *MySQLDao[E]) All(entity E) ([]E, error) {
 
 // One mysql动态查询一条数据
 func (receiver *MySQLDao[E]) One(entity E) (*E, error) {
+	if receiver.Tag == nil {
+		receiver.Tag = notag
+	}
 	conn, err := db.Mysql.GetConnection(receiver.Tag())
 	if err != nil {
 		logger.Error("数据库连接失败: " + err.Error())

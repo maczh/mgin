@@ -14,10 +14,17 @@ type MgoDao[E any] struct {
 	Tag            func() string
 }
 
+func notag() string {
+	return ""
+}
+
 // Insert mongo动态插入数据
 func (m MgoDao[E]) Insert(entity *E) error {
 	if m.CollectionName == "" {
 		return errors.New("CollectionName未定义")
+	}
+	if m.Tag == nil {
+		m.Tag = notag
 	}
 	conn, err := db.Mongo.GetConnection(m.Tag())
 	if err != nil {
@@ -38,6 +45,9 @@ func (m MgoDao[E]) Delete(query bson.M) error {
 	if m.CollectionName == "" {
 		return errors.New("CollectionName未定义")
 	}
+	if m.Tag == nil {
+		m.Tag = notag
+	}
 	conn, err := db.Mongo.GetConnection(m.Tag())
 	if err != nil {
 		logger.Error("数据库连接失败: " + err.Error())
@@ -57,6 +67,9 @@ func (m MgoDao[E]) Updates(id bson.ObjectId, fields bson.M) error {
 	if m.CollectionName == "" {
 		return errors.New("CollectionName未定义")
 	}
+	if m.Tag == nil {
+		m.Tag = notag
+	}
 	conn, err := db.Mongo.GetConnection(m.Tag())
 	if err != nil {
 		logger.Error("数据库连接失败: " + err.Error())
@@ -75,6 +88,9 @@ func (m MgoDao[E]) Updates(id bson.ObjectId, fields bson.M) error {
 func (m MgoDao[E]) All(query bson.M) ([]E, error) {
 	if m.CollectionName == "" {
 		return nil, errors.New("CollectionName未定义")
+	}
+	if m.Tag == nil {
+		m.Tag = notag
 	}
 	conn, err := db.Mongo.GetConnection(m.Tag())
 	if err != nil {
@@ -96,6 +112,9 @@ func (m MgoDao[E]) All(query bson.M) ([]E, error) {
 func (m MgoDao[E]) One(query bson.M) (*E, error) {
 	if m.CollectionName == "" {
 		return nil, errors.New("CollectionName未定义")
+	}
+	if m.Tag == nil {
+		m.Tag = notag
 	}
 	conn, err := db.Mongo.GetConnection(m.Tag())
 	if err != nil {
@@ -119,6 +138,9 @@ func (m MgoDao[E]) One(query bson.M) (*E, error) {
 func (m MgoDao[E]) Pager(query bson.M, sort []string, page, size int) ([]E, *models.ResultPage, error) {
 	if m.CollectionName == "" {
 		return nil, nil, errors.New("CollectionName未定义")
+	}
+	if m.Tag == nil {
+		m.Tag = notag
 	}
 	conn, err := db.Mongo.GetConnection(m.Tag())
 	if err != nil {
