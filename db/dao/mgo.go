@@ -6,6 +6,7 @@ import (
 	"github.com/maczh/mgin/models"
 	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
+	"math"
 )
 
 // MgoDao 注意使用前必须先将CollectionName赋值
@@ -164,7 +165,7 @@ func (m MgoDao[E]) Pager(query bson.M, sort []string, page, size int) ([]E, *mod
 		return nil, nil, errors.New("数据库查询失败")
 	}
 	p.Total = count
-	p.Count = (count / size) + 1
+	p.Count = int(math.Ceil(float64(count) / float64(size)))
 	if count == 0 || count < (page-1)*size {
 		return result, &p, err
 	}

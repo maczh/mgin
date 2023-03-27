@@ -7,6 +7,7 @@ import (
 	"github.com/sadlil/gologger"
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
+	"math"
 )
 
 type MySQLDao[E schema.Tabler] struct {
@@ -199,7 +200,7 @@ func (receiver *MySQLDao[E]) Pager(conn *gorm.DB, page, size int) ([]E, *models.
 		return nil, nil, errors.New("数据库查询失败")
 	}
 	p.Total = int(count)
-	p.Count = int(count/int64(size)) + 1
+	p.Count = int(math.Ceil(float64(count) / float64(size)))
 	if count == 0 || count < int64((page-1)*size) {
 		return result, &p, err
 	}
