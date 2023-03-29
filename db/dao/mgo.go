@@ -64,7 +64,7 @@ func (m MgoDao[E]) Delete(query bson.M) error {
 }
 
 // Updates mongo动态更新数据
-func (m MgoDao[E]) Updates(id bson.ObjectId, fields bson.M) error {
+func (m MgoDao[E]) Updates(id bson.ObjectId, doc any) error {
 	if m.CollectionName == "" {
 		return errors.New("CollectionName未定义")
 	}
@@ -77,7 +77,7 @@ func (m MgoDao[E]) Updates(id bson.ObjectId, fields bson.M) error {
 		return errors.New("数据库连接失败")
 	}
 	defer db.Mongo.ReturnConnection(conn)
-	err = conn.C(m.CollectionName).UpdateId(id, fields)
+	err = conn.C(m.CollectionName).UpdateId(id, doc)
 	if err != nil {
 		logger.Error("数据库更新失败: " + err.Error())
 		return errors.New("数据库更新失败")
