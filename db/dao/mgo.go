@@ -64,7 +64,7 @@ func (m MgoDao[E]) Delete(query bson.M) error {
 }
 
 // Updates mongo动态更新数据
-func (m MgoDao[E]) Updates(id bson.ObjectId, doc any) error {
+func (m MgoDao[E]) Updates(id bson.ObjectId, doc E) error {
 	if m.CollectionName == "" {
 		return errors.New("CollectionName未定义")
 	}
