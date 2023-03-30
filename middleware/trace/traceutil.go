@@ -48,6 +48,12 @@ func GetHeader(header string) string {
 	return headers[header]
 }
 
+func SetHeader(key, value string) {
+	headers := GetHeaders()
+	headers[key] = value
+	cache.OnGetCache("Header").Add(GetGoroutineID(), headers, 5*time.Minute)
+}
+
 func GetHeaders() map[string]string {
 	headers, found := cache.OnGetCache("Header").Value(GetGoroutineID())
 	if found {
@@ -94,7 +100,7 @@ func getHeaders(c *gin.Context) map[string]string {
 	return headers
 }
 
-//从其他协程克隆headers到当前协程的缓存
+// 从其他协程克隆headers到当前协程的缓存
 func CopyPreHeaderToCurRoutine(preRoutineId uint64) {
 	headers, found := cache.OnGetCache("Header").Value(preRoutineId)
 	if found {
