@@ -164,45 +164,46 @@ func (r *RedisClient) Close() {
 }
 
 func (r *RedisClient) redisCheck(dbName string) error {
-	fmt.Printf("正在检查%s连接\n", dbName)
-	if err := r.clients[dbName].Ping().Err(); err != nil {
-		logger.Error("Redis连接故障:" + err.Error())
-		ropt := r.cfgs[dbName]
-		rc := redis.NewClient(ropt)
-		if err := rc.Ping().Err(); err != nil {
-			logger.Error(dbName + " Redis连接失败:" + err.Error())
-			return err
-		}
-		r.clients[dbName] = rc
-	}
+	//fmt.Printf("正在检查%s连接\n", dbName)
+	//if err := r.clients[dbName].Ping().Err(); err != nil {
+	//	logger.Error("Redis连接故障:" + err.Error())
+	//	r.clients[dbName].Close()
+	//	ropt := r.cfgs[dbName]
+	//	rc := redis.NewClient(ropt)
+	//	if err := rc.Ping().Err(); err != nil {
+	//		logger.Error(dbName + " Redis连接失败:" + err.Error())
+	//		return err
+	//	}
+	//	r.clients[dbName] = rc
+	//}
 	return nil
 }
 
 func (r *RedisClient) Check() error {
-	var err error
-	if r.client == nil && len(r.clients) == 0 {
-		r.Init("")
-	}
-	if r.multi {
-		for dbName, _ := range r.cfgs {
-			err = r.redisCheck(dbName)
-			if err != nil {
-				logger.Error(dbName + " Redis检查失败:" + err.Error())
-			}
-		}
-	} else {
-		if err = r.client.Ping().Err(); err != nil {
-			logger.Error("Redis连接故障:" + err.Error())
-			r.Close()
-			r.Init("")
-			if err = r.client.Ping().Err(); err != nil {
-				logger.Error("Redis重新连接之后依然故障:" + err.Error())
-			} else {
-				logger.Error("Redis重新连接成功")
-			}
-		}
-	}
-	return err
+	//var err error
+	//if r.client == nil && len(r.clients) == 0 {
+	//	r.Init("")
+	//}
+	//if r.multi {
+	//	for dbName, _ := range r.cfgs {
+	//		err = r.redisCheck(dbName)
+	//		if err != nil {
+	//			logger.Error(dbName + " Redis检查失败:" + err.Error())
+	//		}
+	//	}
+	//} else {
+	//	if err = r.client.Ping().Err(); err != nil {
+	//		logger.Error("Redis连接故障:" + err.Error())
+	//		r.Close()
+	//		r.Init("")
+	//		if err = r.client.Ping().Err(); err != nil {
+	//			logger.Error("Redis重新连接之后依然故障:" + err.Error())
+	//		} else {
+	//			logger.Error("Redis重新连接成功")
+	//		}
+	//	}
+	//}
+	return nil
 }
 
 func (r *RedisClient) GetConnection(dbName ...string) (*redis.Client, error) {
