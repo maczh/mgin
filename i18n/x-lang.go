@@ -16,10 +16,9 @@ func GetAppXLangVersion(appName string) (string, error) {
 		"appName": appName,
 	}
 	rs := client.CallT[map[string]string](SERVICE_X_LANGUAGE, URI_GET_APP_STRINGS_VERSION, &client.Options{
-		Method:   "POST",
+		Method:   "GET",
 		Protocol: client.CONTENT_TYPE_FORM,
-		Group:    "DEFAULT_GROUP",
-		Data:     params,
+		Query:    params,
 		Retry:    false,
 	})
 	return rs.Data["version"], nil
@@ -30,10 +29,9 @@ func GetAppXLangStringsAll(appName string) (map[string]string, error) {
 		"appName": appName,
 	}
 	rs := client.CallT[map[string]string](SERVICE_X_LANGUAGE, URI_LIST_STRINGS_BY_APPNAME, &client.Options{
-		Method:   "POST",
+		Method:   "GET",
 		Protocol: client.CONTENT_TYPE_FORM,
-		Group:    "DEFAULT_GROUP",
-		Data:     params,
+		Query:    params,
 		Retry:    false,
 	})
 	if rs.Status != 1 {
