@@ -15,11 +15,25 @@ import (
 	"time"
 )
 
+const (
+	ClusterTypeNone     = "None"
+	ClusterTypeSentinel = "Sentinel"
+	ClusterTypeCluster  = "Cluster"
+)
+
+type redisClient struct {
+	ClusterType string //集群类型 None-单点或主从 Sentinel-哨兵模式 Cluster-集群模式
+	Client      *redis.Client
+	Sentinel    *redis.SentinelClient
+	Cluster     *redis.ClusterClient
+}
+
 type RedisClient struct {
-	client  *redis.Client
+	client  redisClient
 	multi   bool
-	clients map[string]*redis.Client
-	cfgs    map[string]*redis.Options
+	cluster string
+	clients map[string]redisClient
+	cfgs    map[string]any
 	conf    *koanf.Koanf
 	confUrl string
 	conns   []string
@@ -62,28 +76,47 @@ func (r *RedisClient) Init(redisConfigUrl string) {
 			}
 		}
 		r.multi = r.conf.Bool("go.data.redis.multidb")
+		r.cluster = r.conf.String("go.data.redis.clusterType")
+		if r.cluster == "" {
+			r.cluster = ClusterTypeNone
+		}
 		var ro redis.Options
 		if r.multi {
-			r.clients = make(map[string]*redis.Client)
-			r.cfgs = make(map[string]*redis.Options)
+			r.clients = make(map[string]redisClient)
+			r.cfgs = make(map[string]any)
 			r.conns = make([]string, 0)
 			dbNames := strings.Split(r.conf.String("go.data.redis.dbNames"), ",")
 			for _, dbName := range dbNames {
 				if dbName != "" && r.conf.Exists(fmt.Sprintf("go.data.redis.%s.host", dbName)) {
-					ropt := redis.Options{
-						Addr:     r.conf.String(fmt.Sprintf("go.data.redis.%s.host", dbName)) + ":" + r.conf.String(fmt.Sprintf("go.data.redis.%s.port", dbName)),
-						Password: r.conf.String(fmt.Sprintf("go.data.redis.%s.password", dbName)),
-						DB:       r.conf.Int(fmt.Sprintf("go.data.redis.%s.database", dbName)),
-						Dialer: func() (net.Conn, error) {
-							netDialer := &net.Dialer{
-								Timeout:   5 * time.Second,
-								KeepAlive: 5 * time.Minute,
-							}
-							return netDialer.Dial("tcp", r.conf.String(fmt.Sprintf("go.data.redis.%s.host", dbName))+":"+r.conf.String(fmt.Sprintf("go.data.redis.%s.port", dbName)))
-						},
+					if r.cluster == ClusterTypeCluster {
+						hosts := strings.Split(r.conf.String(fmt.Sprintf("go.data.redis.%s.host", dbName)), ",")
+						ports := strings.Split(r.conf.String(fmt.Sprintf("go.data.redis.%s.port", dbName)), ",")
+						servers := make([]string, len(hosts))
+						for i, _ := range hosts {
+							servers[i] = fmt.Sprintf("%s:%s", hosts[i], ports[i])
+						}
+						ropt := redis.ClusterOptions{
+							Addrs:    servers,
+							Password: r.conf.String(fmt.Sprintf("go.data.redis.%s.password", dbName)),
+						}
+						r.cfgs[dbName] = &ropt
+						r.conns = append(r.conns, dbName)
+					} else {
+						ropt := redis.Options{
+							Addr:     r.conf.String(fmt.Sprintf("go.data.redis.%s.host", dbName)) + ":" + r.conf.String(fmt.Sprintf("go.data.redis.%s.port", dbName)),
+							Password: r.conf.String(fmt.Sprintf("go.data.redis.%s.password", dbName)),
+							DB:       r.conf.Int(fmt.Sprintf("go.data.redis.%s.database", dbName)),
+							Dialer: func() (net.Conn, error) {
+								netDialer := &net.Dialer{
+									Timeout:   5 * time.Second,
+									KeepAlive: 5 * time.Minute,
+								}
+								return netDialer.Dial("tcp", r.conf.String(fmt.Sprintf("go.data.redis.%s.host", dbName))+":"+r.conf.String(fmt.Sprintf("go.data.redis.%s.port", dbName)))
+							},
+						}
+						r.cfgs[dbName] = &ropt
+						r.conns = append(r.conns, dbName)
 					}
-					r.cfgs[dbName] = &ropt
-					r.conns = append(r.conns, dbName)
 				}
 			}
 		} else {
