@@ -8,7 +8,7 @@ require (
 	github.com/emirpasic/gods v1.18.1
 	github.com/gin-gonic/gin v1.8.1
 	github.com/go-errors/errors v1.0.1
-	github.com/go-redis/redis v6.15.9+incompatible
+	github.com/go-redis/redis/v7 v7.4.1
 	github.com/gofrs/uuid v4.1.0+incompatible
 	github.com/henrylee2cn/mahonia v0.0.0-20150715080413-be6deb105fbc
 	github.com/huandu/go-clone v1.4.1

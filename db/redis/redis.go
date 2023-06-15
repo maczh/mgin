@@ -3,7 +3,7 @@ package redis
 import (
 	"errors"
 	"fmt"
-	"github.com/go-redis/redis"
+	redis "github.com/go-redis/redis/v7"
 	"github.com/knadh/koanf"
 	"github.com/knadh/koanf/parsers/yaml"
 	"github.com/knadh/koanf/providers/rawbytes"
@@ -88,6 +88,9 @@ func (r *RedisClient) Init(redisConfigUrl string) {
 					}
 					uo.Password = r.conf.String(fmt.Sprintf("go.data.redis.%s.password", dbName))
 					uo.DB = r.conf.Int(fmt.Sprintf("go.data.redis.%s.database", dbName))
+					if uo.DB == -1 {
+						uo.DB = 0
+					}
 					r.cfgs[dbName] = uo
 					r.conns = append(r.conns, dbName)
 				}
@@ -111,6 +114,9 @@ func (r *RedisClient) Init(redisConfigUrl string) {
 			}
 			uo.Password = r.conf.String("go.data.redis.password")
 			uo.DB = r.conf.Int("go.data.redis.database")
+			if uo.DB == -1 {
+				uo.DB = 0
+			}
 			r.cfgs["0"] = uo
 			r.conns = append(r.conns, "0")
 		}
@@ -143,7 +149,9 @@ func (r *RedisClient) Init(redisConfigUrl string) {
 			rc := redis.NewUniversalClient(&rds)
 			if err := rc.Ping().Err(); err != nil {
 				logger.Error(dbName + " Redis连接失败:" + err.Error())
-				continue
+				if err.Error() != "ERR SELECT is not allowed in cluster mode" {
+					continue
+				}
 			}
 			fmt.Printf("%s 连接成功\n", dbName)
 			r.clients[dbName] = rc
