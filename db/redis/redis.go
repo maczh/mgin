@@ -61,10 +61,10 @@ func (r *RedisClient) Init(redisConfigUrl string) {
 			}
 		}
 		r.multi = r.conf.Bool("go.data.redis.multidb")
+		r.clients = make(map[string]redis.UniversalClient)
+		r.cfgs = make(map[string]redis.UniversalOptions)
+		r.conns = make([]string, 0)
 		if r.multi {
-			r.clients = make(map[string]redis.UniversalClient)
-			r.cfgs = make(map[string]redis.UniversalOptions)
-			r.conns = make([]string, 0)
 			dbNames := strings.Split(r.conf.String("go.data.redis.dbNames"), ",")
 			for _, dbName := range dbNames {
 				var uo redis.UniversalOptions
@@ -92,47 +92,45 @@ func (r *RedisClient) Init(redisConfigUrl string) {
 					r.conns = append(r.conns, dbName)
 				}
 			}
-		}
-	} else {
-		var uo redis.UniversalOptions
-		if r.conf.Exists("go.data.redis.uri") {
-			uo.Addrs = strings.Split(r.conf.String("go.data.redis.uri"), ",")
-		} else if r.conf.Exists("go.data.redis.host") {
-			hosts := strings.Split(r.conf.String("go.data.redis.host"), ",")
-			ports := strings.Split(r.conf.String("go.data.redis.port"), ",")
-			addrs := make([]string, 0)
-			for i, addr := range hosts {
-				addrs = append(addrs, fmt.Sprintf("%s:%s", addr, ports[i]))
+		} else {
+			var uo redis.UniversalOptions
+			if r.conf.Exists("go.data.redis.uri") {
+				uo.Addrs = strings.Split(r.conf.String("go.data.redis.uri"), ",")
+			} else if r.conf.Exists("go.data.redis.host") {
+				hosts := strings.Split(r.conf.String("go.data.redis.host"), ",")
+				ports := strings.Split(r.conf.String("go.data.redis.port"), ",")
+				addrs := make([]string, 0)
+				for i, addr := range hosts {
+					addrs = append(addrs, fmt.Sprintf("%s:%s", addr, ports[i]))
+				}
+				uo.Addrs = addrs
 			}
-			uo.Addrs = addrs
+			if r.conf.String("go.data.redis.master") != "" {
+				r.master = r.conf.String("go.data.redis.master")
+				uo.MasterName = r.master
+			}
+			uo.Password = r.conf.String("go.data.redis.password")
+			uo.DB = r.conf.Int("go.data.redis.database")
+			r.cfgs["0"] = uo
+			r.conns = append(r.conns, "0")
 		}
-		if r.conf.String("go.data.redis.master") != "" {
-			r.master = r.conf.String("go.data.redis.master")
-			uo.MasterName = r.master
-		}
-		uo.Password = r.conf.String("go.data.redis.password")
-		uo.DB = r.conf.Int("go.data.redis.database")
-		r.cfgs["0"] = uo
-		r.conns = append(r.conns, "0")
-	}
-	if r.conf.Int("go.data.redis_pool.max") > 1 {
-		min := r.conf.Int("go.data.redis_pool.min")
-		if min == 0 {
-			min = 2
-		}
-		max := r.conf.Int("go.data.redis_pool.max")
-		if max < 10 {
-			max = 10
-		}
-		idleTimeout := r.conf.Int("go.data.redis_pool.idleTimeout")
-		if idleTimeout == 0 {
-			idleTimeout = 5
-		}
-		connectTimeout := r.conf.Int("go.data.redis_pool.timeout")
-		if connectTimeout == 0 {
-			connectTimeout = 60
-		}
-		if r.multi {
+		if r.conf.Int("go.data.redis_pool.max") > 1 {
+			min := r.conf.Int("go.data.redis_pool.min")
+			if min == 0 {
+				min = 2
+			}
+			max := r.conf.Int("go.data.redis_pool.max")
+			if max < 10 {
+				max = 10
+			}
+			idleTimeout := r.conf.Int("go.data.redis_pool.idleTimeout")
+			if idleTimeout == 0 {
+				idleTimeout = 5
+			}
+			connectTimeout := r.conf.Int("go.data.redis_pool.timeout")
+			if connectTimeout == 0 {
+				connectTimeout = 60
+			}
 			for k, rds := range r.cfgs {
 				rds.PoolSize = max
 				rds.MinIdleConns = min
@@ -141,15 +139,15 @@ func (r *RedisClient) Init(redisConfigUrl string) {
 				r.cfgs[k] = rds
 			}
 		}
-	}
-	for dbName, rds := range r.cfgs {
-		rc := redis.NewUniversalClient(&rds)
-		if err := rc.Ping().Err(); err != nil {
-			logger.Error(dbName + " Redis连接失败:" + err.Error())
-			continue
+		for dbName, rds := range r.cfgs {
+			rc := redis.NewUniversalClient(&rds)
+			if err := rc.Ping().Err(); err != nil {
+				logger.Error(dbName + " Redis连接失败:" + err.Error())
+				continue
+			}
+			fmt.Printf("%s 连接成功\n", dbName)
+			r.clients[dbName] = rc
 		}
-		fmt.Printf("%s 连接成功\n", dbName)
-		r.clients[dbName] = rc
 	}
 }
 
