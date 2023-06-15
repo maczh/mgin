@@ -163,15 +163,17 @@ go:
 ```
 
 
-+ redis配置范例 redis-test.yml
++ redis配置范例 redis-test.yml,支持集群模式与哨兵模式
 ```yaml
 go:
   data:
     redis:
-      host: xxx.xxx.xxx.xxx
-      port: 6379
+      uri: xxx.xxx.xxx.xxx:6379[,xxx.xxx.xxx.xxx:6379,xxx.xxx.xxx.xxx:6379]    #uri与host+port选一种配置即可，多个ip+port就是集群模式
+      host: xxx.xxx.xxx.xxx[,xxx.xxx.xxx.xxx,xxx.xxx.xxx.xxx]
+      port: 6379[,6379,6379]
       password: password
       database: 1
+      master: mymaster               #哨兵模式的master名称
       timeout: 1000
     redis_pool:
       min: 3        #最小空闲连接数,默认2
@@ -180,7 +182,7 @@ go:
       timeout: 300  #连接超时，秒，默认60秒
 ```
 
-+ redis多库连接配置范例 redis-multidb-test.yml
++ redis多库连接配置范例 redis-multidb-test.yml,支持集群模式与哨兵模式
 ```yaml
 go:
   data:
@@ -188,10 +190,12 @@ go:
       multidb: true
       dbNames: test1,test2
       test1:
-          host: xxx.xxx.xxx.xxx
-          port: 6379
-          password: password
-          database: 1
+        uri: xxx.xxx.xxx.xxx:6379[,xxx.xxx.xxx.xxx:6379,xxx.xxx.xxx.xxx:6379]    #uri与host+port选一种配置即可，多个ip+port就是集群模式
+        host: xxx.xxx.xxx.xxx[,xxx.xxx.xxx.xxx,xxx.xxx.xxx.xxx]
+        port: 6379[,6379,6379]
+        password: password
+        database: 1
+        master: mymaster               #哨兵模式的master名称
       test2:
         host: xxx.xxx.xxx.xxx
         port: 6379
@@ -269,6 +273,8 @@ func handleMsg(msg string) error {
 * 客户端参见 examples/mgin-client项目
 
 ### 版本更新
+- v1.19.36 redis支持cluster集群、哨兵模式集群与单机模式
+- v1.19.35 x-lang部分从POST改成GET，支持当前nacos注册分组
 - v1.19.21 dao层查询单条无记录时不返回error,返回数据为nil
 - v1.19.19 增加了mongo和mysql的dao，并且做了一些优化与修复了一些bug，并且新增了CopyStruct函数
 - v1.19.10 mysql/mongo/redis多库新增IsMultiDB与ListConnNames函数
