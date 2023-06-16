@@ -88,7 +88,7 @@ func (r *RedisClient) Init(redisConfigUrl string) {
 					}
 					uo.Password = r.conf.String(fmt.Sprintf("go.data.redis.%s.password", dbName))
 					uo.DB = r.conf.Int(fmt.Sprintf("go.data.redis.%s.database", dbName))
-					if uo.DB == -1 {
+					if uo.DB == -1 || len(uo.Addrs) > 1 {
 						uo.DB = 0
 					}
 					r.cfgs[dbName] = uo
@@ -114,7 +114,7 @@ func (r *RedisClient) Init(redisConfigUrl string) {
 			}
 			uo.Password = r.conf.String("go.data.redis.password")
 			uo.DB = r.conf.Int("go.data.redis.database")
-			if uo.DB == -1 {
+			if uo.DB == -1 || len(uo.Addrs) > 1 {
 				uo.DB = 0
 			}
 			r.cfgs["0"] = uo
