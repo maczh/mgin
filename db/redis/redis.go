@@ -166,8 +166,10 @@ func (r *RedisClient) Close() {
 			delete(r.clients, dbName)
 		}
 	} else {
-		r.clients["0"].Close()
-		delete(r.clients, "0")
+		if client, ok := r.clients["0"]; ok {
+			client.Close()
+			delete(r.clients, "0")
+		}
 	}
 }
 
@@ -228,11 +230,15 @@ func (r *RedisClient) GetConnection(dbName ...string) (redis.UniversalClient, er
 		}
 		return r.clients[dbName[0]], nil
 	} else {
-		err := r.Check()
-		if err != nil {
-			return nil, errors.New("redis connection failed")
+		//err := r.Check()
+		//if err != nil {
+		//	return nil, errors.New("redis connection failed")
+		//}
+		if client, ok := r.clients["0"]; ok {
+			return client, nil
+		} else {
+			return nil, errors.New("Redis connection failed.")
 		}
-		return r.clients["0"], nil
 	}
 }
 
