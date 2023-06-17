@@ -228,7 +228,11 @@ func (r *RedisClient) GetConnection(dbName ...string) (redis.UniversalClient, er
 		if err != nil {
 			return nil, err
 		}
-		return r.clients[dbName[0]], nil
+		if client, ok := r.clients[dbName[0]]; ok {
+			return client, nil
+		} else {
+			return nil, errors.New("Redis connection failed.")
+		}
 	} else {
 		//err := r.Check()
 		//if err != nil {
