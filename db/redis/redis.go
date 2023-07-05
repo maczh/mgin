@@ -8,6 +8,7 @@ import (
 	"github.com/knadh/koanf/parsers/yaml"
 	"github.com/knadh/koanf/providers/rawbytes"
 	"github.com/levigross/grequests"
+	"github.com/maczh/mgin/logs"
 	"github.com/sadlil/gologger"
 	"io/ioutil"
 	"strings"
@@ -172,18 +173,18 @@ func (r *RedisClient) Close() {
 }
 
 func (r *RedisClient) redisCheck(dbName string) error {
-	//fmt.Printf("正在检查%s连接\n", dbName)
-	//if err := r.clients[dbName].Ping().Err(); err != nil {
-	//	logger.Error("Redis连接故障:" + err.Error())
-	//	r.clients[dbName].Close()
-	//	ropt := r.cfgs[dbName]
-	//	rc := redis.NewClient(ropt)
-	//	if err := rc.Ping().Err(); err != nil {
-	//		logger.Error(dbName + " Redis连接失败:" + err.Error())
-	//		return err
-	//	}
-	//	r.clients[dbName] = rc
-	//}
+	fmt.Printf("正在检查%s连接\n", dbName)
+	if err := r.clients[dbName].Ping().Err(); err != nil {
+		logger.Error("Redis连接故障:" + err.Error())
+		r.clients[dbName].Close()
+		ropt := r.cfgs[dbName]
+		rc := redis.NewUniversalClient(&ropt)
+		if err := rc.Ping().Err(); err != nil {
+			logger.Error(dbName + " Redis连接失败:" + err.Error())
+			return err
+		}
+		r.clients[dbName] = rc
+	}
 	return nil
 }
 
@@ -242,4 +243,31 @@ func (r *RedisClient) IsMultiDB() bool {
 
 func (r *RedisClient) ListConnNames() []string {
 	return r.conns
+}
+
+// PSubscribe 订阅消息并自动重连
+func (r *RedisClient) PSubscribe(dbName string, handler func(msg *redis.Message), channels ...string) {
+	go func() {
+		for {
+			conn, err := r.GetConnection(dbName)
+			if err != nil {
+				logger.Error("Redis connection failed: " + err.Error())
+				time.Sleep(time.Second)
+				continue
+			}
+			pubsub := conn.PSubscribe(channels...)
+			_, err = pubsub.Receive()
+			if err != nil {
+				logs.Error("订阅错误:" + err.Error())
+				continue
+			}
+			ch := pubsub.Channel()
+			for msg := range ch {
+				logs.Debug("收到Redis消息:{}", msg.Payload)
+				handler(msg)
+			}
+			logger.Error("Redis订阅异常退出")
+			pubsub.Close()
+		}
+	}()
 }

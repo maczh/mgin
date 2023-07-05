@@ -12,6 +12,7 @@ import (
 	"github.com/sadlil/gologger"
 	"io/ioutil"
 	"strings"
+	"time"
 )
 
 type Kafka struct {
@@ -220,15 +221,18 @@ func (k *Kafka) MessageListener(groupId, topic string, listener func(msg string)
 	handler := MsgHandler{
 		Handle: listener,
 	}
-	consumerGroup, err := k.GetConsumerGroup(groupId)
-	if err != nil {
-		logger.Error("Kafka获取consumerGroup失败:" + err.Error())
-		return err
-	}
 
 	go func() {
-		if err := consumerGroup.Consume(context.Background(), []string{topic}, handler); err != nil {
-			logger.Error("Kafka创建消费者错误: " + err.Error())
+		for {
+			consumerGroup, err := k.GetConsumerGroup(groupId)
+			if err != nil {
+				logger.Error("Kafka获取consumerGroup失败:" + err.Error())
+			}
+			if err := consumerGroup.Consume(context.Background(), []string{topic}, handler); err != nil {
+				logger.Error("Kafka消费者异常退出: " + err.Error())
+			}
+			k.Check()
+			time.Sleep(time.Second)
 		}
 	}()
 	return nil
