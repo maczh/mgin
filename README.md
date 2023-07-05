@@ -273,6 +273,7 @@ func handleMsg(msg string) error {
 * 客户端参见 examples/mgin-client项目
 
 ### 版本更新
+- v1.19.38 新增支持断线重连的Redis.PSubscribe(dbName string, handler func(msg *redis.Message), channels ...string)函数,Kafka消费者增加断线重连功能
 - v1.19.36 redis支持cluster集群、哨兵模式集群与单机模式
 - v1.19.35 x-lang部分从POST改成GET，支持当前nacos注册分组
 - v1.19.21 dao层查询单条无记录时不返回error,返回数据为nil
