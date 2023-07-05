@@ -60,11 +60,12 @@ func (e *ElasticSearch) Init(elasticConfigUrl string) {
 		//logger.Debug("Elastic地址:" + cfg.String("go.elasticsearch.uri"))
 		user := e.conf.String("go.elasticsearch.user")
 		password := e.conf.String("go.elasticsearch.password")
+		servers := strings.Split(e.conf.String("go.elasticsearch.uri"), ",")
 		if user != "" && password != "" {
 			//logger.Debug("user:"+user+"   password:"+password)
-			e.Elastic, err = elastic.NewClient(elastic.SetURL(e.conf.String("go.elasticsearch.uri")), elastic.SetBasicAuth(user, password), elastic.SetInfoLog(log.New(os.Stdout, "Elasticsearch", log.LstdFlags)), elastic.SetSniff(false))
+			e.Elastic, err = elastic.NewClient(elastic.SetURL(servers...), elastic.SetBasicAuth(user, password), elastic.SetInfoLog(log.New(os.Stdout, "Elasticsearch", log.LstdFlags)), elastic.SetSniff(false))
 		} else {
-			e.Elastic, err = elastic.NewClient(elastic.SetURL(e.conf.String("go.elasticsearch.uri")), elastic.SetInfoLog(log.New(os.Stdout, "Elasticsearch", log.LstdFlags)), elastic.SetSniff(false))
+			e.Elastic, err = elastic.NewClient(elastic.SetURL(servers...), elastic.SetInfoLog(log.New(os.Stdout, "Elasticsearch", log.LstdFlags)), elastic.SetSniff(false))
 		}
 		if err != nil {
 			logger.Error("Elasticsearch连接错误:" + err.Error())
