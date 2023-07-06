@@ -256,7 +256,7 @@ func (r *RedisClient) ListConnNames() []string {
 }
 
 // PSubscribe 订阅消息并自动重连
-func (r *RedisClient) PSubscribe(dbName string, handler func(msg *redis.Message), channels ...string) {
+func (r *RedisClient) PSubscribe(dbName string, handler func(msg *redis.Message, dbName string), channels ...string) {
 	go func() {
 		for {
 			conn, err := r.GetConnection(dbName)
@@ -264,6 +264,13 @@ func (r *RedisClient) PSubscribe(dbName string, handler func(msg *redis.Message)
 				logger.Error("Redis connection failed: " + err.Error())
 				time.Sleep(time.Second)
 				continue
+			}
+			dbNum := 0
+			if cli, ok := conn.(*redis.Client); ok {
+				dbNum = cli.Options().DB
+			}
+			for i, _ := range channels {
+				channels[i] = strings.ReplaceAll(channels[i], "{db}", fmt.Sprintf("%d", dbNum))
 			}
 			pubsub := conn.PSubscribe(channels...)
 			_, err = pubsub.Receive()
@@ -274,7 +281,7 @@ func (r *RedisClient) PSubscribe(dbName string, handler func(msg *redis.Message)
 			ch := pubsub.Channel()
 			for msg := range ch {
 				logs.Debug("收到Redis消息:{}", msg.Payload)
-				handler(msg)
+				handler(msg, dbName)
 			}
 			logger.Error("Redis订阅异常退出")
 			pubsub.Close()
