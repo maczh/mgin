@@ -175,18 +175,18 @@ func (r *RedisClient) Close() {
 }
 
 func (r *RedisClient) redisCheck(dbName string) error {
-	fmt.Printf("正在检查%s连接\n", dbName)
-	if err := r.clients[dbName].Ping().Err(); err != nil {
-		logger.Error("Redis连接故障:" + err.Error())
-		r.clients[dbName].Close()
-		ropt := r.cfgs[dbName]
-		rc := redis.NewUniversalClient(&ropt)
-		if err := rc.Ping().Err(); err != nil {
-			logger.Error(dbName + " Redis连接失败:" + err.Error())
-			return err
-		}
-		r.clients[dbName] = rc
-	}
+	//fmt.Printf("正在检查%s连接\n", dbName)
+	//if err := r.clients[dbName].Ping().Err(); err != nil {
+	//	logger.Error("Redis连接故障:" + err.Error())
+	//	r.clients[dbName].Close()
+	//	ropt := r.cfgs[dbName]
+	//	rc := redis.NewUniversalClient(&ropt)
+	//	if err := rc.Ping().Err(); err != nil {
+	//		logger.Error(dbName + " Redis连接失败:" + err.Error())
+	//		return err
+	//	}
+	//	r.clients[dbName] = rc
+	//}
 	return nil
 }
 
