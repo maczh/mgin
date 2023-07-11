@@ -164,9 +164,10 @@ func (k *Kafka) Send(topic, data string) error {
 		err := k.CreateTopic(topic)
 		if err != nil {
 			logger.Error("Kafka创建topic失败:" + err.Error())
-			return err
+			k.topics, _ = k.client.Topics()
+		} else {
+			k.topics = append(k.topics, topic)
 		}
-		k.topics = append(k.topics, topic)
 	}
 	producer, err := k.GetProducer()
 	if err != nil {
@@ -187,9 +188,10 @@ func (k *Kafka) SendMsgs(topic string, data []string) error {
 		err := k.CreateTopic(topic)
 		if err != nil {
 			logger.Error("Kafka创建topic失败:" + err.Error())
-			return err
+			k.topics, _ = k.client.Topics()
+		} else {
+			k.topics = append(k.topics, topic)
 		}
-		k.topics = append(k.topics, topic)
 	}
 	producer, err := k.GetProducer()
 	if err != nil {
@@ -214,9 +216,13 @@ func (k *Kafka) MessageListener(groupId, topic string, listener func(msg string)
 		err := k.CreateTopic(topic)
 		if err != nil {
 			logger.Error("Kafka创建topic失败:" + err.Error())
-			return err
+			k.topics, _ = k.client.Topics()
+			if !stringArrayContains(k.topics, topic) {
+				return err
+			}
+		} else {
+			k.topics = append(k.topics, topic)
 		}
-		k.topics = append(k.topics, topic)
 	}
 	handler := MsgHandler{
 		Handle: listener,
