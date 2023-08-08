@@ -26,9 +26,15 @@ MGin微服务框架，用于快速创建基于MGin微服务框架的RESTful微�
 - MongoDB (mgo v2)
 - Redis (go-redis)
 - ElasitcSearch (olivere/elastic)
-- Kafka  
+- Kafka
+- SQLite
 - 其他各类的数据库、消息队列等计划与中间件模式实现自动加载
 - Mysql/mongodb/redis已经支持多库连接
+
+### 内置缓存
+
+- 内存式缓存，带过期
+- 本地持久化缓存 (pogreb)
 
 ### 支持通过插件自动加载外部数据库、消息队列模块
 
@@ -79,7 +85,7 @@ go:
     callType: json                     #微服务调用参数模式 x-form,json,restful 三种模式可选
   config:                               #统一配置服务器相关
     server: http://192.168.1.5:8848/    #配置服务器地址
-    server_type: nacos                  #配置服务器类型 nacos,consul,springconfig
+    server_type: nacos                  #配置服务器类型 nacos,consul,springconfig,file
     env: test                           #配置环境 一般常用test/prod/dev等，跟相应配置文件匹配
     used: nacos,mysql,mongodb,redis,kafka     #当前应用启用的配置
     prefix:                             #配置文件名前缀定义
@@ -87,6 +93,7 @@ go:
       mongodb: mongodb
       redis: redis
       nacos: nacos
+      sqlite: mytest.db                 #SQLite本地文件名
       elasticsearch: elasticsearch
       kafka: kafka
   logger:                 #控制台日志与文件日志输出，logs包的输出
@@ -273,6 +280,7 @@ func handleMsg(msg string) error {
 * 客户端参见 examples/mgin-client项目
 
 ### 版本更新
+- v1.19.41 新增SQLite支持与持久化缓存pogreb
 - v1.19.38 新增支持断线重连的Redis.PSubscribe(dbName string, handler func(msg *redis.Message), channels ...string)函数,Kafka消费者增加断线重连功能
 - v1.19.36 redis支持cluster集群、哨兵模式集群与单机模式
 - v1.19.35 x-lang部分从POST改成GET，支持当前nacos注册分组
