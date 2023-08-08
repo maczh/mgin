@@ -4,6 +4,7 @@ go 1.19
 
 require (
 	github.com/Shopify/sarama v1.37.2
+	github.com/akrylysov/pogreb v0.10.1
 	github.com/araddon/dateparse v0.0.0-20210429162001-6b43995a97de
 	github.com/emirpasic/gods v1.18.1
 	github.com/gin-gonic/gin v1.8.1
@@ -25,7 +26,8 @@ require (
 	golang.org/x/text v0.3.7
 	gopkg.in/mgo.v2 v2.0.0-20190816093944-a6b53ec6cb22
 	gorm.io/driver/mysql v1.3.6
-	gorm.io/gorm v1.23.9
+	gorm.io/driver/sqlite v1.5.2
+	gorm.io/gorm v1.25.2-0.20230530020048-26663ab9bf55
 )
 
 require (
@@ -65,6 +67,7 @@ require (
 	github.com/leodido/go-urn v1.2.1 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mattbaird/elastigo v0.0.0-20170123220020-2fe47fd29e4b // indirect
+	github.com/mattn/go-sqlite3 v1.14.17 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect

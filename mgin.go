@@ -1,6 +1,7 @@
 package mgin
 
 import (
+	"github.com/maczh/mgin/cache"
 	"github.com/maczh/mgin/config"
 	"github.com/maczh/mgin/db"
 	"github.com/maczh/mgin/logs"
@@ -67,6 +68,11 @@ func Init(configFile string) {
 		logger.Info("正在连接MySQL")
 		db.Mysql.Init(config.Config.GetConfigUrl(config.Config.Config.Prefix.Mysql))
 		logger.Info("连接MySQL成功")
+	}
+	if strings.Contains(configs, "sqlite") {
+		logger.Info("正在连接SQLite")
+		db.Sqlite.Init(config.Config.Config.Prefix.Sqlite)
+		logger.Info("连接SQLite成功")
 	}
 	if strings.Contains(configs, "mongodb") {
 		logger.Info("正在连接MongoDB")
@@ -163,6 +169,10 @@ func (m *mgin) SafeExit() {
 		logger.Info("正在关闭MySQL连接")
 		db.Mysql.Close()
 	}
+	if strings.Contains(configs, "sqlite") {
+		logger.Info("正在关闭SQLite连接")
+		db.Sqlite.Close()
+	}
 	if strings.Contains(configs, "mongodb") {
 		logger.Info("正在关闭MongoDB连接")
 		db.Mongo.Close()
@@ -191,5 +201,5 @@ func (m *mgin) SafeExit() {
 			}
 		}
 	}
-
+	cache.CloseCache()
 }

@@ -1,14 +1,25 @@
 package cache
 
 import (
+	"crypto/md5"
+	"fmt"
+	"github.com/akrylysov/pogreb"
 	"github.com/huandu/go-clone"
+	"github.com/sadlil/gologger"
+	"io"
+	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
 
 type MyCache struct {
-	cache map[string]*Cache
+	cache     map[string]*Cache
+	cacheFile map[string]string
+	db        map[string]*pogreb.DB
 }
+
 type Cache struct {
 	items sync.Map
 	close chan struct{}
@@ -21,6 +32,36 @@ type item struct {
 }
 
 var mc *MyCache
+var logger = gologger.GetLogger()
+
+func OnDiskCache(cachePath string) *pogreb.DB {
+	key := md5Encode(cachePath)
+	if mc == nil {
+		mc = new(MyCache)
+		mc.cache = make(map[string]*Cache)
+		mc.cacheFile = make(map[string]string)
+		mc.db = make(map[string]*pogreb.DB)
+	}
+	if db, ok := mc.db[key]; ok {
+		return db
+	}
+	path, _ := filepath.Abs(filepath.Dir(os.Args[0]))
+	if cachePath == "" {
+		cachePath = fmt.Sprintf("%s/cache.db", path)
+	} else {
+		if !(strings.HasPrefix(cachePath, "/") || cachePath[1:2] == ":") {
+			cachePath = fmt.Sprintf("%s/%s", path, cachePath)
+		}
+	}
+	mc.cacheFile[key] = cachePath
+	db, err := pogreb.Open(cachePath, nil)
+	if err != nil {
+		logger.Error(fmt.Sprintf("file %s open failed: %s", cachePath, err.Error()))
+		return nil
+	}
+	mc.db[key] = db
+	return db
+}
 
 /*
 初始化一个cache
@@ -30,6 +71,8 @@ func OnGetCache(cachename string) *Cache {
 	if mc == nil {
 		mc = new(MyCache)
 		mc.cache = make(map[string]*Cache)
+		mc.cacheFile = make(map[string]string)
+		mc.db = make(map[string]*pogreb.DB)
 	}
 	if mc.cache[cachename] == nil {
 		mc.cache[cachename] = New(time.Minute)
@@ -170,4 +213,21 @@ func (cache *Cache) Delete(key any) {
 func (cache *Cache) Close() {
 	cache.close <- struct{}{}
 	cache.items = sync.Map{}
+}
+
+func CloseCache() {
+	if len(mc.db) > 0 {
+		for k, db := range mc.db {
+			db.Sync()
+			db.Close()
+			delete(mc.db, k)
+		}
+	}
+}
+
+func md5Encode(content string) (md string) {
+	h := md5.New()
+	_, _ = io.WriteString(h, content)
+	md = fmt.Sprintf("%x", h.Sum(nil))
+	return
 }
