@@ -3,7 +3,7 @@ package cache
 import (
 	"crypto/md5"
 	"fmt"
-	"github.com/akrylysov/pogreb"
+	"git.mills.io/prologic/bitcask"
 	"github.com/huandu/go-clone"
 	"github.com/sadlil/gologger"
 	"io"
@@ -16,8 +16,8 @@ import (
 
 type MyCache struct {
 	cache     map[string]*Cache
-	cacheFile map[string]string
-	db        map[string]*pogreb.DB
+	cacheType map[string]string
+	db        map[string]*bitcask.Bitcask
 }
 
 type Cache struct {
@@ -34,13 +34,14 @@ type item struct {
 var mc *MyCache
 var logger = gologger.GetLogger()
 
-func OnDiskCache(cachePath string) *pogreb.DB {
+func OnDiskCache(cachePath string) *bitcask.Bitcask {
+	mc.cacheType[cachePath] = "disk"
 	key := md5Encode(cachePath)
 	if mc == nil {
 		mc = new(MyCache)
 		mc.cache = make(map[string]*Cache)
-		mc.cacheFile = make(map[string]string)
-		mc.db = make(map[string]*pogreb.DB)
+		mc.cacheType = make(map[string]string)
+		mc.db = make(map[string]*bitcask.Bitcask)
 	}
 	if db, ok := mc.db[key]; ok {
 		return db
@@ -53,8 +54,7 @@ func OnDiskCache(cachePath string) *pogreb.DB {
 			cachePath = fmt.Sprintf("%s/%s", path, cachePath)
 		}
 	}
-	mc.cacheFile[key] = cachePath
-	db, err := pogreb.Open(cachePath, nil)
+	db, err := bitcask.Open(cachePath)
 	if err != nil {
 		logger.Error(fmt.Sprintf("file %s open failed: %s", cachePath, err.Error()))
 		return nil
@@ -68,11 +68,16 @@ func OnDiskCache(cachePath string) *pogreb.DB {
 cachename 缓存名字
 */
 func OnGetCache(cachename string) *Cache {
+	return OnMemCache(cachename)
+}
+
+func OnMemCache(cachename string) *Cache {
+	mc.cacheType[cachename] = "mem"
 	if mc == nil {
 		mc = new(MyCache)
 		mc.cache = make(map[string]*Cache)
-		mc.cacheFile = make(map[string]string)
-		mc.db = make(map[string]*pogreb.DB)
+		mc.cacheType = make(map[string]string)
+		mc.db = make(map[string]*bitcask.Bitcask)
 	}
 	if mc.cache[cachename] == nil {
 		mc.cache[cachename] = New(time.Minute)
