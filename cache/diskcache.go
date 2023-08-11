@@ -1,8 +1,6 @@
 package cache
 
 import (
-	"bytes"
-	"encoding/binary"
 	"git.mills.io/prologic/bitcask"
 	"time"
 )
@@ -12,35 +10,55 @@ type DiskCache struct {
 }
 
 func (d *DiskCache) Add(key any, value any, lifeSpan time.Duration) {
-	keyBuf, valueBuf := new(bytes.Buffer), new(bytes.Buffer)
-	binary.Write(keyBuf, binary.LittleEndian, key)
-	binary.Write(valueBuf, binary.LittleEndian, value)
+	k, err := anyToString(key)
+	if err != nil {
+		logger.Error("key to string failed: " + err.Error())
+	}
+	v, err := anyToString(value)
+	if err != nil {
+		logger.Error("value to string failed: " + err.Error())
+	}
 	if lifeSpan <= 0 {
-		d.db.Put(keyBuf.Bytes(), valueBuf.Bytes())
+		err := d.db.Put([]byte(k), []byte(v))
+		if err != nil {
+			logger.Error("保存入库错误:" + err.Error())
+			return
+		}
 	} else {
-		d.db.PutWithTTL(keyBuf.Bytes(), valueBuf.Bytes(), lifeSpan)
+		err = d.db.PutWithTTL([]byte(k), []byte(v), lifeSpan)
+		if err != nil {
+			logger.Error("保存入库错误:" + err.Error())
+			return
+		}
 	}
 }
 
 func (d *DiskCache) Value(key any) (any, bool) {
-	keyBuf := new(bytes.Buffer)
-	binary.Write(keyBuf, binary.LittleEndian, key)
-	if d.db.Has(keyBuf.Bytes()) {
-		v, err := d.db.Get(keyBuf.Bytes())
+	k, err := anyToString(key)
+	if err != nil {
+		logger.Error("key to string failed: " + err.Error())
+	}
+	if d.db.Has([]byte(k)) {
+		v, err := d.db.Get([]byte(k))
 		if err != nil {
 			return nil, false
 		}
-		var value any
-		binary.Read(bytes.NewReader(v), binary.LittleEndian, &value)
+		value, err := stringToAny(string(v))
+		if err != nil {
+			logger.Error("value to string failed: " + err.Error())
+			return nil, false
+		}
 		return value, true
 	}
 	return nil, false
 }
 
 func (d *DiskCache) IsExist(key any) bool {
-	keyBuf := new(bytes.Buffer)
-	binary.Write(keyBuf, binary.LittleEndian, key)
-	return d.db.Has(keyBuf.Bytes())
+	k, err := anyToString(key)
+	if err != nil {
+		logger.Error("key to string failed: " + err.Error())
+	}
+	return d.db.Has([]byte(k))
 }
 
 func (d *DiskCache) Clear() bool {
@@ -65,9 +83,11 @@ func (d *DiskCache) Range(f func(key, value any) bool) {
 }
 
 func (d *DiskCache) Delete(key any) {
-	keyBuf := new(bytes.Buffer)
-	binary.Write(keyBuf, binary.LittleEndian, key)
-	d.db.Delete(keyBuf.Bytes())
+	k, err := anyToString(key)
+	if err != nil {
+		logger.Error("key to string failed: " + err.Error())
+	}
+	d.db.Delete([]byte(k))
 }
 
 func (d *DiskCache) Close() {

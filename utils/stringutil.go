@@ -2,7 +2,10 @@ package utils
 
 import (
 	"bytes"
+	"fmt"
+	"html/template"
 	"regexp"
+	"strconv"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -339,4 +342,146 @@ func AddSpaceBetweenCharsAndNumbers(src string) string {
 func ReplacePunctuation(src, replaceWith string) string {
 	reg, _ := regexp.Compile("[^\\w\u4e00-\u9fa5]*")
 	return reg.ReplaceAllString(src, replaceWith)
+}
+
+func AnyToString(i any) (string, error) {
+	switch s := i.(type) {
+	case string:
+		return s, nil
+	case bool:
+		return strconv.FormatBool(s), nil
+	case float64:
+		return strconv.FormatFloat(s, 'f', -1, 64), nil
+	case float32:
+		return strconv.FormatFloat(float64(s), 'f', -1, 32), nil
+	case int:
+		return strconv.Itoa(s), nil
+	case int64:
+		return strconv.FormatInt(s, 10), nil
+	case int32:
+		return strconv.Itoa(int(s)), nil
+	case int16:
+		return strconv.FormatInt(int64(s), 10), nil
+	case int8:
+		return strconv.FormatInt(int64(s), 10), nil
+	case uint:
+		return strconv.FormatUint(uint64(s), 10), nil
+	case uint64:
+		return strconv.FormatUint(uint64(s), 10), nil
+	case uint32:
+		return strconv.FormatUint(uint64(s), 10), nil
+	case uint16:
+		return strconv.FormatUint(uint64(s), 10), nil
+	case uint8:
+		return strconv.FormatUint(uint64(s), 10), nil
+	case []byte:
+		return string(s), nil
+	case template.HTML:
+		return string(s), nil
+	case template.URL:
+		return string(s), nil
+	case template.JS:
+		return string(s), nil
+	case template.CSS:
+		return string(s), nil
+	case template.HTMLAttr:
+		return string(s), nil
+	case nil:
+		return "", nil
+	case fmt.Stringer:
+		return s.String(), nil
+	case error:
+		return s.Error(), nil
+	default:
+		return ToJSON(i), nil
+	}
+}
+
+func StringToAny[T any](src string) (T, error) {
+	var t T
+	switch any(t).(type) {
+	case bool:
+		v, err := strconv.ParseBool(src)
+		if err != nil {
+			return t, err
+		}
+		t = any(v).(T)
+	case int:
+		v, err := strconv.Atoi(src)
+		if err != nil {
+			return t, err
+		}
+		t = any(v).(T)
+	case int8:
+		v, err := strconv.ParseInt(src, 10, 8)
+		if err != nil {
+			return t, err
+		}
+		t = any(int8(v)).(T)
+	case int16:
+		v, err := strconv.ParseInt(src, 10, 16)
+		if err != nil {
+			return t, err
+		}
+		t = any(int16(v)).(T)
+	case int32:
+		v, err := strconv.ParseInt(src, 10, 32)
+		if err != nil {
+			return t, err
+		}
+		t = any(int32(v)).(T)
+	case int64:
+		v, err := strconv.ParseInt(src, 10, 64)
+		if err != nil {
+			return t, err
+		}
+		t = any(v).(T)
+	case uint:
+		v, err := strconv.ParseInt(src, 10, 64)
+		if err != nil {
+			return t, err
+		}
+		t = any(uint(v)).(T)
+	case uint8:
+		v, err := strconv.ParseInt(src, 10, 8)
+		if err != nil {
+			return t, err
+		}
+		t = any(uint8(v)).(T)
+	case uint16:
+		v, err := strconv.ParseInt(src, 10, 16)
+		if err != nil {
+			return t, err
+		}
+		t = any(uint16(v)).(T)
+	case uint32:
+		v, err := strconv.ParseInt(src, 10, 32)
+		if err != nil {
+			return t, err
+		}
+		t = any(uint32(v)).(T)
+	case uint64:
+		v, err := strconv.ParseInt(src, 10, 64)
+		if err != nil {
+			return t, err
+		}
+		t = any(uint64(v)).(T)
+	case float32:
+		v, err := strconv.ParseFloat(src, 32)
+		if err != nil {
+			return t, err
+		}
+		t = any(float32(v)).(T)
+	case float64:
+		v, err := strconv.ParseFloat(src, 64)
+		if err != nil {
+			return t, err
+		}
+		t = any(v).(T)
+	case string:
+		t = any(src).(T)
+	default:
+		FromJSON(src, &t)
+	}
+	return t, nil
 }
