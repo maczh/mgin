@@ -43,11 +43,7 @@ func (d *DiskCache) Value(key any) (any, bool) {
 		if err != nil {
 			return nil, false
 		}
-		value, err := stringToAny(string(v))
-		if err != nil {
-			logger.Error("value to string failed: " + err.Error())
-			return nil, false
-		}
+		value := string(v)
 		return value, true
 	}
 	return nil, false
@@ -79,6 +75,14 @@ func (d *DiskCache) Set(key any, value any, duration time.Duration) {
 
 func (d *DiskCache) Range(f func(key, value any) bool) {
 	//函数不同，暂不支持
+	keys := make([]string, 0)
+	for k := range d.db.Keys() {
+		keys = append(keys, string(k))
+	}
+	for _, key := range keys {
+		v, _ := d.Value(key)
+		f(key, v)
+	}
 	return
 }
 

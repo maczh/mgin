@@ -34,7 +34,7 @@ MGin微服务框架，用于快速创建基于MGin微服务框架的RESTful微�
 ### 内置缓存
 
 - 内存式缓存，带过期
-- 本地持久化缓存 (pogreb)
+- 本地持久化缓存 (bitcask),**说明:Get返回string类型，自己转化目标类型**
 
 ### 支持通过插件自动加载外部数据库、消息队列模块
 
@@ -280,7 +280,7 @@ func handleMsg(msg string) error {
 * 客户端参见 examples/mgin-client项目
 
 ### 版本更新
-- v1.19.41 新增SQLite支持与持久化缓存pogreb
+- v1.19.42 持久化缓存改成bitcask，并且与内存缓存通过接口标准化处理
 - v1.19.38 新增支持断线重连的Redis.PSubscribe(dbName string, handler func(msg *redis.Message), channels ...string)函数,Kafka消费者增加断线重连功能
 - v1.19.36 redis支持cluster集群、哨兵模式集群与单机模式
 - v1.19.35 x-lang部分从POST改成GET，支持当前nacos注册分组

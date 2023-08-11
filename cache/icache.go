@@ -73,20 +73,3 @@ func anyToString(i any) (string, error) {
 		return string(v), err
 	}
 }
-
-func stringToAny(src string) (any, error) {
-	if v, err := strconv.ParseInt(src, 10, 64); err == nil {
-		return v, nil
-	} else if v, err := strconv.ParseFloat(src, 64); err == nil {
-		return v, nil
-	} else if v, err := strconv.ParseBool(src); err == nil {
-		return v, nil
-	} else if v, err := strconv.ParseComplex(src, 128); err == nil {
-		return v, nil
-	} else if src[:1] == "{" || src[:1] == "[" {
-		var val any
-		err = json.Unmarshal([]byte(src), &val)
-		return val, nil
-	}
-	return src, nil
-}
