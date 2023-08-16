@@ -83,6 +83,7 @@ func RequestLogger() gin.HandlerFunc {
 		body := string(data)
 
 		c.Request.Body = ioutil.NopCloser(bytes.NewBuffer(data)) // 关键点
+		logs.Debug("请求 {} {}", c.Request.Method, c.Request.RequestURI)
 		params := utils.GinParamMap(c)
 		if c.ContentType() == gin.MIMEJSON {
 			logs.Debug("请求参数:{}", body)
