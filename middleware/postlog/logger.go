@@ -83,6 +83,14 @@ func RequestLogger() gin.HandlerFunc {
 		body := string(data)
 
 		c.Request.Body = ioutil.NopCloser(bytes.NewBuffer(data)) // 关键点
+		params := utils.GinParamMap(c)
+		if c.ContentType() == gin.MIMEJSON {
+			logs.Debug("请求参数:{}", body)
+		} else {
+			logs.Debug("请求参数:{}", params)
+		}
+		headers := utils.GinHeaders(c)
+		logs.Debug("请求头:{}", headers)
 
 		// 处理请求
 		c.Next()
@@ -107,11 +115,10 @@ func RequestLogger() gin.HandlerFunc {
 		endTime := time.Now()
 
 		// 日志格式
-		var params, reqBody any
+		var reqBody any
 		if strings.Contains(c.ContentType(), "application/json") && body != "" {
 			utils.FromJSON(body, &reqBody)
 		}
-		params = utils.GinParamMap(c)
 		postLog := new(models.PostLog)
 		//postLog.ID = bson.NewObjectId()
 		postLog.Time = startTime.Format("2006-01-02 15:04:05")
@@ -120,7 +127,7 @@ func RequestLogger() gin.HandlerFunc {
 		postLog.AppName = config.Config.App.Name
 		postLog.RequestId = trace.GetRequestId()
 		postLog.ContentType = c.ContentType()
-		postLog.RequestHeader = utils.GinHeaders(c)
+		postLog.RequestHeader = headers
 		ip := c.GetHeader("X-Forward-For")
 		if ip == "" {
 			ip = c.GetHeader("X-Real-IP")
@@ -137,12 +144,6 @@ func RequestLogger() gin.HandlerFunc {
 
 		accessLog := "|" + c.Request.Method + "|" + postLog.Uri + "|" + c.ClientIP() + "|" + endTime.Format("2006-01-02 15:04:05.012") + "|" + fmt.Sprintf("%vms", endTime.UnixNano()/1e6-startTime.UnixNano()/1e6)
 		logs.Debug(accessLog)
-		if c.ContentType() == gin.MIMEJSON {
-			logs.Debug("请求参数:{}", body)
-		} else {
-			logs.Debug("请求参数:{}", params)
-		}
-		logs.Debug("请求头:{}", postLog.RequestHeader)
 		logs.Debug("接口返回:{}", result)
 
 		if config.Config.Log.RequestTableName != "" || config.Config.Log.Kafka.Use {
