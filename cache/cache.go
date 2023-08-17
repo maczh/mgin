@@ -9,13 +9,13 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
+	"sync"
 )
 
 type Cache struct {
-	cache     map[string]*MemCache
-	cacheType map[string]string
-	db        map[string]*DiskCache
+	cache     sync.Map
+	cacheType sync.Map
+	db        sync.Map
 }
 
 // An item represents arbitrary data with expiration time.
@@ -24,15 +24,11 @@ type item struct {
 	expires int64
 }
 
-var mc = &Cache{
-	cache:     make(map[string]*MemCache),
-	cacheType: make(map[string]string),
-	db:        make(map[string]*DiskCache),
-}
+var mc = &Cache{}
 var logger = gologger.GetLogger()
 
 func OnDiskCache(cachePath string) ICache {
-	mc.cacheType[cachePath] = "disk"
+	mc.cacheType.Store(cachePath, "disk")
 	key := md5Encode(cachePath)
 	//if mc == nil {
 	//	mc = new(Cache)
@@ -40,8 +36,8 @@ func OnDiskCache(cachePath string) ICache {
 	//	mc.cacheType = make(map[string]string)
 	//	mc.db = make(map[string]*DiskCache)
 	//}
-	if db, ok := mc.db[key]; ok {
-		return db
+	if db, ok := mc.db.Load(key); ok {
+		return db.(ICache)
 	}
 	path, _ := filepath.Abs(filepath.Dir(os.Args[0]))
 	if cachePath == "" {
@@ -57,7 +53,7 @@ func OnDiskCache(cachePath string) ICache {
 		return nil
 	}
 	diskCache := &DiskCache{db: db}
-	mc.db[key] = diskCache
+	mc.db.Store(key, diskCache)
 	return diskCache
 }
 
@@ -74,25 +70,34 @@ func OnGetCache(cachename string, persistent ...bool) ICache {
 }
 
 func OnMemCache(cachename string) ICache {
-	mc.cacheType[cachename] = "mem"
+	mc.cacheType.Store(cachename, "mem")
 	//if mc == nil {
 	//	mc = new(Cache)
 	//	mc.cache = make(map[string]*MemCache)
 	//	mc.cacheType = make(map[string]string)
 	//	mc.db = make(map[string]*DiskCache)
 	//}
-	if mc.cache[cachename] == nil {
-		mc.cache[cachename] = New(time.Minute)
+	if c, ok := mc.cache.Load(cachename); ok {
+		return c.(ICache)
+	} else {
+		c = new(MemCache)
+		mc.cache.Store(cachename, c)
+		return c.(ICache)
 	}
-	return mc.cache[cachename]
 }
 
 func CloseCache() {
-	if mc != nil && len(mc.db) > 0 {
-		for k, db := range mc.db {
-			db.Close()
-			delete(mc.db, k)
-		}
+	if mc != nil {
+		mc.db.Range(func(key, value any) bool {
+			value.(ICache).Close()
+			mc.db.Delete(key)
+			return true
+		})
+		mc.cache.Range(func(key, value any) bool {
+			value.(ICache).Close()
+			mc.cache.Delete(key)
+			return true
+		})
 	}
 }
 
