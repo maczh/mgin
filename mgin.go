@@ -1,7 +1,6 @@
 package mgin
 
 import (
-	"github.com/maczh/mgin/cache"
 	"github.com/maczh/mgin/config"
 	"github.com/maczh/mgin/db"
 	"github.com/maczh/mgin/logs"
@@ -201,5 +200,5 @@ func (m *mgin) SafeExit() {
 			}
 		}
 	}
-	cache.CloseCache()
+	//cache.CloseCache()
 }
