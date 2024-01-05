@@ -8,11 +8,17 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
 	"math"
+	"strings"
 )
 
 type MySQLDao[E schema.Tabler] struct {
 	debug bool
 	Tag   func() string
+}
+
+type QueryOption struct {
+	Preloads []string
+	OrderBy  []string
 }
 
 var logger = gologger.GetLogger()
@@ -131,7 +137,7 @@ func (receiver *MySQLDao[E]) Save(entity *E) error {
 }
 
 // All mysql动态查询数据
-func (receiver *MySQLDao[E]) All(entity E) ([]E, error) {
+func (receiver *MySQLDao[E]) All(entity E, opts ...QueryOption) ([]E, error) {
 	if receiver.Tag == nil {
 		receiver.Tag = notag
 	}
@@ -144,6 +150,18 @@ func (receiver *MySQLDao[E]) All(entity E) ([]E, error) {
 	var result = make([]E, 0)
 	if receiver.debug {
 		conn = conn.Debug()
+	}
+	if opts != nil && len(opts) > 0 {
+		for _, opt := range opts {
+			if opt.Preloads != nil && len(opt.Preloads) > 0 {
+				for _, preload := range opt.Preloads {
+					conn = conn.Preload(preload)
+				}
+			}
+			if opt.OrderBy != nil && len(opt.OrderBy) > 0 {
+				conn = conn.Order(strings.Join(opt.OrderBy, ","))
+			}
+		}
 	}
 	err = conn.Where(entity).Find(&result).Error
 	if err != nil {
