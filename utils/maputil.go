@@ -1,6 +1,10 @@
 package utils
 
-import "sort"
+import (
+	"github.com/mitchellh/mapstructure"
+	"sort"
+	"strings"
+)
 
 // map转换
 func MapItoS(src map[string]any) map[string]string {
@@ -62,4 +66,55 @@ func SortMapByValueDesc(src map[string]any) PairList {
 	}
 	sort.Sort(sort.Reverse(list))
 	return list
+}
+
+// Map2Struct Decode takes an input structure and uses reflection to translate it to
+// Map 2Struct Decode获取一个输入结构，并使用反射将其转换为
+// the output structure. output must be a pointer to a map or struct.
+// 输出结构输出必须是指向map或struct的指针。
+func Map2Struct(input interface{}, output interface{}) error {
+	cfg := &mapstructure.DecoderConfig{
+		DecodeHook: mapstructure.ComposeDecodeHookFunc(
+			mapstructure.StringToTimeDurationHookFunc()),
+		WeaklyTypedInput: true,
+		Metadata:         nil,
+		Result:           &output,
+	}
+	if d, err := mapstructure.NewDecoder(cfg); err != nil {
+		return err
+	} else if err := d.Decode(input); err != nil {
+		return err
+	}
+	return nil
+}
+
+// Get 获取map中的字段，支持嵌套结构获取，例如fieldName.subFieldName.xx
+// 嵌套类型必须是map[string]interface{}
+// 如果字段不存在，返回nil
+func MapGet(input interface{}, fieldName string) interface{} {
+	// 按照"."分割fieldName
+	fields := strings.Split(fieldName, ".")
+	var result interface{}
+	result = input
+
+	// 遍历每个子字段
+	for _, field := range fields {
+		switch v := result.(type) {
+		case map[string]interface{}:
+			if val, ok := v[field]; ok {
+				result = val
+			} else {
+				return nil
+			}
+		case map[string]string:
+			if val, ok := v[field]; ok {
+				result = val
+			} else {
+				return nil
+			}
+		default:
+			return nil
+		}
+	}
+	return result
 }
