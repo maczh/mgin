@@ -181,11 +181,11 @@ func (c *config) GetConfigUrl(prefix string) string {
 	configUrl := c.Config.Server
 	switch c.Config.Type {
 	case "nacos":
-		configUrl = configUrl + "nacos/v1/cs/configs?group=DEFAULT_GROUP&dataId=" + prefix + "-" + c.Config.Env + ".yml"
+		configUrl = configUrl + "nacos/v1/cs/configs?group=" + c.App.Project + "&dataId=" + prefix + "-" + c.Config.Env + ".yml"
 	case "consul":
-		configUrl = configUrl + "v1/kv/" + prefix + "-" + c.Config.Env + ".yml" + "?dc=dc1&raw=true"
+		configUrl = fmt.Sprintf("%s/v1/kv/%s/%s-%s.yml?dc=dc1&raw=true", configUrl, c.App.Project, prefix, c.Config.Env)
 	case "springconfig":
-		configUrl = configUrl + prefix + "-" + c.Config.Env + ".yml"
+		configUrl = fmt.Sprintf("%s/%s/%s-%s.yml", configUrl, c.App.Project, prefix, c.Config.Env)
 	case "file":
 		path, _ := filepath.Abs(filepath.Dir(os.Args[0]))
 		if c.Config.Path != "" {
