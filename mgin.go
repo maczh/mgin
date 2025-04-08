@@ -104,6 +104,11 @@ func Init(configFile string) {
 		registry.Registry.Register(config.Config.GetConfigData(config.Config.Config.Prefix.Etcd))
 		logger.Info("注册到Etcd成功")
 	}
+	if strings.Contains(configs, "consul") {
+		logger.Info("正在注册到consul")
+		registry.Registry.Register(config.Config.GetConfigData(config.Config.Config.Prefix.Consul))
+		logger.Info("注册到consul成功")
+	}
 
 	//设置定时任务自动检查
 	ticker := time.NewTicker(time.Minute * 5)

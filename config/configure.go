@@ -50,6 +50,7 @@ type appConfig struct {
 		Kafka         string `json:"kafka" bson:"kafka"`
 		Sqlite        string `json:"sqlite" bson:"sqlite"`
 		Etcd          string `json:"etcd" bson:"etcd"`
+		Consul        string `json:"consul" bson:"consul"`
 	} `json:"prefix" bson:"prefix"`
 }
 
@@ -112,9 +113,11 @@ func (c *config) Init(cf string) {
 	c.Config.Prefix.Mongodb = c.Cnf.String("go.config.prefix.mongodb")
 	c.Config.Prefix.Redis = c.Cnf.String("go.config.prefix.redis")
 	c.Config.Prefix.Elasticsearch = c.Cnf.String("go.config.prefix.elasticsearch")
-	c.Config.Prefix.Nacos = c.Cnf.String("go.config.prefix.nacos")
 	c.Config.Prefix.Kafka = c.Cnf.String("go.config.prefix.kafka")
 	c.Config.Prefix.Sqlite = c.Cnf.String("go.config.prefix.sqlite")
+	c.Config.Prefix.Nacos = c.Cnf.String("go.config.prefix.nacos")
+	c.Config.Prefix.Etcd = c.Cnf.String("go.config.prefix.etcd")
+	c.Config.Prefix.Consul = c.Cnf.String("go.config.prefix.consul")
 	c.Log.LogDb = c.Cnf.String("go.log.db")
 	c.Log.RequestTableName = c.Cnf.String("go.log.req")
 	c.Log.CallTableName = c.Cnf.String("go.log.call")

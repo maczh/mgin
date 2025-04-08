@@ -2,6 +2,7 @@ package registry
 
 import (
 	"github.com/maczh/mgin/config"
+	"github.com/maczh/mgin/registry/consul"
 	"github.com/maczh/mgin/registry/etcd"
 	"github.com/maczh/mgin/registry/nacos"
 	"github.com/nacos-group/nacos-sdk-go/vo"
@@ -24,6 +25,8 @@ func NewRegistry() RegistryClient {
 		}
 	case "etcd":
 		client = &etcd.EtcdClient{}
+	case "consul":
+		client = &consul.ConsulClient{}
 	}
 	return client
 }

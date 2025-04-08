@@ -241,6 +241,18 @@ go:
     lanNet: 192.168.3.    #网段前缀
 ```
 
++ consul配置范例 consul-test.yml
+```yaml
+go:
+  consul:
+    server: xxx.xxx.xxx   #consul服务IP
+    port: 2379            #consul端口
+    clusterName: DEFAULT
+    group: OpenApi    #根据项目不同配置不同分组
+    weight: 1
+    lan: true   #以内网地址注册，否则以公网地址注册
+    lanNet: 192.168.3.    #网段前缀
+```
 + Elasticsearch配置范例 elasticsearch-test.yml
 ```yaml
 go:
