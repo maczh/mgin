@@ -96,12 +96,12 @@ func Init(configFile string) {
 	}
 	if strings.Contains(configs, "nacos") {
 		logger.Info("正在注册到Nacos")
-		registry.Registry.Register(config.Config.GetConfigUrl(config.Config.Config.Prefix.Nacos))
+		registry.Registry.Register(config.Config.GetConfigData(config.Config.Config.Prefix.Nacos))
 		logger.Info("注册到Nacos成功")
 	}
 	if strings.Contains(configs, "etcd") {
 		logger.Info("正在注册到Etcd")
-		registry.Registry.Register(config.Config.GetConfigUrl(config.Config.Config.Prefix.Etcd))
+		registry.Registry.Register(config.Config.GetConfigData(config.Config.Config.Prefix.Etcd))
 		logger.Info("注册到Etcd成功")
 	}
 

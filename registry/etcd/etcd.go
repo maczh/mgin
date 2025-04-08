@@ -8,12 +8,10 @@ import (
 	"github.com/knadh/koanf"
 	"github.com/knadh/koanf/parsers/yaml"
 	"github.com/knadh/koanf/providers/rawbytes"
-	"github.com/levigross/grequests"
 	"github.com/maczh/mgin/config"
 	"github.com/sadlil/gologger"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"net"
 	"strings"
@@ -28,37 +26,38 @@ type EtcdClient struct {
 	lanNetwork string
 	conf       *koanf.Koanf
 	confUrl    string
+	confData   []byte
 }
 
 var logger = gologger.GetLogger()
 
-func (c *EtcdClient) Register(etcdConfigUrl string) {
-	if etcdConfigUrl != "" {
-		c.confUrl = etcdConfigUrl
+func (c *EtcdClient) Register(etcdConfigData []byte) {
+	if etcdConfigData != nil {
+		c.confData = etcdConfigData
 	}
-	if c.confUrl == "" {
-		logger.Error("Etcd配置Url为空")
-		return
-	}
+	//if c.confUrl == "" {
+	//	logger.Error("Etcd配置Url为空")
+	//	return
+	//}
 	if c.conf == nil {
-		var confData []byte
+		//var confData []byte
 		var err error
-		if strings.HasPrefix(c.confUrl, "http://") {
-			resp, err := grequests.Get(c.confUrl, nil)
-			if err != nil {
-				logger.Error("Etcd注册中心配置下载失败! " + err.Error())
-				return
-			}
-			confData = []byte(resp.String())
-		} else {
-			confData, err = ioutil.ReadFile(c.confUrl)
-			if err != nil {
-				logger.Error(fmt.Sprintf("Etcd注册中心本地配置文件%s读取失败:%s", c.confUrl, err.Error()))
-				return
-			}
-		}
+		//if strings.HasPrefix(c.confUrl, "http://") {
+		//	resp, err := grequests.Get(c.confUrl, nil)
+		//	if err != nil {
+		//		logger.Error("Etcd注册中心配置下载失败! " + err.Error())
+		//		return
+		//	}
+		//	confData = []byte(resp.String())
+		//} else {
+		//	confData, err = ioutil.ReadFile(c.confUrl)
+		//	if err != nil {
+		//		logger.Error(fmt.Sprintf("Etcd注册中心本地配置文件%s读取失败:%s", c.confUrl, err.Error()))
+		//		return
+		//	}
+		//}
 		c.conf = koanf.New(".")
-		err = c.conf.Load(rawbytes.Provider(confData), yaml.Parser())
+		err = c.conf.Load(rawbytes.Provider(c.confData), yaml.Parser())
 		if err != nil {
 			logger.Error("Etcd注册中心配置文件解析错误:" + err.Error())
 			c.conf = nil

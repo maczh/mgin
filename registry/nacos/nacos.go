@@ -1,12 +1,10 @@
 package nacos
 
 import (
-	"fmt"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/maczh/mgin/cache"
 	"github.com/maczh/mgin/config"
 	"github.com/sadlil/gologger"
-	"io/ioutil"
 	"net"
 	"os"
 	"path/filepath"
@@ -17,7 +15,6 @@ import (
 	"github.com/knadh/koanf"
 	"github.com/knadh/koanf/parsers/yaml"
 	"github.com/knadh/koanf/providers/rawbytes"
-	"github.com/levigross/grequests"
 	"github.com/nacos-group/nacos-sdk-go/clients"
 	"github.com/nacos-group/nacos-sdk-go/clients/naming_client"
 	"github.com/nacos-group/nacos-sdk-go/common/constant"
@@ -33,6 +30,7 @@ type NacosClient struct {
 	lanNetwork string
 	conf       *koanf.Koanf
 	confUrl    string
+	confData   []byte
 	Subscribes map[string]*vo.SubscribeParam
 }
 
@@ -42,33 +40,33 @@ func (n *NacosClient) GetNacosClient() naming_client.INamingClient {
 	return n.client
 }
 
-func (n *NacosClient) Register(nacosConfigUrl string) {
-	if nacosConfigUrl != "" {
-		n.confUrl = nacosConfigUrl
+func (n *NacosClient) Register(nacosConfigData []byte) {
+	if nacosConfigData != nil {
+		n.confData = nacosConfigData
 	}
-	if n.confUrl == "" {
-		logger.Error("Nacos配置Url为空")
-		return
-	}
+	//if n.confUrl == "" {
+	//	logger.Error("Nacos配置Url为空")
+	//	return
+	//}
 	if n.conf == nil {
-		var confData []byte
+		//var confData []byte
 		var err error
-		if strings.HasPrefix(n.confUrl, "http://") {
-			resp, err := grequests.Get(n.confUrl, nil)
-			if err != nil {
-				logger.Error("Nacos注册中心配置下载失败! " + err.Error())
-				return
-			}
-			confData = []byte(resp.String())
-		} else {
-			confData, err = ioutil.ReadFile(n.confUrl)
-			if err != nil {
-				logger.Error(fmt.Sprintf("Nacos注册中心本地配置文件%s读取失败:%s", n.confUrl, err.Error()))
-				return
-			}
-		}
+		//if strings.HasPrefix(n.confUrl, "http://") {
+		//	resp, err := grequests.Get(n.confUrl, nil)
+		//	if err != nil {
+		//		logger.Error("Nacos注册中心配置下载失败! " + err.Error())
+		//		return
+		//	}
+		//	confData = []byte(resp.String())
+		//} else {
+		//	confData, err = ioutil.ReadFile(n.confUrl)
+		//	if err != nil {
+		//		logger.Error(fmt.Sprintf("Nacos注册中心本地配置文件%s读取失败:%s", n.confUrl, err.Error()))
+		//		return
+		//	}
+		//}
 		n.conf = koanf.New(".")
-		err = n.conf.Load(rawbytes.Provider(confData), yaml.Parser())
+		err = n.conf.Load(rawbytes.Provider(n.confData), yaml.Parser())
 		if err != nil {
 			logger.Error("Nacos注册中心配置文件解析错误:" + err.Error())
 			n.conf = nil

@@ -10,7 +10,7 @@ import (
 var Registry RegistryClient
 
 type RegistryClient interface {
-	Register(etcdConfigUrl string)
+	Register(etcdConfigData []byte)
 	GetServiceURL(servicename string, groupName ...string) (string, string)
 	DeRegister()
 }
