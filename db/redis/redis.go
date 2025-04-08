@@ -7,54 +7,53 @@ import (
 	"github.com/knadh/koanf"
 	"github.com/knadh/koanf/parsers/yaml"
 	"github.com/knadh/koanf/providers/rawbytes"
-	"github.com/levigross/grequests"
 	"github.com/maczh/mgin/logs"
 	"github.com/sadlil/gologger"
-	"io/ioutil"
 	"strings"
 	"time"
 )
 
 type RedisClient struct {
-	multi   bool
-	master  string
-	clients map[string]redis.UniversalClient
-	cfgs    map[string]redis.UniversalOptions
-	conf    *koanf.Koanf
-	confUrl string
-	conns   []string
+	multi    bool
+	master   string
+	clients  map[string]redis.UniversalClient
+	cfgs     map[string]redis.UniversalOptions
+	conf     *koanf.Koanf
+	confUrl  string
+	confData []byte
+	conns    []string
 }
 
 var logger = gologger.GetLogger()
 
-func (r *RedisClient) Init(redisConfigUrl string) {
-	if redisConfigUrl != "" {
-		r.confUrl = redisConfigUrl
+func (r *RedisClient) Init(redisConfigData []byte) {
+	if redisConfigData != nil {
+		r.confData = redisConfigData
 	}
-	if r.confUrl == "" {
-		logger.Error("Redis配置Url为空")
-		return
-	}
+	//if r.confUrl == "" {
+	//	logger.Error("Redis配置Url为空")
+	//	return
+	//}
 	if len(r.clients) == 0 {
 		if r.conf == nil {
-			var confData []byte
+			//var confData []byte
 			var err error
-			if strings.HasPrefix(r.confUrl, "http://") {
-				resp, err := grequests.Get(r.confUrl, nil)
-				if err != nil {
-					logger.Error("Redis配置下载失败! " + err.Error())
-					return
-				}
-				confData = []byte(resp.String())
-			} else {
-				confData, err = ioutil.ReadFile(r.confUrl)
-				if err != nil {
-					logger.Error(fmt.Sprintf("Redis本地配置文件%s读取失败:%s", r.confUrl, err.Error()))
-					return
-				}
-			}
+			//if strings.HasPrefix(r.confUrl, "http://") {
+			//	resp, err := grequests.Get(r.confUrl, nil)
+			//	if err != nil {
+			//		logger.Error("Redis配置下载失败! " + err.Error())
+			//		return
+			//	}
+			//	confData = []byte(resp.String())
+			//} else {
+			//	confData, err = ioutil.ReadFile(r.confUrl)
+			//	if err != nil {
+			//		logger.Error(fmt.Sprintf("Redis本地配置文件%s读取失败:%s", r.confUrl, err.Error()))
+			//		return
+			//	}
+			//}
 			r.conf = koanf.New(".")
-			err = r.conf.Load(rawbytes.Provider(confData), yaml.Parser())
+			err = r.conf.Load(rawbytes.Provider(r.confData), yaml.Parser())
 			if err != nil {
 				logger.Error("Redis配置文件解析错误:" + err.Error())
 				r.conf = nil

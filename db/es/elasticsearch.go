@@ -5,52 +5,51 @@ import (
 	"github.com/knadh/koanf"
 	"github.com/knadh/koanf/parsers/yaml"
 	"github.com/knadh/koanf/providers/rawbytes"
-	"github.com/levigross/grequests"
 	"github.com/olivere/elastic"
 	"github.com/sadlil/gologger"
-	"io/ioutil"
 	"log"
 	"os"
 	"strings"
 )
 
 type ElasticSearch struct {
-	Elastic *elastic.Client
-	conf    *koanf.Koanf
-	confUrl string
+	Elastic  *elastic.Client
+	conf     *koanf.Koanf
+	confUrl  string
+	confData []byte
 }
 
 var logger = gologger.GetLogger()
 
-func (e *ElasticSearch) Init(elasticConfigUrl string) {
-	if elasticConfigUrl != "" {
-		e.confUrl = elasticConfigUrl
+func (e *ElasticSearch) Init(elasticConfigData []byte) {
+	if elasticConfigData != nil {
+		e.confData = elasticConfigData
 	}
-	if e.confUrl == "" {
-		logger.Error("ElasticSearch配置Url为空")
-		return
-	}
+	//if e.confUrl == "" {
+	//	logger.Error("ElasticSearch配置Url为空")
+	//	return
+	//}
 	var err error
 	if e.Elastic == nil {
 		if e.conf == nil {
-			var confData []byte
+			//var confData []byte
 			var err error
-			if strings.HasPrefix(e.confUrl, "http://") {
-				resp, err := grequests.Get(e.confUrl, nil)
-				if err != nil {
-					logger.Error("ElasticSearch配置下载失败! " + err.Error())
-					return
-				}
-				confData = []byte(resp.String())
-			} else {
-				confData, err = ioutil.ReadFile(e.confUrl)
-				if err != nil {
-					logger.Error(fmt.Sprintf("ElasticSearch本地配置文件%s读取失败:%s", e.confUrl, err.Error()))
-					return
-				}
-			}
+			//if strings.HasPrefix(e.confUrl, "http://") {
+			//	resp, err := grequests.Get(e.confUrl, nil)
+			//	if err != nil {
+			//		logger.Error("ElasticSearch配置下载失败! " + err.Error())
+			//		return
+			//	}
+			//	confData = []byte(resp.String())
+			//} else {
+			//	confData, err = ioutil.ReadFile(e.confUrl)
+			//	if err != nil {
+			//		logger.Error(fmt.Sprintf("ElasticSearch本地配置文件%s读取失败:%s", e.confUrl, err.Error()))
+			//		return
+			//	}
+			//}
 			e.conf = koanf.New(".")
-			err = e.conf.Load(rawbytes.Provider(confData), yaml.Parser())
+			err = e.conf.Load(rawbytes.Provider(e.confData), yaml.Parser())
 			if err != nil {
 				logger.Error("ElasticSearch配置解析错误:" + err.Error())
 				e.conf = nil
@@ -92,7 +91,7 @@ func (e *ElasticSearch) Close() {
 func (e *ElasticSearch) Check() error {
 	if e.Elastic == nil || !e.Elastic.IsRunning() {
 		logger.Error("Elasticsearch检查连接异常,尝试重连中")
-		e.Init("")
+		e.Init(e.confData)
 		if e.Elastic == nil || !e.Elastic.IsRunning() {
 			logger.Error("Elasticsearch重新连接失败")
 			return fmt.Errorf("Elasticsearch连接检查失败")

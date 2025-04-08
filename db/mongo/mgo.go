@@ -6,22 +6,21 @@ import (
 	"github.com/knadh/koanf"
 	"github.com/knadh/koanf/parsers/yaml"
 	"github.com/knadh/koanf/providers/rawbytes"
-	"github.com/levigross/grequests"
 	"github.com/sadlil/gologger"
 	"gopkg.in/mgo.v2"
-	"io/ioutil"
 	"log"
 	"os"
 	"strings"
 )
 
 type Mongodb struct {
-	multi   bool
-	conns   map[string]connection
-	tags    []string
-	max     int
-	conf    *koanf.Koanf
-	confUrl string
+	multi    bool
+	conns    map[string]connection
+	tags     []string
+	max      int
+	conf     *koanf.Koanf
+	confUrl  string
+	confData []byte
 }
 
 type connection struct {
@@ -32,38 +31,38 @@ type connection struct {
 
 var logger = gologger.GetLogger()
 
-func (m *Mongodb) Init(mongodbConfigUrl string) {
-	if mongodbConfigUrl != "" {
-		m.confUrl = mongodbConfigUrl
+func (m *Mongodb) Init(mongodbConfigData []byte) {
+	if mongodbConfigData != nil {
+		m.confData = mongodbConfigData
 	}
-	if m.confUrl == "" {
-		logger.Error("MongoDB配置Url为空")
-		return
-	}
+	//if m.confUrl == "" {
+	//	logger.Error("MongoDB配置Url为空")
+	//	return
+	//}
 	m.tags = make([]string, 0)
 	if m.conns == nil {
 		m.conns = make(map[string]connection)
 	}
 	if len(m.conns) == 0 {
 		if m.conf == nil {
-			var confData []byte
+			//var confData []byte
 			var err error
-			if strings.HasPrefix(m.confUrl, "http://") {
-				resp, err := grequests.Get(m.confUrl, nil)
-				if err != nil {
-					logger.Error("MongoDB配置下载失败! " + err.Error())
-					return
-				}
-				confData = []byte(resp.String())
-			} else {
-				confData, err = ioutil.ReadFile(m.confUrl)
-				if err != nil {
-					logger.Error(fmt.Sprintf("MongoDB本地配置文件%s读取失败:%s", m.confUrl, err.Error()))
-					return
-				}
-			}
+			//if strings.HasPrefix(m.confUrl, "http://") {
+			//	resp, err := grequests.Get(m.confUrl, nil)
+			//	if err != nil {
+			//		logger.Error("MongoDB配置下载失败! " + err.Error())
+			//		return
+			//	}
+			//	confData = []byte(resp.String())
+			//} else {
+			//	confData, err = ioutil.ReadFile(m.confUrl)
+			//	if err != nil {
+			//		logger.Error(fmt.Sprintf("MongoDB本地配置文件%s读取失败:%s", m.confUrl, err.Error()))
+			//		return
+			//	}
+			//}
 			m.conf = koanf.New(".")
-			err = m.conf.Load(rawbytes.Provider(confData), yaml.Parser())
+			err = m.conf.Load(rawbytes.Provider(m.confData), yaml.Parser())
 			if err != nil {
 				logger.Error("MongoDB配置解析错误:" + err.Error())
 				m.conf = nil
@@ -140,7 +139,7 @@ func (m *Mongodb) Close() {
 
 func (m *Mongodb) mgoCheck(tag string) error {
 	if len(m.conns) == 0 {
-		m.Init("")
+		m.Init(m.confData)
 	}
 	if m.conns[tag].conn.Ping() != nil {
 		uri := m.conns[tag].url
@@ -165,7 +164,7 @@ func (m *Mongodb) mgoCheck(tag string) error {
 func (m *Mongodb) Check() error {
 	var err error
 	if len(m.conns) == 0 {
-		m.Init("")
+		m.Init(m.confData)
 	}
 	if m.multi {
 		for dbName, _ := range m.conns {

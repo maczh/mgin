@@ -228,6 +228,19 @@ go:
     lanNet: 192.168.3.    #网段前缀
 ```
 
++ etcd配置范例 etcd-test.yml
+```yaml
+go:
+  etcd:
+    server: xxx.xxx.xxx   #etcd服务IP
+    port: 2379            #etcd端口
+    clusterName: DEFAULT
+    group: OpenApi    #根据项目不同配置不同分组
+    weight: 1
+    lan: true   #以内网地址注册，否则以公网地址注册
+    lanNet: 192.168.3.    #网段前缀
+```
+
 + Elasticsearch配置范例 elasticsearch-test.yml
 ```yaml
 go:

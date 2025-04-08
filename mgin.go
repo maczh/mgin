@@ -15,7 +15,7 @@ type mgin struct {
 }
 
 type MginPlugin interface {
-	Init(configUrl string)
+	Init(configData []byte)
 	Close()
 	Check() error
 }
@@ -29,7 +29,7 @@ type plugin struct {
 var MGin = &mgin{}
 var logger = gologger.GetLogger()
 
-type dbInitFunc func(configUrl string)
+type dbInitFunc func(configData []byte)
 type dbCloseFunc func()
 type dbCheckFunc func() error
 
@@ -42,8 +42,8 @@ func (m *mgin) Use(dbConfigName string, dbInit dbInitFunc, dbClose dbCloseFunc, 
 		logs.Error("加载{}失败，配置文件中未使用", dbConfigName)
 		return
 	}
-	cnfUrl := config.Config.GetConfigUrl(config.Config.GetConfigString("go.config.prefix." + dbConfigName))
-	if cnfUrl == "" {
+	cnfData := config.Config.GetConfigData(config.Config.GetConfigString("go.config.prefix." + dbConfigName))
+	if cnfData == nil {
 		logs.Error("{}配置错误，无法获取配置地址", dbConfigName)
 		return
 	}
@@ -56,7 +56,7 @@ func (m *mgin) Use(dbConfigName string, dbInit dbInitFunc, dbClose dbCloseFunc, 
 		CheckFunc: dbCheck,
 	}
 	logs.Info("正在连接{}", dbConfigName)
-	dbInit(cnfUrl)
+	dbInit(cnfData)
 	logs.Info("{}连接成功", dbConfigName)
 }
 func Init(configFile string) {
@@ -65,7 +65,7 @@ func Init(configFile string) {
 
 	if strings.Contains(configs, "mysql") {
 		logger.Info("正在连接MySQL")
-		db.Mysql.Init(config.Config.GetConfigUrl(config.Config.Config.Prefix.Mysql))
+		db.Mysql.Init(config.Config.GetConfigData(config.Config.Config.Prefix.Mysql))
 		logger.Info("连接MySQL成功")
 	}
 	if strings.Contains(configs, "sqlite") {
@@ -75,22 +75,22 @@ func Init(configFile string) {
 	}
 	if strings.Contains(configs, "mongodb") {
 		logger.Info("正在连接MongoDB")
-		db.Mongo.Init(config.Config.GetConfigUrl(config.Config.Config.Prefix.Mongodb))
+		db.Mongo.Init(config.Config.GetConfigData(config.Config.Config.Prefix.Mongodb))
 		logger.Info("连接MongoDB成功")
 	}
 	if strings.Contains(configs, "redis") {
 		logger.Info("正在连接Redis")
-		db.Redis.Init(config.Config.GetConfigUrl(config.Config.Config.Prefix.Redis))
+		db.Redis.Init(config.Config.GetConfigData(config.Config.Config.Prefix.Redis))
 		logger.Info("连接Redis成功")
 	}
 	if strings.Contains(configs, "elasticsearch") {
 		logger.Info("正在连接ElasticSearch")
-		db.ElasticSearch.Init(config.Config.GetConfigUrl(config.Config.Config.Prefix.Elasticsearch))
+		db.ElasticSearch.Init(config.Config.GetConfigData(config.Config.Config.Prefix.Elasticsearch))
 		logger.Info("连接ElasticSearch成功")
 	}
 	if strings.Contains(configs, "kafka") {
 		logger.Info("正在连接到Kafka")
-		db.Kafka.Init(config.Config.GetConfigUrl(config.Config.Config.Prefix.Kafka))
+		db.Kafka.Init(config.Config.GetConfigData(config.Config.Config.Prefix.Kafka))
 		logger.Info("连接到Kafka成功")
 	}
 	if strings.Contains(configs, "nacos") {

@@ -1,10 +1,15 @@
 package config
 
 import (
+	"context"
+	"fmt"
 	"github.com/knadh/koanf"
 	"github.com/knadh/koanf/parsers/yaml"
 	"github.com/knadh/koanf/providers/file"
+	"github.com/levigross/grequests"
 	"github.com/sadlil/gologger"
+	clientv3 "go.etcd.io/etcd/client/v3"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -44,6 +49,7 @@ type appConfig struct {
 		Elasticsearch string `json:"elasticsearch" bson:"elasticsearch"`
 		Kafka         string `json:"kafka" bson:"kafka"`
 		Sqlite        string `json:"sqlite" bson:"sqlite"`
+		Etcd          string `json:"etcd" bson:"etcd"`
 	} `json:"prefix" bson:"prefix"`
 }
 
@@ -88,6 +94,9 @@ func (c *config) Init(cf string) {
 	}
 	c.App.Name = c.Cnf.String("go.application.name")
 	c.App.Project = c.Cnf.String("go.application.project")
+	if c.App.Project == "" {
+		c.App.Project = "DEFAULT"
+	}
 	c.App.Port = c.Cnf.Int("go.application.port")
 	c.App.PortSSL = c.Cnf.Int("go.application.port_ssl")
 	c.App.Cert = c.Cnf.String("go.application.cert")
@@ -184,4 +193,31 @@ func (c *config) GetConfigUrl(prefix string) string {
 		configUrl = configUrl + prefix + "-" + c.Config.Env + ".yml"
 	}
 	return configUrl
+}
+
+func (c *config) GetConfigData(prefix string) []byte {
+	switch c.Config.Type {
+	case "etcd":
+		cli, err := clientv3.New(clientv3.Config{Endpoints: []string{c.Config.Server}})
+		if err != nil {
+			return nil
+		}
+		resp, err := cli.Get(context.Background(), fmt.Sprintf("/config/%s/%s/%s", c.App.Project, prefix, c.Config.Env))
+		if err != nil {
+			return nil
+		}
+		return resp.Kvs[0].Value
+	case "file":
+		data, err := ioutil.ReadFile(c.GetConfigUrl(prefix))
+		if err != nil {
+			return nil
+		}
+		return data
+	default:
+		resp, err := grequests.Get(c.GetConfigUrl(prefix), nil)
+		if err != nil {
+			return nil
+		}
+		return resp.Bytes()
+	}
 }
