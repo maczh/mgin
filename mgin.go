@@ -62,6 +62,7 @@ func (m *mgin) Use(dbConfigName string, dbInit dbInitFunc, dbClose dbCloseFunc, 
 func Init(configFile string) {
 	config.Config.Init(configFile)
 	configs := config.Config.Config.Used
+	registry.Registry = registry.NewRegistry()
 
 	if strings.Contains(configs, "mysql") {
 		logger.Info("正在连接MySQL")

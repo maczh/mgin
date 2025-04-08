@@ -7,7 +7,7 @@ import (
 	"github.com/nacos-group/nacos-sdk-go/vo"
 )
 
-var Registry = newRegistry()
+var Registry RegistryClient
 
 type RegistryClient interface {
 	Register(etcdConfigUrl string)
@@ -15,7 +15,7 @@ type RegistryClient interface {
 	DeRegister()
 }
 
-func newRegistry() RegistryClient {
+func NewRegistry() RegistryClient {
 	var client RegistryClient
 	switch config.Config.Discovery.Registry {
 	case "nacos":
