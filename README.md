@@ -81,11 +81,14 @@ go:
     debug:              #本地调试模式，可注册到nacos，可调用其他微服务，调试实例不可被其他实例调用
     ip: xxx.xxx.xxx.xxx  #微服务注册时登记的本地IP，不配可自动获取，如需指定外网IP或Docker之外的IP时配置
   discovery:                      
-    registry: nacos                    #微服务的服务发现与注册中心类型 nacos,consul,默认是 nacos
+    registry: nacos                    #微服务的服务发现与注册中心类型 nacos,consul,etcd,默认是 nacos
     callType: json                     #微服务调用参数模式 x-form,json,restful 三种模式可选
   config:                               #统一配置服务器相关
     server: http://192.168.1.5:8848/    #配置服务器地址
-    server_type: nacos                  #配置服务器类型 nacos,consul,springconfig,file
+    server_type: nacos                  #配置服务器类型 nacos,consul,springconfig,etcd,file; 
+                                        #nacos地址 http://{go.config.server}/nacos/v1/cs/configs?group={go.application.project}&&dataId={go.config.prefix.nacos}-{go.config.env}.yml
+                                        #etcd key /config/{go.application.project}/{go.config.prefix.nacos}-{go.config.env}.yml
+                                        #consul key /{go.application.project}/{go.config.prefix.nacos}-{go.config.env}.yml
     env: test                           #配置环境 一般常用test/prod/dev等，跟相应配置文件匹配
     used: nacos,mysql,mongodb,redis,kafka     #当前应用启用的配置
     prefix:                             #配置文件名前缀定义
