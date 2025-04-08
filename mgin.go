@@ -95,8 +95,13 @@ func Init(configFile string) {
 	}
 	if strings.Contains(configs, "nacos") {
 		logger.Info("正在注册到Nacos")
-		registry.Nacos.Register(config.Config.GetConfigUrl(config.Config.Config.Prefix.Nacos))
+		registry.Registry.Register(config.Config.GetConfigUrl(config.Config.Config.Prefix.Nacos))
 		logger.Info("注册到Nacos成功")
+	}
+	if strings.Contains(configs, "etcd") {
+		logger.Info("正在注册到Etcd")
+		registry.Registry.Register(config.Config.GetConfigUrl(config.Config.Config.Prefix.Etcd))
+		logger.Info("注册到Etcd成功")
 	}
 
 	//设置定时任务自动检查
@@ -190,7 +195,11 @@ func (m *mgin) SafeExit() {
 	}
 	if strings.Contains(configs, "nacos") {
 		logger.Info("正在注销Nacos")
-		registry.Nacos.DeRegister()
+		registry.Registry.DeRegister()
+	}
+	if strings.Contains(configs, "etcd") {
+		logger.Info("正在注销Etcd")
+		registry.Registry.DeRegister()
 	}
 	if m.plugins != nil {
 		for dbConfigName, pl := range m.plugins {
