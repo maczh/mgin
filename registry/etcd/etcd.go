@@ -39,6 +39,7 @@ func (c *EtcdClient) Register(etcdConfigData []byte) {
 	//	logger.Error("Etcd配置Url为空")
 	//	return
 	//}
+	logger.Debug("etcd配置文件:\n" + string(c.confData))
 	if c.conf == nil {
 		//var confData []byte
 		var err error
@@ -82,7 +83,7 @@ func (c *EtcdClient) Register(etcdConfigData []byte) {
 			etcd_urls = append(etcd_urls, fmt.Sprintf("http://%s:%s", ip, ports[i]))
 		}
 		serverConfig := clientv3.Config{Endpoints: etcd_urls, DialTimeout: 5 * time.Second}
-		//logger.Debug("Etcd客户端配置: " + toJSON(serverConfig))
+		logger.Debug("Etcd客户端配置: " + toJSON(serverConfig))
 		c.client, err = clientv3.New(serverConfig)
 		if err != nil {
 			logger.Error("Etcd服务连接失败:" + err.Error())
@@ -104,11 +105,13 @@ func (c *EtcdClient) Register(etcdConfigData []byte) {
 		//	metadata["debug"] = "true"
 		//}
 		key := fmt.Sprintf("/registry/%s/%s/%s/%s", c.cluster, c.group, config.Config.App.Name, getInstanceId(ip, port))
-		_, regerr := c.client.Put(context.Background(), key, apiUrl)
+		logger.Debug("etcd服务的key: " + key + "，值：" + apiUrl)
+		resp, regerr := c.client.Put(context.Background(), key, apiUrl)
 		if regerr != nil {
 			logger.Error("Etcd注册服务失败:" + regerr.Error())
 			return
 		}
+		logger.Debug("etcd保存结果: " + toJSON(resp))
 	}
 }
 
@@ -119,6 +122,7 @@ func (c *EtcdClient) GetServiceURL(servicename string, groupName ...string) (str
 	currentGroup := groupName[0]
 	for _, group := range groupName {
 		prefix := fmt.Sprintf("/registry/%s/%s/%s/", c.cluster, group, servicename)
+		logger.Debug("查询前缀: " + prefix)
 		resp, err := c.client.Get(context.Background(), prefix, clientv3.WithPrefix())
 		if err != nil {
 			continue
@@ -126,6 +130,7 @@ func (c *EtcdClient) GetServiceURL(servicename string, groupName ...string) (str
 		if len(resp.Kvs) == 0 {
 			continue
 		}
+		logger.Debug("查询服务结果: " + toJSON(resp))
 		currentGroup = group
 		r := rand.New(rand.NewSource(time.Now().UnixNano()))
 		kv := resp.Kvs[r.Intn(len(resp.Kvs))]
@@ -144,12 +149,15 @@ func (c *EtcdClient) DeRegister() {
 	if port == 0 || config.Config.App.PortSSL != 0 {
 		port = uint64(config.Config.App.PortSSL)
 	}
+	fmt.Printf("注销服务: ip=%s, port=%d\n", ip, port)
 	key := fmt.Sprintf("/registry/%s/%s/%s/%s", c.cluster, c.group, config.Config.App.Name, getInstanceId(ip, port))
-	_, err := c.client.Delete(context.Background(), key)
+	fmt.Println(key)
+	resp, err := c.client.Delete(context.Background(), key)
 	if err != nil {
 		logger.Error("Etcd取消注册服务失败:" + err.Error())
 		return
 	}
+	fmt.Println(toJSON(resp))
 }
 
 func localIPv4s(lan bool, lanNetwork string) ([]string, error) {

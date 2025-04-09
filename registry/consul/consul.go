@@ -113,6 +113,7 @@ func (c *ConsulClient) GetServiceURL(servicename string, groupName ...string) (s
 			continue
 		}
 		currentGroup = group
+		//fmt.Printf("服务查询结果: %s\n", toJSON(services))
 		r := rand.New(rand.NewSource(time.Now().UnixNano()))
 		service := services[r.Intn(len(services))]
 		address := fmt.Sprintf("%s%s:%d", service.Service.Tags[2], service.Service.Address, service.Service.Port)
