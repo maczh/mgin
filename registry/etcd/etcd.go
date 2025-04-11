@@ -111,15 +111,16 @@ func (c *EtcdClient) Register(etcdConfigData []byte) {
 			logger.Error("Etcd注册服务失败:" + regerr.Error())
 			return
 		}
-		logger.Debug("etcd保存结果: " + toJSON(resp))
+		logger.Debug("etcd服务注册结果: " + toJSON(resp))
 	}
 }
 
 func (c *EtcdClient) GetServiceURL(servicename string, groupName ...string) (string, string) {
-	if len(groupName) == 0 {
-		groupName = append(groupName, "DEFAULT_GROUP")
+	if groupName[0] == "" {
+		groupName[0] = c.group
 	}
 	currentGroup := groupName[0]
+	logger.Debug(fmt.Sprintf("groupName=%s, etcdClient=%s", toJSON(groupName), toJSON(c)))
 	for _, group := range groupName {
 		prefix := fmt.Sprintf("/registry/%s/%s/%s/", c.cluster, group, servicename)
 		logger.Debug("查询前缀: " + prefix)

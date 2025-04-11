@@ -58,14 +58,16 @@ func Call(service, uri string, op *Options) (string, error) {
 	if op.Method == "" {
 		op.Method = "POST"
 	}
-	host, err := getHostFromCache(service)
-	if err != nil || host == "" {
-		host, op.Group = registry.Registry.GetServiceURL(service, op.Group)
-	}
-	if host != "" {
-		cache.OnGetCache("nacos").Add(service, host, 5*time.Minute)
+	host := ""
+	var err error
+	//host, err := getHostFromCache(fmt.Sprintf("%s@%s", service, op.Group))
+	//if err != nil || host == "" {
+	host, op.Group = registry.Registry.GetServiceURL(service, op.Group)
+	//}
+	if host == "" {
+		//cache.OnGetCache("service", false).Add(fmt.Sprintf("%s@%s", service, op.Group), host, 5*time.Minute)
 		//subscribeNacos(service, op.Group)
-	} else {
+		//} else {
 		return "", errors.New("微服务获取" + service + "服务主机IP端口失败")
 	}
 	if op.Files != nil && len(op.Files) > 0 {
@@ -127,9 +129,9 @@ func CallT[T any](service, uri string, op *Options) models.Result[T] {
 }
 
 func getHostFromCache(serviceName string) (string, error) {
-	h, _ := cache.OnGetCache("nacos").Value(serviceName)
+	h, _ := cache.OnGetCache("service", false).Value(serviceName)
 	if h == nil {
-		logs.Debug("{}服务无缓存", serviceName)
+		logs.Debug("{} 服务无缓存", serviceName)
 		return "", errors.New("无此服务缓存")
 	} else {
 		hosts := strings.Split(h.(string), ",")

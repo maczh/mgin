@@ -87,8 +87,8 @@ go:
     server: http://192.168.1.5:8848/    #配置服务器地址
     server_type: nacos                  #配置服务器类型 nacos,consul,springconfig,etcd,file; 
                                         #nacos地址 http://{go.config.server}/nacos/v1/cs/configs?group={go.application.project}&&dataId={go.config.prefix.nacos}-{go.config.env}.yml
-                                        #etcd key /config/{go.application.project}/{go.config.prefix.nacos}-{go.config.env}.yml
-                                        #consul key /{go.application.project}/{go.config.prefix.nacos}-{go.config.env}.yml
+                                        #etcd key /config/{go.application.project}/{go.config.prefix.etcd}-{go.config.env}.yml
+                                        #consul key /{go.application.project}/{go.config.prefix.consul}-{go.config.env}.yml
     env: test                           #配置环境 一般常用test/prod/dev等，跟相应配置文件匹配
     used: nacos,mysql,mongodb,redis,kafka     #当前应用启用的配置
     prefix:                             #配置文件名前缀定义

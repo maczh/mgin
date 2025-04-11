@@ -207,6 +207,10 @@ func (m *mgin) SafeExit() {
 		logger.Info("正在注销Etcd")
 		registry.Registry.DeRegister()
 	}
+	if strings.Contains(configs, "consul") {
+		logger.Info("正在注销Consul")
+		registry.Registry.DeRegister()
+	}
 	if m.plugins != nil {
 		for dbConfigName, pl := range m.plugins {
 			if pl.CloseFunc != nil {

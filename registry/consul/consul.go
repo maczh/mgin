@@ -100,8 +100,8 @@ func (c *ConsulClient) Register(etcdConfigData []byte) {
 // servicename 是要查询的服务名称
 // groupName 是可选的服务组名称
 func (c *ConsulClient) GetServiceURL(servicename string, groupName ...string) (string, string) {
-	if len(groupName) == 0 {
-		groupName = append(groupName, "DEFAULT_GROUP")
+	if groupName[0] == "" {
+		groupName[0] = c.group
 	}
 	currentGroup := groupName[0]
 	for _, group := range groupName {
