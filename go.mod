@@ -6,6 +6,7 @@ require (
 	git.mills.io/prologic/bitcask v1.0.2
 	github.com/Shopify/sarama v1.37.2
 	github.com/araddon/dateparse v0.0.0-20210429162001-6b43995a97de
+	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/emirpasic/gods v1.18.1
 	github.com/gin-gonic/gin v1.8.1
 	github.com/go-errors/errors v1.0.1

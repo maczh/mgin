@@ -99,6 +99,8 @@ go:
       sqlite: mytest.db                 #SQLite本地文件名
       elasticsearch: elasticsearch
       kafka: kafka
+  jwt:
+    secret: 1234567890abcdef            #jwt密钥
   logger:                 #控制台日志与文件日志输出，logs包的输出
     level: debug
     out: console,file          #日志输出到控制台与文件

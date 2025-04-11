@@ -22,6 +22,7 @@ type config struct {
 	Log       appLog    `json:"log" bson:"log"`
 	Logger    appLogger `json:"logger" bson:"logger"`
 	Discovery discovery `json:"discovery" bson:"discovery"`
+	Jwt       jwtConfig `json:"jwt" bson:"jwt"`
 }
 
 type app struct {
@@ -52,6 +53,10 @@ type appConfig struct {
 		Etcd          string `json:"etcd" bson:"etcd"`
 		Consul        string `json:"consul" bson:"consul"`
 	} `json:"prefix" bson:"prefix"`
+}
+
+type jwtConfig struct {
+	Secret string `json:"secret" bson:"secret"`
 }
 
 type appLogger struct {
@@ -135,6 +140,7 @@ func (c *config) Init(cf string) {
 	if c.Discovery.CallType == "" {
 		c.Discovery.CallType = "x-form"
 	}
+	c.Jwt.Secret = c.Cnf.String("go.jwt.secret")
 }
 
 func (c *config) GetConfigString(name string) string {
