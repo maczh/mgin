@@ -7,7 +7,6 @@ import (
 	"github.com/maczh/mgin/registry"
 	"github.com/sadlil/gologger"
 	"strings"
-	"time"
 )
 
 type mgin struct {
@@ -26,7 +25,7 @@ type plugin struct {
 	CheckFunc dbCheckFunc
 }
 
-var MGin = &mgin{}
+// var MGin = &mgin{}
 var logger = gologger.GetLogger()
 
 type dbInitFunc func(configData []byte)
@@ -109,14 +108,6 @@ func Init(configFile string) {
 		registry.Registry.Register(config.Config.GetConfigData(config.Config.Config.Prefix.Consul))
 		logger.Info("注册到consul成功")
 	}
-
-	//设置定时任务自动检查
-	ticker := time.NewTicker(time.Minute * 5)
-	go func() {
-		for _ = range ticker.C {
-			MGin.checkAll()
-		}
-	}()
 	return
 }
 

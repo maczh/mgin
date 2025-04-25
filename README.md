@@ -2,6 +2,27 @@
 
 MGin微服务框架，用于快速创建基于MGin微服务框架的RESTful微服务程序
 
+## Get Start
+  - 简单案例
+```go
+package main
+
+import (
+	"github.com/gin-gonic/gin"
+	"github.com/maczh/mgin"
+)
+
+func main() {
+	app := mgin.NewApp("", "测试mgin项目", "1.0.0", false)
+	app.Router.GET("/test", func(c *gin.Context) {
+		c.JSON(200, map[string]string{"msg": "hello world"})
+	})
+	app.Run()
+}
+
+```
+  - 创建一个yml配置文件，即可运行
+
 ## MGin框架功能
 
 ### Web服务框架
@@ -17,8 +38,8 @@ MGin微服务框架，用于快速创建基于MGin微服务框架的RESTful微�
 ### 支持的服务发现与注册中心
 
 - Nacos
-- Consul (计划)
-- Etcd (计划)
+- Consul
+- Etcd
 
 ### 内置支持自动连接的数据库
 
