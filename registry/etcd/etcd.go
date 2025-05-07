@@ -104,7 +104,7 @@ func (c *EtcdClient) Register(etcdConfigData []byte) {
 		//if config.Config.App.Debug {
 		//	metadata["debug"] = "true"
 		//}
-		key := fmt.Sprintf("/registry/%s/%s/%s/%s", c.cluster, c.group, config.Config.App.Name, getInstanceId(ip, port))
+		key := fmt.Sprintf("/service/%s/%s/%s/%s", c.cluster, c.group, config.Config.App.Name, getInstanceId(ip, port))
 		logger.Debug("etcd服务的key: " + key + "，值：" + apiUrl)
 		resp, regerr := c.client.Put(context.Background(), key, apiUrl)
 		if regerr != nil {
@@ -122,7 +122,7 @@ func (c *EtcdClient) GetServiceURL(servicename string, groupName ...string) (str
 	currentGroup := groupName[0]
 	logger.Debug(fmt.Sprintf("groupName=%s, etcdClient=%s", toJSON(groupName), toJSON(c)))
 	for _, group := range groupName {
-		prefix := fmt.Sprintf("/registry/%s/%s/%s/", c.cluster, group, servicename)
+		prefix := fmt.Sprintf("/service/%s/%s/%s/", c.cluster, group, servicename)
 		logger.Debug("查询前缀: " + prefix)
 		resp, err := c.client.Get(context.Background(), prefix, clientv3.WithPrefix())
 		if err != nil {

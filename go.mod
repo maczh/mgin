@@ -19,6 +19,7 @@ require (
 	github.com/json-iterator/go v1.1.12
 	github.com/knadh/koanf v1.4.3
 	github.com/levigross/grequests v0.0.0-20190908174114-253788527a1a
+	github.com/maczh/mgo v1.0.3
 	github.com/mattn/go-isatty v0.0.14
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/nacos-group/nacos-sdk-go v1.1.4
@@ -27,8 +28,8 @@ require (
 	github.com/sadlil/gologger v0.0.0-20180131031757-2507bf651df8
 	github.com/shiena/ansicolor v0.0.0-20200904210342-c7312218db18
 	go.etcd.io/etcd/client/v3 v3.5.4
-	golang.org/x/crypto v0.0.0-20220722155217-630584e8d5aa
-	golang.org/x/text v0.3.7
+	golang.org/x/crypto v0.26.0
+	golang.org/x/text v0.17.0
 	gopkg.in/mgo.v2 v2.0.0-20190816093944-a6b53ec6cb22
 	gopkg.in/yaml.v3 v3.0.1
 	gorm.io/driver/mysql v1.3.6
@@ -62,7 +63,6 @@ require (
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
-	github.com/google/go-cmp v0.5.8 // indirect
 	github.com/google/go-querystring v1.0.0 // indirect
 	github.com/hashicorp/errwrap v1.0.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.1 // indirect
@@ -82,7 +82,7 @@ require (
 	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
-	github.com/klauspost/compress v1.15.11 // indirect
+	github.com/klauspost/compress v1.16.7 // indirect
 	github.com/kr/fs v0.1.0 // indirect
 	github.com/leodido/go-urn v1.2.1 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
@@ -94,6 +94,7 @@ require (
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
+	github.com/montanaflynn/stats v0.7.1 // indirect
 	github.com/onsi/ginkgo v1.16.5 // indirect
 	github.com/onsi/gomega v1.20.2 // indirect
 	github.com/pelletier/go-toml/v2 v2.0.1 // indirect
@@ -103,15 +104,20 @@ require (
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475 // indirect
 	github.com/sirupsen/logrus v1.8.1 // indirect
 	github.com/ugorji/go/codec v1.2.7 // indirect
+	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
+	github.com/xdg-go/scram v1.1.2 // indirect
+	github.com/xdg-go/stringprep v1.0.4 // indirect
+	github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78 // indirect
 	go.etcd.io/etcd/api/v3 v3.5.4 // indirect
 	go.etcd.io/etcd/client/pkg/v3 v3.5.4 // indirect
+	go.mongodb.org/mongo-driver v1.17.3 // indirect
 	go.uber.org/atomic v1.7.0 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
 	go.uber.org/zap v1.17.0 // indirect
 	golang.org/x/exp v0.0.0-20200228211341-fcea875c7e85 // indirect
-	golang.org/x/net v0.0.0-20220927171203-f486391704dc // indirect
-	golang.org/x/sync v0.0.0-20220923202941-7f9b1623fab7 // indirect
-	golang.org/x/sys v0.0.0-20220728004956-3c1f35247d10 // indirect
+	golang.org/x/net v0.21.0 // indirect
+	golang.org/x/sync v0.8.0 // indirect
+	golang.org/x/sys v0.23.0 // indirect
 	google.golang.org/genproto v0.0.0-20210602131652-f16073e35f0c // indirect
 	google.golang.org/grpc v1.38.0 // indirect
 	google.golang.org/protobuf v1.28.0 // indirect

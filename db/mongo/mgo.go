@@ -6,11 +6,10 @@ import (
 	"github.com/knadh/koanf"
 	"github.com/knadh/koanf/parsers/yaml"
 	"github.com/knadh/koanf/providers/rawbytes"
+	"github.com/maczh/mgo"
 	"github.com/sadlil/gologger"
-	"gopkg.in/mgo.v2"
-	"log"
-	"os"
 	"strings"
+	"time"
 )
 
 type Mongodb struct {
@@ -69,19 +68,20 @@ func (m *Mongodb) Init(mongodbConfigData []byte) {
 				return
 			}
 		}
-		if m.conf.Bool("go.data.mongodb.debug") {
-			mgo.SetDebug(true)
-			var mgoLogger *log.Logger
-			mgoLogger = log.New(os.Stderr, "", log.LstdFlags)
-			mgo.SetLogger(mgoLogger)
-		}
 		m.multi = m.conf.Bool("go.data.mongodb.multidb")
 		if m.multi {
 			dbNames := strings.Split(m.conf.String("go.data.mongodb.dbNames"), ",")
 			for _, dbName := range dbNames {
 				if dbName != "" && m.conf.Exists(fmt.Sprintf("go.data.mongodb.%s.uri", dbName)) {
 					uri := m.conf.String(fmt.Sprintf("go.data.mongodb.%s.uri", dbName))
-					session, err := mgo.Dial(uri)
+					m.max = 10
+					if m.conf.Int("go.data.mongo_pool.max") > 1 {
+						m.max = m.conf.Int("go.data.mongo_pool.max")
+						if m.max < 10 {
+							m.max = 10
+						}
+					}
+					session, err := mgo.DialWithTimeout(uri, 10*time.Second, m.max)
 					if err != nil {
 						logger.Error(dbName + " MongoDB连接错误:" + err.Error())
 						continue
@@ -92,18 +92,17 @@ func (m *Mongodb) Init(mongodbConfigData []byte) {
 						url:  uri,
 					}
 					m.tags = append(m.tags, dbName)
-					if m.conf.Int("go.data.mongo_pool.max") > 1 {
-						m.max = m.conf.Int("go.data.mongo_pool.max")
-						if m.max < 10 {
-							m.max = 10
-						}
-						session.SetPoolLimit(m.max)
-						session.SetMode(mgo.Monotonic, true)
-					}
 				}
 			}
 		} else {
-			conn, err := mgo.Dial(m.conf.String("go.data.mongodb.uri"))
+			m.max = 10
+			if m.conf.Int("go.data.mongo_pool.max") > 1 {
+				m.max = m.conf.Int("go.data.mongo_pool.max")
+				if m.max < 10 {
+					m.max = 10
+				}
+			}
+			conn, err := mgo.DialWithTimeout(m.conf.String("go.data.mongodb.uri"), 10*time.Second, m.max)
 			if err != nil {
 				logger.Error("MongoDB连接错误:" + err.Error())
 				return
@@ -112,14 +111,6 @@ func (m *Mongodb) Init(mongodbConfigData []byte) {
 				conn: conn,
 				db:   m.conf.String("go.data.mongodb.db"),
 				url:  m.conf.String("go.data.mongodb.uri"),
-			}
-			if m.conf.Int("go.data.mongo_pool.max") > 1 {
-				m.max = m.conf.Int("go.data.mongo_pool.max")
-				if m.max < 10 {
-					m.max = 10
-				}
-				m.conns["0"].conn.SetPoolLimit(m.max)
-				m.conns["0"].conn.SetMode(mgo.Monotonic, true)
 			}
 		}
 	}
@@ -145,7 +136,7 @@ func (m *Mongodb) mgoCheck(tag string) error {
 		uri := m.conns[tag].url
 		db := m.conns[tag].db
 		m.conns[tag].conn.Close()
-		session, err := mgo.Dial(uri)
+		session, err := mgo.DialWithTimeout(uri, 10*time.Second, m.max)
 		if err != nil {
 			logger.Error(tag + " MongoDB连接错误:" + err.Error())
 			return err
@@ -155,8 +146,6 @@ func (m *Mongodb) mgoCheck(tag string) error {
 			db:   db,
 			url:  uri,
 		}
-		session.SetPoolLimit(m.max)
-		session.SetMode(mgo.Monotonic, true)
 	}
 	return nil
 }
@@ -206,7 +195,7 @@ func (m *Mongodb) GetConnection(dbName ...string) (*mgo.Database, error) {
 }
 
 func (m *Mongodb) ReturnConnection(conn *mgo.Database) {
-	conn.Session.Close()
+	conn.Session().Close()
 }
 
 func (m *Mongodb) IsMultiDB() bool {
