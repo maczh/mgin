@@ -2,6 +2,8 @@
 
 MGin微服务框架，用于快速创建基于MGin微服务框架的RESTful微服务程序
 
+## SDK使用说明
+- [SDK使用说明](sdk_document.md)
 ## Get Start
   - 简单案例
 ```go
