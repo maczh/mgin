@@ -156,6 +156,17 @@ func (c *config) GetConfigString(name string) string {
 	}
 }
 
+func (c *config) GetConfigStringArray(name string) []string {
+	if c.Cnf == nil {
+		return nil
+	}
+	if c.Cnf.Exists(name) {
+		return c.Cnf.Strings(name)
+	} else {
+		return nil
+	}
+}
+
 func (c *config) GetConfigInt(name string) int {
 	if c.Cnf == nil {
 		return 0
