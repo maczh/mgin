@@ -1,6 +1,7 @@
 package dao
 
 import (
+	"context"
 	"errors"
 	"github.com/maczh/mgin/db"
 	"github.com/maczh/mgin/models"
@@ -13,6 +14,7 @@ import (
 
 type MySQLDao[E schema.Tabler] struct {
 	debug bool
+	ctx   *context.Context
 	Tag   func() string
 }
 
@@ -30,6 +32,11 @@ func (m *MySQLDao[E]) Debug() *MySQLDao[E] {
 	}
 }
 
+func (m *MySQLDao[E]) WithContext(ctx *context.Context) *MySQLDao[E] {
+	m.ctx = ctx
+	return m
+}
+
 // Create mysql动态插入数据
 func (receiver *MySQLDao[E]) Create(entity *E) error {
 	if receiver.Tag == nil {
@@ -42,6 +49,9 @@ func (receiver *MySQLDao[E]) Create(entity *E) error {
 	}
 	if receiver.debug {
 		conn = conn.Debug()
+	}
+	if receiver.ctx != nil {
+		conn = conn.WithContext(*receiver.ctx)
 	}
 	err = conn.Create(entity).Error
 	if err != nil {
@@ -63,6 +73,9 @@ func (receiver *MySQLDao[E]) MultiCreate(entities []*E) error {
 	}
 	if receiver.debug {
 		conn = conn.Debug()
+	}
+	if receiver.ctx != nil {
+		conn = conn.WithContext(*receiver.ctx)
 	}
 	err = conn.Create(entities).Error
 	if err != nil {
@@ -86,6 +99,9 @@ func (receiver *MySQLDao[E]) Delete(entity E) error {
 	if receiver.debug {
 		conn = conn.Debug()
 	}
+	if receiver.ctx != nil {
+		conn = conn.WithContext(*receiver.ctx)
+	}
 	err = conn.Where(entity).Delete(&e).Error
 	if err != nil {
 		logger.Error("数据库删除失败: " + err.Error())
@@ -107,6 +123,9 @@ func (receiver *MySQLDao[E]) Updates(entity *E) error {
 	if receiver.debug {
 		conn = conn.Debug()
 	}
+	if receiver.ctx != nil {
+		conn = conn.WithContext(*receiver.ctx)
+	}
 	err = conn.Updates(entity).Error
 	if err != nil {
 		logger.Error("数据库更新失败: " + err.Error())
@@ -127,6 +146,9 @@ func (receiver *MySQLDao[E]) Save(entity *E) error {
 	}
 	if receiver.debug {
 		conn = conn.Debug()
+	}
+	if receiver.ctx != nil {
+		conn = conn.WithContext(*receiver.ctx)
 	}
 	err = conn.Save(entity).Error
 	if err != nil {
@@ -150,6 +172,9 @@ func (receiver *MySQLDao[E]) All(entity E, opts ...QueryOption) ([]E, error) {
 	var result = make([]E, 0)
 	if receiver.debug {
 		conn = conn.Debug()
+	}
+	if receiver.ctx != nil {
+		conn = conn.WithContext(*receiver.ctx)
 	}
 	if opts != nil && len(opts) > 0 {
 		for _, opt := range opts {
@@ -185,6 +210,9 @@ func (receiver *MySQLDao[E]) One(entity E) (*E, error) {
 	if receiver.debug {
 		conn = conn.Debug()
 	}
+	if receiver.ctx != nil {
+		conn = conn.WithContext(*receiver.ctx)
+	}
 	err = conn.Where(entity).First(&result).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -210,6 +238,9 @@ func (receiver *MySQLDao[E]) Pager(conn *gorm.DB, page, size int) ([]E, *models.
 	}
 	if receiver.debug {
 		conn = conn.Debug()
+	}
+	if receiver.ctx != nil {
+		conn = conn.WithContext(*receiver.ctx)
 	}
 	var e E
 	err := conn.Model(e).Count(&count).Error
