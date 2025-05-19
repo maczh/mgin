@@ -45,7 +45,7 @@ func NewApp(configFile, appName, version string, xlang bool) *App {
 	// 检查配置文件路径是否为空，如果为空则尝试从命令行参数获取
 	if configFile == "" {
 		// 定义一个命令行参数 -f，默认值为当前可执行文件同名的 yml 文件，用于指定配置文件名
-		flag.StringVar(&configFile, "f", os.Args[0]+".yml", "yml配置文件名")
+		flag.StringVar(&configFile, "f", strings.TrimSuffix(os.Args[0], ".exe")+".yml", "yml配置文件名")
 		// 解析命令行参数
 		flag.Parse()
 	}

@@ -17,6 +17,7 @@ import (
 
 type config struct {
 	Cnf       *koanf.Koanf
+	WorkDir   string    `json:"-" bson:"-"`
 	App       app       `json:"app" bson:"app"`
 	Config    appConfig `json:"config" bson:"config"`
 	Log       appLog    `json:"log" bson:"log"`
@@ -91,6 +92,7 @@ func (c *config) Init(cf string) {
 	if cf == "" {
 		cf = config_file
 	}
+	c.WorkDir = filepath.Dir(cf)
 	logger.Debug("读取配置文件:" + cf)
 	c.Cnf = koanf.New(".")
 	f := file.Provider(cf)
@@ -193,6 +195,10 @@ func (c *config) GetConfigUrl(prefix string) string {
 	case "springconfig":
 		configUrl = fmt.Sprintf("%s/%s/%s-%s.yml", configUrl, c.App.Project, prefix, c.Config.Env)
 	case "file":
+		if c.WorkDir != "" {
+			configUrl = c.WorkDir + "/" + prefix + "-" + c.Config.Env + ".yml"
+			break
+		}
 		path, _ := filepath.Abs(filepath.Dir(os.Args[0]))
 		if c.Config.Path != "" {
 			path = strings.TrimSuffix(c.Config.Path, "/")
