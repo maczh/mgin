@@ -84,8 +84,9 @@ type discovery struct {
 }
 
 type sys struct {
-	Enabled bool `json:"enabled" bson:"enabled"` //是否启用系统内置基础功能(sys模块)
-	Initdb  bool `json:"initdb" bson:"initdb"`   //是否初始化基础数据(sys模块)
+	Enabled bool   `json:"enabled" bson:"enabled"` //是否启用系统内置基础功能(sys模块)
+	Initdb  bool   `json:"initdb" bson:"initdb"`   //是否初始化基础数据(sys模块)
+	BaseUri string `json:"baseUri" bson:"baseUri"` //基础API路径
 }
 
 var Config = &config{}
@@ -151,6 +152,10 @@ func (c *config) Init(cf string) {
 	c.Jwt.Secret = c.Cnf.String("go.jwt.secret")
 	c.Sys.Enabled = c.Cnf.Bool("go.sys.enabled")
 	c.Sys.Initdb = c.Cnf.Bool("go.sys.initdb")
+	c.Sys.BaseUri = c.Cnf.String("go.sys.baseUri")
+	if c.Sys.BaseUri == "" {
+		c.Sys.BaseUri = "/api/v1"
+	}
 }
 
 func (c *config) GetConfigString(name string) string {

@@ -122,7 +122,7 @@ func (app *App) baseRouter() {
 			dao.InitDB()
 		}
 		app.Router.Use(middle.JwtAuthorize())
-		app.Router = route.SysRouter("/api/v1", app.Router)
+		app.Router = route.SysRouter(config.Config.Sys.BaseUri, app.Router)
 	}
 
 }

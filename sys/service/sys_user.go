@@ -17,7 +17,12 @@ import (
 )
 
 type sysUserService struct {
-	Ctx *gin.Context
+	ctx *gin.Context
+}
+
+func (s *sysUserService) WithContext(c *gin.Context) *sysUserService {
+	s.ctx = c
+	return s
 }
 
 // Register 用户注册
@@ -88,7 +93,7 @@ func (s *sysUserService) Login(req request.LoginReq) (string, error) {
 
 	// 更新登录信息
 	now := time.Now()
-	user.LoginIp = s.Ctx.RemoteIP() // 这里需要根据实际情况获取登录 IP
+	user.LoginIp = s.ctx.RemoteIP() // 这里需要根据实际情况获取登录 IP
 	user.LoginDate = &now
 	err = dao.SysUserDao.Updates(&user)
 	if err != nil {
@@ -122,7 +127,7 @@ func (s *sysUserService) Login(req request.LoginReq) (string, error) {
 
 // Logout 用户退出登录
 func (s *sysUserService) Logout() error {
-	claims := s.Ctx.MustGet("claims").(jwt.MapClaims)
+	claims := s.ctx.MustGet("claims").(jwt.MapClaims)
 	userId := uint(claims["id"].(float64))
 	user, err := s.GetSysUser(request.GetSysUserReq{Id: uint64(userId)})
 	if err != nil {
@@ -265,7 +270,7 @@ func (s *sysUserService) Update(user *sys.SysUser) error {
 	if (u.Mobile != user.Mobile) && dao.SysUserDao.Exists(sys.SysUser{Mobile: user.Mobile}) {
 		return errors.New("手机号码已经被使用")
 	}
-	claims := s.Ctx.MustGet("claims").(jwt.MapClaims)
+	claims := s.ctx.MustGet("claims").(jwt.MapClaims)
 	user.Password = u.Password
 	user.CreateBy = u.CreateBy
 	user.CreateAt = u.CreateAt
@@ -317,7 +322,7 @@ func (s *sysUserService) ChangePassword(req request.ChangePasswordReq) error {
 
 // New 管理员创建新用户
 func (s *sysUserService) New(user *sys.SysUser) (*sys.SysUser, error) {
-	_, exists := s.Ctx.Get("claims")
+	_, exists := s.ctx.Get("claims")
 	if !exists {
 		return nil, errors.New("未登录")
 	}

@@ -14,10 +14,10 @@ type sysApiController struct{}
 func (s *sysApiController) Create(c *gin.Context) models.Result[any] {
 	var api sys.SysApi
 	if err := c.ShouldBindJSON(&api); err != nil {
-		return models.Error[any](500, "请求参数错误: "+err.Error())
+		return models.Error(500, "请求参数错误: "+err.Error())
 	}
 	if err := service.SysApi.CreateApi(&api); err != nil {
-		return models.Error[any](500, "创建API接口失败: "+err.Error())
+		return models.Error(500, "创建API接口失败: "+err.Error())
 	}
 	return models.Success[any](api)
 }
@@ -26,11 +26,11 @@ func (s *sysApiController) Create(c *gin.Context) models.Result[any] {
 func (s *sysApiController) Get(c *gin.Context) models.Result[any] {
 	var req request.GetApiReq
 	if err := c.ShouldBindQuery(&req); err != nil {
-		return models.Error[any](500, "请求参数错误: "+err.Error())
+		return models.Error(500, "请求参数错误: "+err.Error())
 	}
 	api, err := service.SysApi.GetApi(req.ID)
 	if err != nil {
-		return models.Error[any](500, "获取API接口失败: "+err.Error())
+		return models.Error(500, "获取API接口失败: "+err.Error())
 	}
 	return models.Success[any](api)
 }
@@ -39,11 +39,11 @@ func (s *sysApiController) Get(c *gin.Context) models.Result[any] {
 func (s *sysApiController) GetUri(c *gin.Context) models.Result[any] {
 	var req request.GetUriReq
 	if err := c.ShouldBindQuery(&req); err != nil {
-		return models.Error[any](500, "请求参数错误: "+err.Error())
+		return models.Error(500, "请求参数错误: "+err.Error())
 	}
 	api, err := service.SysApi.GetUri(req.Uri)
 	if err != nil {
-		return models.Error[any](500, "获取API接口失败: "+err.Error())
+		return models.Error(500, "获取API接口失败: "+err.Error())
 	}
 	return models.Success[any](api)
 }
@@ -52,10 +52,10 @@ func (s *sysApiController) GetUri(c *gin.Context) models.Result[any] {
 func (s *sysApiController) Update(c *gin.Context) models.Result[any] {
 	var api sys.SysApi
 	if err := c.ShouldBindJSON(&api); err != nil {
-		return models.Error[any](500, "参数绑定失败")
+		return models.Error(500, "参数绑定失败")
 	}
 	if err := service.SysApi.UpdateApi(&api); err != nil {
-		return models.Error[any](500, "更新API接口失败: "+err.Error())
+		return models.Error(500, "更新API接口失败: "+err.Error())
 	}
 	return models.Success[any](nil)
 }
@@ -64,11 +64,11 @@ func (s *sysApiController) Update(c *gin.Context) models.Result[any] {
 func (s *sysApiController) List(c *gin.Context) models.Result[any] {
 	var req request.ListApiReq
 	if err := c.ShouldBindQuery(&req); err != nil {
-		return models.Error[any](500, "参数绑定失败")
+		return models.Error(500, "参数绑定失败")
 	}
 	apis, pages, err := service.SysApi.ListApi(req.Page, req.PageSize, req.Group, req.NeedAuth)
 	if err != nil {
-		return models.Error[any](500, "获取API接口列表失败: "+err.Error())
+		return models.Error(500, "获取API接口列表失败: "+err.Error())
 	}
 	return models.SuccessPage[any](apis, pages)
 }
@@ -77,10 +77,10 @@ func (s *sysApiController) List(c *gin.Context) models.Result[any] {
 func (s *sysApiController) Delete(c *gin.Context) models.Result[any] {
 	var req request.DeleteByIdReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		return models.Error[any](500, "参数绑定失败")
+		return models.Error(500, "参数绑定失败")
 	}
 	if err := service.SysApi.DeleteApi(uint(req.Id)); err != nil {
-		return models.Error[any](500, "删除API接口失败: "+err.Error())
+		return models.Error(500, "删除API接口失败: "+err.Error())
 	}
 	return models.Success[any](nil)
 }

@@ -254,14 +254,14 @@ func (receiver *MySQLDao[E]) Exists(entity E) bool {
 		logger.Error("数据库连接失败: " + err.Error())
 		return false
 	}
-	var result E
+	var result *E
 	if receiver.debug {
 		conn = conn.Debug()
 	}
 	if receiver.ctx != nil {
 		conn = conn.WithContext(*receiver.ctx)
 	}
-	_ = conn.Where(entity).First(&result).Error
+	_ = conn.Where(entity).First(result).Error
 	return result != nil
 }
 
