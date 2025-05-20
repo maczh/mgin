@@ -9,6 +9,6 @@ type SysUserExt struct {
 	RoleId       int64 `gorm:"type:bigint(20);comment:所属角色ID;" json:"roleId" form:"roleId"`
 }
 
-func (e *SysUserExt) TableName() string {
+func (e SysUserExt) TableName() string {
 	return "sys_user_ext"
 }

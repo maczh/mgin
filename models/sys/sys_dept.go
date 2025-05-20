@@ -15,6 +15,6 @@ type SysDept struct {
 	ParentName string `gorm:"-" json:"parentName"`
 }
 
-func (e *SysDept) TableName() string {
+func (e SysDept) TableName() string {
 	return "sys_dept"
 }

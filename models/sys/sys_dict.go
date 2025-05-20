@@ -21,6 +21,6 @@ type SysDict struct {
 	BaseModel
 }
 
-func (e *SysDict) TableName() string {
+func (e SysDict) TableName() string {
 	return "sys_dict"
 }

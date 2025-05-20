@@ -11,6 +11,6 @@ type SysPost struct {
 	BaseModel
 }
 
-func (e *SysPost) TableName() string {
+func (e SysPost) TableName() string {
 	return "sys_post"
 }

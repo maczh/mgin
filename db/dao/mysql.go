@@ -37,6 +37,26 @@ func (m *MySQLDao[E]) WithContext(ctx *context.Context) *MySQLDao[E] {
 	return m
 }
 
+// Where mysql动态查询数据
+func (m *MySQLDao[E]) Where(query interface{}, args ...interface{}) *gorm.DB {
+	if m.Tag == nil {
+		m.Tag = notag
+	}
+	conn, err := db.Mysql.GetConnection(m.Tag())
+	if err != nil {
+		logger.Error("数据库连接失败: " + err.Error())
+		return nil
+	}
+	if m.debug {
+		conn = conn.Debug()
+	}
+	if m.ctx != nil {
+		conn = conn.WithContext(*m.ctx)
+	}
+	var e E
+	return conn.Model(e).Where(query, args...)
+}
+
 // Create mysql动态插入数据
 func (receiver *MySQLDao[E]) Create(entity *E) error {
 	if receiver.Tag == nil {
@@ -222,6 +242,55 @@ func (receiver *MySQLDao[E]) One(entity E) (*E, error) {
 		return nil, errors.New("数据库查询失败")
 	}
 	return &result, nil
+}
+
+// Exists mysql动态查询是否存在数据
+func (receiver *MySQLDao[E]) Exists(entity E) bool {
+	if receiver.Tag == nil {
+		receiver.Tag = notag
+	}
+	conn, err := db.Mysql.GetConnection(receiver.Tag())
+	if err != nil {
+		logger.Error("数据库连接失败: " + err.Error())
+		return false
+	}
+	var result E
+	if receiver.debug {
+		conn = conn.Debug()
+	}
+	if receiver.ctx != nil {
+		conn = conn.WithContext(*receiver.ctx)
+	}
+	_ = conn.Where(entity).First(&result).Error
+	return result != nil
+}
+
+// Count mysql统计记录数
+func (receiver *MySQLDao[E]) Count(entity E) (int64, error) {
+	if receiver.Tag == nil {
+		receiver.Tag = notag
+	}
+	conn, err := db.Mysql.GetConnection(receiver.Tag())
+	if err != nil {
+		logger.Error("数据库连接失败: " + err.Error())
+		return 0, errors.New("数据库连接失败")
+	}
+	var count int64
+	if receiver.debug {
+		conn = conn.Debug()
+	}
+	if receiver.ctx != nil {
+		conn = conn.WithContext(*receiver.ctx)
+	}
+	err = conn.Where(entity).Count(&count).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return 0, nil
+		}
+		logger.Error("数据库查询失败: " + err.Error())
+		return 0, errors.New("数据库查询失败")
+	}
+	return count, nil
 }
 
 // Pager mysql简单分页查询数据
