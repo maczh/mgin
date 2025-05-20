@@ -11,11 +11,11 @@ import (
 
 type sysApiService struct{}
 
-func (d *sysApiService) CreateAPI(api *sys.SysApi) error {
+func (d *sysApiService) CreateApi(api *sys.SysApi) error {
 	return dao.SysApiDao.Create(api)
 }
 
-func (d *sysApiService) GetAPI(id uint) (*sys.SysApi, error) {
+func (d *sysApiService) GetApi(id uint) (*sys.SysApi, error) {
 	api, err := dao.SysApiDao.One(sys.SysApi{ID: id})
 	if err != nil {
 		logs.Error("获取API接口失败: {}", err.Error())
@@ -33,22 +33,22 @@ func (d *sysApiService) GetUri(uri string) (*sys.SysApi, error) {
 	return api, nil
 }
 
-func (d *sysApiService) UpdateAPI(api *sys.SysApi) error {
+func (d *sysApiService) UpdateApi(api *sys.SysApi) error {
 	dep, err := dao.SysApiDao.One(sys.SysApi{ID: api.ID})
 	if err != nil {
 		logs.Error("获取API接口失败: {}", err.Error())
 		return err
 	}
-	api.CreatedAt = dep.CreatedAt
-	api.UpdatedAt = time.Now()
+	api.CreateAt = dep.CreateAt
+	api.UpdateAt = time.Now()
 	return dao.SysApiDao.Updates(api)
 }
 
-func (d *sysApiService) DeleteAPI(id uint) error {
+func (d *sysApiService) DeleteApi(id uint) error {
 	return dao.SysApiDao.Delete(sys.SysApi{ID: id})
 }
 
-func (d *sysApiService) ListAPI(page, pageSize int, group string, needAuth int) ([]sys.SysApi, *models.ResultPage, error) {
+func (d *sysApiService) ListApi(page, pageSize int, group string, needAuth int) ([]sys.SysApi, *models.ResultPage, error) {
 	dbs, err := db.Mysql.GetConnection()
 	if err != nil {
 		logs.Error("获取数据库连接失败: {}", err.Error())

@@ -5,9 +5,9 @@ import (
 	"github.com/maczh/mgin/sys/controller"
 )
 
-type sysUserController struct{}
+type sysUserRouter struct{}
 
-func (c *sysUserController) Register(g *gin.RouterGroup) {
+func (c *sysUserRouter) Register(g *gin.RouterGroup) {
 	//注册登录
 	g.POST("login", handle(controller.SysUser.Login))
 	g.POST("register", handle(controller.SysUser.Register))

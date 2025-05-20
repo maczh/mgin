@@ -1,6 +1,6 @@
 package sys
 
-// SysDictData 字典数据
+// SysDict 字典数据
 type SysDict struct {
 	// 主键ID
 	ID int `json:"id" gorm:"primaryKey;autoIncrement;type:int;comment:主键ID"`
@@ -9,7 +9,7 @@ type SysDict struct {
 	// 父级ID
 	ParentID int `json:"parent_id" gorm:"type:int;default:0;comment:父级ID"`
 	// 字典名称
-	Name string `json:"name" gorm:"type:varchar(100);not null;comment:字典中文名称"`
+	Name string `json:"name" gorm:"type:varchar(100);not null;index;comment:字典中文名称"`
 	// 字典键名
 	Key string `json:"key" gorm:"type:varchar(50);not null;index:idx_key;comment:字典键名"`
 	// 字典值

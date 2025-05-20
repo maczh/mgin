@@ -24,6 +24,7 @@ type config struct {
 	Logger    appLogger `json:"logger" bson:"logger"`
 	Discovery discovery `json:"discovery" bson:"discovery"`
 	Jwt       jwtConfig `json:"jwt" bson:"jwt"`
+	Sys       sys       `json:"sys" bson:"sys"`
 }
 
 type app struct {
@@ -80,6 +81,11 @@ type appLog struct {
 type discovery struct {
 	Registry string `json:"registry" bson:"registry"`
 	CallType string `json:"callType" bson:"callType"`
+}
+
+type sys struct {
+	Enabled bool `json:"enabled" bson:"enabled"` //是否启用系统内置基础功能(sys模块)
+	Initdb  bool `json:"initdb" bson:"initdb"`   //是否初始化基础数据(sys模块)
 }
 
 var Config = &config{}
@@ -143,6 +149,8 @@ func (c *config) Init(cf string) {
 		c.Discovery.CallType = "x-form"
 	}
 	c.Jwt.Secret = c.Cnf.String("go.jwt.secret")
+	c.Sys.Enabled = c.Cnf.Bool("go.sys.enabled")
+	c.Sys.Initdb = c.Cnf.Bool("go.sys.initdb")
 }
 
 func (c *config) GetConfigString(name string) string {

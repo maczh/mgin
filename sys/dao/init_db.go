@@ -8,7 +8,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func initDB() {
+func InitDB() {
 	conn, err := db.Mysql.GetConnection()
 	if err != nil {
 		logs.Error("get mysql connection error: {}", err.Error())

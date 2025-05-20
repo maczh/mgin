@@ -6,12 +6,26 @@ import (
 	"net/http"
 )
 
-func RootRouter(basePath string, router *gin.Engine) *gin.Engine {
-	root := router.Group(basePath)
+func SysRouter(basePath string, router *gin.Engine) *gin.Engine {
+	r := router.Group(basePath)
 	var (
-		captcha = captchaRouter{}
+		captcha    = captchaRouter{}
+		sysUser    = sysUserRouter{}
+		sysApi     = sysApiRouter{}
+		sysUserExt = sysUserExtRouter{}
+		sysDict    = sysDictRouter{}
+		sysDept    = sysDeptRouter{}
+		sysRole    = sysRoleRouter{}
 	)
-	captcha.Register(root)
+	captcha.Register(r)
+	sysUser.Register(r)
+	sysApi.Register(r)
+	sysUserExt.Register(r)
+	sysDict.Register(r)
+	sysDept.Register(r)
+	sysRole.Register(r)
+
+	return router
 }
 
 type handFunc func(c *gin.Context) models.Result[any]

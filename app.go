@@ -14,6 +14,9 @@ import (
 	"github.com/maczh/mgin/middleware/postlog"
 	"github.com/maczh/mgin/middleware/trace"
 	"github.com/maczh/mgin/middleware/xlang"
+	"github.com/maczh/mgin/sys/dao"
+	"github.com/maczh/mgin/sys/middle"
+	"github.com/maczh/mgin/sys/route"
 	"net/http"
 	"os"
 	"os/signal"
@@ -112,6 +115,15 @@ func (app *App) baseRouter() {
 	app.Router.NoRoute(func(c *gin.Context) {
 		c.JSON(http.StatusOK, i18n.Error(errcode.URI_NOT_FOUND, errcode.UrlNotFound))
 	})
+
+	// 启动内置系统
+	if config.Config.Sys.Enabled {
+		if config.Config.Sys.Initdb {
+			dao.InitDB()
+		}
+		app.Router.Use(middle.JwtAuthorize())
+		app.Router = route.SysRouter("/api/v1", app.Router)
+	}
 
 }
 
