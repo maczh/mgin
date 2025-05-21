@@ -11,6 +11,15 @@ import (
 type sysRoleController struct{}
 
 // Add 新增角色
+// @Summary 新增角色
+// @Description 用于新增一个系统角色
+// @Tags 系统角色
+// @Accept json
+// @Produce json
+// @Param role body request.CreateRoleReq true "角色创建请求体，包含角色名称、标识等信息"
+// @Success 200 {object} models.Result[sys.SysRole] "成功新增角色，返回新增的角色信息"
+// @Failure 500 {object} models.Result[any] "参数绑定失败或新增角色失败"
+// @Router /sys/role/add [post]
 func (s *sysRoleController) Add(c *gin.Context) models.Result[any] {
 	var req request.CreateRoleReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -24,6 +33,15 @@ func (s *sysRoleController) Add(c *gin.Context) models.Result[any] {
 }
 
 // Get 获取角色
+// @Summary 获取角色
+// @Description 根据请求参数获取指定角色的信息
+// @Tags 系统角色
+// @Accept json
+// @Produce json
+// @Param role query request.GetRoleReq true "角色查询请求参数，包含角色 ID 等信息"
+// @Success 200 {object} models.Result[sys.SysRole] "成功获取角色信息，返回该角色信息"
+// @Failure 500 {object} models.Result[any] "参数绑定失败或获取角色失败"
+// @Router /sys/role/get [get]
 func (s *sysRoleController) Get(c *gin.Context) models.Result[any] {
 	var req request.GetRoleReq
 	if err := c.ShouldBindQuery(&req); err != nil {
@@ -37,6 +55,15 @@ func (s *sysRoleController) Get(c *gin.Context) models.Result[any] {
 }
 
 // Update 更新角色
+// @Summary 更新角色
+// @Description 更新指定角色的信息
+// @Tags 系统角色
+// @Accept json
+// @Produce json
+// @Param role body sys.SysRole true "角色更新请求体，包含需要更新的角色信息"
+// @Success 200 {object} models.Result[any] "成功更新角色信息"
+// @Failure 500 {object} models.Result[any] "参数绑定失败或更新角色失败"
+// @Router /sys/role/update [put]
 func (s *sysRoleController) Update(c *gin.Context) models.Result[any] {
 	var req *sys.SysRole
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -50,6 +77,15 @@ func (s *sysRoleController) Update(c *gin.Context) models.Result[any] {
 }
 
 // Delete 删除角色
+// @Summary 删除角色
+// @Description 根据角色 ID 删除指定角色
+// @Tags 系统角色
+// @Accept json
+// @Produce json
+// @Param role query request.DeleteByIdReq true "角色删除请求参数，包含角色 ID"
+// @Success 200 {object} models.Result[any] "成功删除角色"
+// @Failure 500 {object} models.Result[any] "参数绑定失败或删除角色失败"
+// @Router /sys/role/delete [delete]
 func (s *sysRoleController) Delete(c *gin.Context) models.Result[any] {
 	var req request.DeleteByIdReq
 	if err := c.ShouldBindQuery(&req); err != nil {
@@ -62,6 +98,15 @@ func (s *sysRoleController) Delete(c *gin.Context) models.Result[any] {
 }
 
 // List 获取角色列表
+// @Summary 获取角色列表
+// @Description 根据请求参数获取角色的分页列表
+// @Tags 系统角色
+// @Accept json
+// @Produce json
+// @Param role query request.ListRoleReq true "角色列表查询请求参数，包含分页信息等"
+// @Success 200 {object} models.ResultPage[sys.SysRole] "成功获取角色列表，返回角色列表和分页信息"
+// @Failure 500 {object} models.Result[any] "参数绑定失败或获取角色列表失败"
+// @Router /sys/role/list [get]
 func (s *sysRoleController) List(c *gin.Context) models.Result[any] {
 	var req request.ListRoleReq
 	if err := c.ShouldBindQuery(&req); err != nil {

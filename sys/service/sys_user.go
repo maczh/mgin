@@ -50,12 +50,33 @@ func (s *sysUserService) Register(req request.RegisterReq) (*sys.SysUser, error)
 		return nil, errors.New("手机号已存在")
 	}
 	// 创建用户
+	user.CreateAt = time.Now()
+	user.UpdateAt = time.Now()
 	err := dao.SysUserDao.Create(&user)
 	if err != nil {
 		logs.Error("注册失败: {}", err.Error())
 		return nil, err
 	}
-	return &user, nil
+	//重新获取用户信息
+	user1, err := dao.SysUserDao.One(sys.SysUser{LoginName: req.LoginName})
+	if err != nil {
+		logs.Error("注册失败: {}", err.Error())
+		return nil, err
+	}
+	// 自动创建扩展信息
+	userExt := sys.SysUserExt{
+		UserId:       user1.Id,
+		RoleId:       2, // 默认角色ID
+		DepartmentId: 1, // 默认部门ID
+		PositionId:   1, // 默认岗位ID
+	}
+	err = dao.SysUserExtDao.Save(&userExt)
+	if err != nil {
+		logs.Error("生成用户扩展属性记录失败: {}", err.Error())
+		return nil, err
+	}
+	user1.Password = "******"
+	return user1, nil
 }
 
 // Login 用户登录
@@ -223,7 +244,7 @@ func (s *sysUserService) GetSysUser(req request.GetSysUserReq) (*sys.SysUser, er
 
 // ListSysUser 列出用户列表
 func (s *sysUserService) ListSysUser(req request.ListSysUserReq) ([]sys.SysUser, *models.ResultPage, error) {
-	var query *gorm.DB
+	var query = dao.SysUserDao.Where("del_flag = 0")
 	if req.Keyword != "" {
 		query = dao.SysUserDao.Where("login_name LIKE ? OR nick_name LIKE ? OR email LIKE ? OR mobile LIKE ?", "%"+req.Keyword+"%", "%"+req.Keyword+"%", "%"+req.Keyword+"%", "%"+req.Keyword+"%")
 	}
@@ -273,8 +294,7 @@ func (s *sysUserService) Update(user *sys.SysUser) error {
 	claims := s.ctx.MustGet("claims").(jwt.MapClaims)
 	user.Password = u.Password
 	user.CreateBy = u.CreateBy
-	user.CreateAt = u.CreateAt
-	user.UpdateBy = claims["user_id"].(string)
+	user.UpdateBy = claims["nickName"].(string)
 	user.UpdateAt = time.Now()
 	err := dao.SysUserDao.Save(user)
 	if err != nil {

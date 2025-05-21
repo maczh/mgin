@@ -29,3 +29,7 @@ type ListMenuReq struct {
 	Page     int  `json:"page" form:"page"`
 	PageSize int  `json:"pageSize" form:"pageSize"`
 }
+
+type GetTreeMenuReq struct {
+	ParentID uint `json:"parentId" form:"parentId"`
+}

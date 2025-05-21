@@ -9,7 +9,16 @@ import (
 
 type captchaController struct{}
 
-// GetCaptcha is a method of the captchaController struct that returns a models.Result[any] type
+// GetCaptcha 获取验证码
+// @Summary 获取验证码
+// @Description 获取图片验证码，返回验证码 ID 和 Base64 编码的图片
+// @Tags 验证码
+// @Accept  json
+// @Produce  json
+// @Param   body body request.GetCaptchaReq true "获取验证码请求参数"
+// @Success 200 {object} models.Result[map[string]string] "成功返回验证码信息"
+// @Failure 500 {object} models.Result[any] "参数绑定失败或获取验证码失败"
+// @Router /captcha/get [post]
 func (c *captchaController) GetCaptcha(g *gin.Context) models.Result[any] {
 	var req request.GetCaptchaReq
 	if err := g.ShouldBind(&req); err != nil { // 绑定请求参数
@@ -25,7 +34,16 @@ func (c *captchaController) GetCaptcha(g *gin.Context) models.Result[any] {
 	})
 }
 
-// VerifyCaptcha is a method of the captchaController struct that returns a models.Result[any] type
+// VerifyCaptcha 验证验证码
+// @Summary 验证验证码
+// @Description 验证用户输入的验证码是否正确
+// @Tags 验证码
+// @Accept  json
+// @Produce  json
+// @Param   body body request.VerifyCaptchaReq true "验证验证码请求参数"
+// @Success 200 {object} models.Result[any] "验证码验证成功"
+// @Failure 500 {object} models.Result[any] "参数绑定失败或验证码错误"
+// @Router /captcha/verify [post]
 func (c *captchaController) VerifyCaptcha(g *gin.Context) models.Result[any] {
 	var req request.VerifyCaptchaReq
 	if err := g.ShouldBind(&req); err != nil { // 绑定请求参数

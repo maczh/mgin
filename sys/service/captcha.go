@@ -33,8 +33,8 @@ func (s captchaService) GetCaptcha(req request.GetCaptchaReq) (string, string) {
 			Length:     req.Length,
 			Source:     base64Captcha.TxtSimpleCharaters,
 			NoiseCount: 15,
-			Fonts:      []string{"fonts/RitaSmith.ttf"},           // 使用内置字体
-			BgColor:    &color.RGBA{R: 196, G: 196, B: 196, A: 0}, // 透明背景
+			Fonts:      []string{"3Dumb.ttf"},               // 使用内置字体
+			BgColor:    &color.RGBA{R: 0, G: 0, B: 0, A: 0}, // 透明背景
 		}
 		driver = driver.ConvertFonts()
 		cp := base64Captcha.NewCaptcha(driver, base64Captcha.DefaultMemStore)

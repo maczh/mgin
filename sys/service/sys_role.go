@@ -2,8 +2,6 @@ package service
 
 import (
 	"errors"
-	"github.com/maczh/mgin/db"
-	"github.com/maczh/mgin/logs"
 	"github.com/maczh/mgin/models"
 	"github.com/maczh/mgin/models/sys"
 	"github.com/maczh/mgin/models/sys/request"
@@ -28,6 +26,7 @@ func (s *sysRoleService) Add(req request.CreateRoleReq) (*sys.SysRole, error) {
 		Description: req.Description,
 	}
 	role.CreateAt = time.Now()
+	role.UpdateAt = time.Now()
 	err := dao.SysRoleDao.Create(role)
 	if err != nil {
 		return nil, err
@@ -63,6 +62,7 @@ func (s *sysRoleService) Update(req *sys.SysRole) error {
 	role.RoleIdent = req.RoleIdent
 	role.IsEnable = req.IsEnable
 	role.Description = req.Description
+	role.UpdateAt = time.Now()
 	err = dao.SysRoleDao.Updates(role)
 	if err != nil {
 		return err
@@ -88,10 +88,6 @@ func (s *sysRoleService) Delete(id uint) error {
 
 // List 获取角色列表
 func (s *sysRoleService) List(req request.ListRoleReq) ([]sys.SysRole, *models.ResultPage, error) {
-	mysql, err := db.Mysql.GetConnection()
-	if err != nil {
-		logs.Error("获取 MySQL 连接失败: {}", err.Error())
-		return nil, nil, err
-	}
+	mysql := dao.SysRoleDao.Where("del_flag = 0")
 	return dao.SysRoleDao.Pager(mysql, req.Page, req.PageSize)
 }

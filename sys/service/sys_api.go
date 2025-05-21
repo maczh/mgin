@@ -1,7 +1,6 @@
 package service
 
 import (
-	"github.com/maczh/mgin/db"
 	"github.com/maczh/mgin/logs"
 	"github.com/maczh/mgin/models"
 	"github.com/maczh/mgin/models/sys"
@@ -12,6 +11,8 @@ import (
 type sysApiService struct{}
 
 func (d *sysApiService) CreateApi(api *sys.SysApi) error {
+	api.CreateAt = time.Now()
+	api.UpdateAt = time.Now()
 	return dao.SysApiDao.Create(api)
 }
 
@@ -49,15 +50,11 @@ func (d *sysApiService) DeleteApi(id uint) error {
 }
 
 func (d *sysApiService) ListApi(page, pageSize int, group string, needAuth int) ([]sys.SysApi, *models.ResultPage, error) {
-	dbs, err := db.Mysql.GetConnection()
-	if err != nil {
-		logs.Error("获取数据库连接失败: {}", err.Error())
-		return nil, nil, err
-	}
+	dbs := dao.SysApiDao.Where("del_flag = 0")
 	if group != "" {
 		dbs = dbs.Where("api_group = ?", group)
 	}
-	if needAuth > -1 {
+	if needAuth > 0 {
 		dbs = dbs.Where("need_auth = ?", needAuth)
 	}
 	dbs = dbs.Order("id ASC")

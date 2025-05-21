@@ -7,7 +7,6 @@ import (
 	"github.com/maczh/mgin/models/sys"
 	"github.com/maczh/mgin/models/sys/request"
 	"github.com/maczh/mgin/sys/dao"
-	"gorm.io/gorm"
 	"time"
 )
 
@@ -33,6 +32,7 @@ func (s *sysDictService) Add(req request.CreateDictReq) (dict *sys.SysDict, err 
 		Remark:   req.Remark,
 	}
 	dict.CreateAt = time.Now()
+	dict.UpdateAt = time.Now()
 	err = dao.SysDictDao.Create(dict)
 	return dict, err
 }
@@ -49,6 +49,7 @@ func (s *sysDictService) Get(req request.GetDictReq) (dict *sys.SysDict, err err
 
 // Update 更新字典项
 func (s *sysDictService) Update(dict *sys.SysDict) error {
+	dict.UpdateAt = time.Now()
 	err := dao.SysDictDao.Save(dict)
 	if err != nil {
 		logs.Error("更新字典项失败: {}", err.Error())
@@ -73,7 +74,7 @@ func (s *sysDictService) Delete(id int64) error {
 
 // List 获取字典项列表
 func (s *sysDictService) List(req request.ListDictReq) ([]sys.SysDict, *models.ResultPage, error) {
-	var mysql *gorm.DB
+	var mysql = dao.SysDictDao.Where("del_flag = 0")
 	if req.ParentID > 0 {
 		mysql = dao.SysDictDao.Where("parent_id = ?", req.ParentID)
 	}

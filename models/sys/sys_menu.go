@@ -4,7 +4,7 @@ package sys
 // 用于存储前端路由和后端权限的菜单结构
 type SysMenu struct {
 	ID         uint   `gorm:"primaryKey;comment:菜单ID" json:"id"`
-	ParentID   *uint  `gorm:"index;comment:父菜单ID(0表示根菜单)" json:"parent_id"`
+	ParentID   uint   `gorm:"index;comment:父菜单ID(0表示根菜单)" json:"parent_id"`
 	Path       string `gorm:"type:varchar(255);index;comment:路由路径(需符合Vue Router规范)" json:"path"`
 	Name       string `gorm:"type:varchar(50);uniqueIndex;comment:路由名称(需唯一)" json:"name"`
 	Component  string `gorm:"type:varchar(255);comment:组件路径(views目录下的路径)" json:"component"`

@@ -7,7 +7,6 @@ import (
 	"github.com/maczh/mgin/models/sys"
 	"github.com/maczh/mgin/models/sys/request"
 	"github.com/maczh/mgin/sys/dao"
-	"gorm.io/gorm"
 	"strings"
 	"time"
 )
@@ -37,6 +36,7 @@ func (s *sysDeptService) Add(req request.CreateDeptReq) (*sys.SysDept, error) {
 		Status:    1,
 	}
 	dept.CreateAt = time.Now()
+	dept.UpdateAt = time.Now()
 	err = dao.SysDeptDao.Save(dept)
 	return dept, err
 }
@@ -89,7 +89,7 @@ func (s *sysDeptService) Delete(id uint) error {
 
 // List 获取部门列表
 func (s *sysDeptService) List(req request.ListDeptReq) ([]sys.SysDept, *models.ResultPage, error) {
-	var mysql *gorm.DB
+	var mysql = dao.SysDeptDao.Where("del_flag = 0")
 	if req.ParentId > 0 {
 		mysql = dao.SysDeptDao.Where("parent_id =?", req.ParentId)
 	}
@@ -103,7 +103,7 @@ func (s *sysDeptService) GetTree(id int64) ([]sys.SysDept, error) {
 	deptMap := make(map[uint]*sys.SysDept)
 
 	// 查询所有部门
-	if err := dao.SysDeptDao.Where("status = 1").Order("sort asc").Find(&depts).Error; err != nil {
+	if err := dao.SysDeptDao.Where("status = 1 AND del_flag = 0").Order("sort asc").Find(&depts).Error; err != nil {
 		return nil, err
 	}
 

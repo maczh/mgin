@@ -9,13 +9,10 @@ type SysApi struct {
 	Method      string `gorm:"type:varchar(10);not null;default:'GET';uniqueIndex:api_unique;comment:请求方法(GET|POST|PUT|DELETE...)" json:"method"`
 	Description string `gorm:"type:varchar(255);comment:接口描述" json:"description"`
 	APIGroup    string `gorm:"type:varchar(50);index;comment:接口分组(模块名称)" json:"api_group"`
-	Enabled     bool   `gorm:"type:tinyint(1);default:1;index;comment:启用状态(1启用 0禁用)" json:"enabled;default=true"`
-	NeedAuth    bool   `gorm:"type:tinyint(1);default:1;comment:是否需要认证(1是 0否)" json:"need_auth;default=true"`
-	NeedLog     bool   `gorm:"type:tinyint(1);default:1;comment:是否需要记录日志" json:"need_log;default=true"`
+	Enabled     bool   `gorm:"type:tinyint(1);default:true;index;comment:启用状态(1启用 0禁用)" json:"enabled"`
+	NeedAuth    bool   `gorm:"type:tinyint(1);default:true;comment:是否需要认证(1是 0否)" json:"need_auth"`
+	NeedLog     bool   `gorm:"type:tinyint(1);default:true;comment:是否需要记录日志" json:"need_log"`
 	BaseModel
-
-	// 关联关系
-	Roles []SysRole `gorm:"-" json:"roles;omitempty"`
 }
 
 func (SysApi) TableName() string {

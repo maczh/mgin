@@ -11,7 +11,7 @@ type SysRoleMenu struct {
 	// 菜单代码，不能为空
 	MenuId uint `gorm:"type:uint;not null;comment:菜单ID" json:"menu_id"`
 	// 关联的API接口信息
-	Api *SysMenu `gorm:"-" json:"menu,omitempty"`
+	Menu *SysMenu `gorm:"-" json:"menu,omitempty"`
 	// 创建时间，自动记录创建时的时间
 	BaseModel
 }

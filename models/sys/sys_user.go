@@ -1,6 +1,8 @@
 package sys
 
-import "time"
+import (
+	"time"
+)
 
 // SysUser 用户信息
 type SysUser struct {
@@ -15,7 +17,7 @@ type SysUser struct {
 	Password  string     `gorm:"type:varchar(50);comment:密码;" json:"password" form:"password"`
 	Status    uint8      `gorm:"type:tinyint;index;comment:帐号状态（0正常 1停用）;" json:"status" form:"status"`
 	LoginIp   string     `gorm:"type:varchar(50);comment:最后登陆IP;" json:"loginIp" form:"loginIp"`
-	LoginDate *time.Time `gorm:"type:datetime;comment:最后登陆时间;" json:"loginDate" form:"loginDate" time_format:"2006-01-02 15:04:05"`
+	LoginDate *time.Time `gorm:"type:datetime;comment:最后登陆时间;" json:"loginDate" form:"loginDate"`
 	Remark    string     `gorm:"type:varchar(500);comment:备注;" json:"remark"   form:"remark"`
 	BaseModel
 }

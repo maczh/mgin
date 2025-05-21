@@ -9,13 +9,17 @@ import (
 func SysRouter(basePath string, router *gin.Engine) *gin.Engine {
 	r := router.Group(basePath)
 	var (
-		captcha    = captchaRouter{}
-		sysUser    = sysUserRouter{}
-		sysApi     = sysApiRouter{}
-		sysUserExt = sysUserExtRouter{}
-		sysDict    = sysDictRouter{}
-		sysDept    = sysDeptRouter{}
-		sysRole    = sysRoleRouter{}
+		captcha     = captchaRouter{}
+		sysUser     = sysUserRouter{}
+		sysApi      = sysApiRouter{}
+		sysUserExt  = sysUserExtRouter{}
+		sysDict     = sysDictRouter{}
+		sysDept     = sysDeptRouter{}
+		sysRole     = sysRoleRouter{}
+		sysMenu     = sysMenuRouter{}
+		sysPost     = sysPostRouter{}
+		sysRoleApi  = sysRoleApiRouter{}
+		sysRoleMenu = sysRoleMenuRouter{}
 	)
 	captcha.Register(r)
 	sysUser.Register(r)
@@ -24,6 +28,10 @@ func SysRouter(basePath string, router *gin.Engine) *gin.Engine {
 	sysDict.Register(r)
 	sysDept.Register(r)
 	sysRole.Register(r)
+	sysMenu.Register(r)
+	sysPost.Register(r)
+	sysRoleApi.Register(r)
+	sysRoleMenu.Register(r)
 
 	return router
 }

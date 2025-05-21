@@ -6,7 +6,6 @@ import (
 	"github.com/maczh/mgin/models/sys"
 	"github.com/maczh/mgin/models/sys/request"
 	"github.com/maczh/mgin/sys/dao"
-	"gorm.io/gorm"
 )
 
 type sysUserExtService struct{}
@@ -54,7 +53,7 @@ func (s *sysUserExtService) Delete(userId int64) error {
 }
 
 func (s *sysUserExtService) List(req request.ListSysUserExtReq) ([]sys.SysUserExt, *models.ResultPage, error) {
-	var mysql *gorm.DB
+	var mysql = dao.SysUserExtDao.Where("del_flag = 0")
 	if req.DepartmentId != 0 {
 		mysql = dao.SysUserExtDao.Where("department_id =?", req.DepartmentId)
 	}

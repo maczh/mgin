@@ -38,7 +38,7 @@ func InitDB() {
 
 func initData(db *gorm.DB) {
 	//初始化管理员账号
-	admin := sys.SysUser{Id: 1, LoginName: "admin", Password: utils.MD5Encode("admin"), Sex: 1, Status: 1}
+	admin := sys.SysUser{Id: 1, LoginName: "admin", Password: utils.MD5Encode("admin"), Sex: 1, Status: 1, Email: "admin@mgin.org", Mobile: "13800138000", NickName: "超级管理员"}
 	err := db.Create(&admin).Error
 	if err != nil {
 		logs.Error("create admin user error: {}", err.Error())
@@ -47,6 +47,7 @@ func initData(db *gorm.DB) {
 	roles := []*sys.SysRole{
 		{ID: 1, RoleName: "超级管理员", RoleIdent: "supervisor", Description: "全部权限"},
 		{ID: 2, RoleName: "管理员", RoleIdent: "admin", Description: "具备系统管理权限"},
+		{ID: 3, RoleName: "普通用户", RoleIdent: "user", Description: "具备普通用户权限"},
 	}
 	err = SysRoleDao.MultiCreate(roles)
 	if err != nil {
@@ -66,6 +67,23 @@ func initData(db *gorm.DB) {
 	err = SysDeptDao.MultiCreate(depts)
 	if err != nil {
 		logs.Error("create depts error: {}", err.Error())
+	}
+	//初始化岗位
+	posts := []*sys.SysPost{
+		{Id: 1, PostName: "总经理", PostCode: "001", Sort: 1, Status: 1},
+		{Id: 2, PostName: "副总经理", PostCode: "002", Sort: 2, Status: 1},
+		{Id: 3, PostName: "部门经理", PostCode: "003", Sort: 3, Status: 1},
+		{Id: 4, PostName: "职员", PostCode: "004", Sort: 4, Status: 1},
+	}
+	err = SysPostDao.MultiCreate(posts)
+	if err != nil {
+		logs.Error("create posts error: {}", err.Error())
+	}
+	// 初始化用户扩展属性
+	userExt := sys.SysUserExt{Id: 1, UserId: 1, DepartmentId: 2, PositionId: 2}
+	err = db.Create(&userExt).Error
+	if err != nil {
+		logs.Error("create user ext error: {}", err.Error())
 	}
 	// API 列表
 	apiList := make([]*sys.SysApi, 0)
@@ -120,9 +138,163 @@ func initData(db *gorm.DB) {
 	apiList = append(apiList, &sys.SysApi{ID: 49, APIPath: config.Config.Sys.BaseUri + "/menu/get", Method: "GET", Name: "获取菜单信息", Description: "", APIGroup: "菜单模块", NeedAuth: true})
 	apiList = append(apiList, &sys.SysApi{ID: 50, APIPath: config.Config.Sys.BaseUri + "/menu/tree", Method: "GET", Name: "获取菜单树", Description: "", APIGroup: "菜单模块", NeedAuth: true})
 	apiList = append(apiList, &sys.SysApi{ID: 51, APIPath: config.Config.Sys.BaseUri + "/menu/list", Method: "GET", Name: "分页查询菜单", Description: "分页查询菜单", APIGroup: "菜单模块", NeedAuth: true})
+	apiList = append(apiList, &sys.SysApi{ID: 52, APIPath: config.Config.Sys.BaseUri + "/role_api/bind", Method: "POST", Name: "绑定角色API接口权限", Description: "批量全量绑定", APIGroup: "权限模块", NeedAuth: true})
+	apiList = append(apiList, &sys.SysApi{ID: 53, APIPath: config.Config.Sys.BaseUri + "/role_api/list", Method: "GET", Name: "获取角色API接口权限列表", Description: "", APIGroup: "权限模块", NeedAuth: true})
+	apiList = append(apiList, &sys.SysApi{ID: 54, APIPath: config.Config.Sys.BaseUri + "/role_menu/bind", Method: "POST", Name: "绑定角色菜单权限", Description: "全量绑定角色菜单", APIGroup: "权限模块", NeedAuth: true})
+	apiList = append(apiList, &sys.SysApi{ID: 55, APIPath: config.Config.Sys.BaseUri + "/role_menu/list", Method: "GET", Name: "获取角色菜单权限列表", Description: "", APIGroup: "权限模块", NeedAuth: true})
 
 	err = SysApiDao.MultiCreate(apiList)
 	if err != nil {
 		logs.Error("create api error: {}", err.Error())
+	}
+
+	// 初始化角色API权限
+	roleApiList := []*sys.SysRoleApi{
+		{RoleId: 1, ApiId: 1},
+		{RoleId: 1, ApiId: 2},
+		{RoleId: 1, ApiId: 3},
+		{RoleId: 1, ApiId: 4},
+		{RoleId: 1, ApiId: 5},
+		{RoleId: 1, ApiId: 6},
+		{RoleId: 1, ApiId: 7},
+		{RoleId: 1, ApiId: 8},
+		{RoleId: 1, ApiId: 9},
+		{RoleId: 1, ApiId: 10},
+		{RoleId: 1, ApiId: 11},
+		{RoleId: 1, ApiId: 12},
+		{RoleId: 1, ApiId: 13},
+		{RoleId: 1, ApiId: 14},
+		{RoleId: 1, ApiId: 15},
+		{RoleId: 1, ApiId: 16},
+		{RoleId: 1, ApiId: 17},
+		{RoleId: 1, ApiId: 18},
+		{RoleId: 1, ApiId: 19},
+		{RoleId: 1, ApiId: 20},
+		{RoleId: 1, ApiId: 21},
+		{RoleId: 1, ApiId: 22},
+		{RoleId: 1, ApiId: 23},
+		{RoleId: 1, ApiId: 24},
+		{RoleId: 1, ApiId: 25},
+		{RoleId: 1, ApiId: 26},
+		{RoleId: 1, ApiId: 27},
+		{RoleId: 1, ApiId: 28},
+		{RoleId: 1, ApiId: 29},
+		{RoleId: 1, ApiId: 30},
+		{RoleId: 1, ApiId: 31},
+		{RoleId: 1, ApiId: 32},
+		{RoleId: 1, ApiId: 33},
+		{RoleId: 1, ApiId: 34},
+		{RoleId: 1, ApiId: 35},
+		{RoleId: 1, ApiId: 36},
+		{RoleId: 1, ApiId: 37},
+		{RoleId: 1, ApiId: 38},
+		{RoleId: 1, ApiId: 39},
+		{RoleId: 1, ApiId: 40},
+		{RoleId: 1, ApiId: 41},
+		{RoleId: 1, ApiId: 42},
+		{RoleId: 1, ApiId: 43},
+		{RoleId: 1, ApiId: 44},
+		{RoleId: 1, ApiId: 45},
+		{RoleId: 1, ApiId: 46},
+		{RoleId: 1, ApiId: 47},
+		{RoleId: 1, ApiId: 48},
+		{RoleId: 1, ApiId: 49},
+		{RoleId: 1, ApiId: 50},
+		{RoleId: 1, ApiId: 51},
+		{RoleId: 1, ApiId: 52},
+		{RoleId: 1, ApiId: 53},
+		{RoleId: 1, ApiId: 54},
+		{RoleId: 1, ApiId: 55},
+		{RoleId: 2, ApiId: 1},
+		{RoleId: 2, ApiId: 2},
+		{RoleId: 2, ApiId: 3},
+		{RoleId: 2, ApiId: 4},
+		{RoleId: 2, ApiId: 5},
+		{RoleId: 2, ApiId: 6},
+		{RoleId: 2, ApiId: 7},
+		{RoleId: 2, ApiId: 8},
+		{RoleId: 2, ApiId: 9},
+		{RoleId: 2, ApiId: 10},
+		{RoleId: 2, ApiId: 11},
+		{RoleId: 2, ApiId: 12},
+		{RoleId: 2, ApiId: 13},
+		{RoleId: 2, ApiId: 14},
+		{RoleId: 2, ApiId: 15},
+		{RoleId: 2, ApiId: 16},
+		{RoleId: 2, ApiId: 17},
+		{RoleId: 2, ApiId: 18},
+		{RoleId: 2, ApiId: 19},
+		{RoleId: 2, ApiId: 20},
+		{RoleId: 2, ApiId: 21},
+		{RoleId: 2, ApiId: 22},
+		{RoleId: 2, ApiId: 23},
+		{RoleId: 2, ApiId: 24},
+		{RoleId: 2, ApiId: 25},
+		{RoleId: 2, ApiId: 26},
+		{RoleId: 2, ApiId: 27},
+		{RoleId: 2, ApiId: 28},
+		{RoleId: 2, ApiId: 29},
+		{RoleId: 2, ApiId: 30},
+		{RoleId: 2, ApiId: 31},
+		{RoleId: 2, ApiId: 32},
+		{RoleId: 2, ApiId: 33},
+		{RoleId: 2, ApiId: 34},
+		{RoleId: 2, ApiId: 35},
+		{RoleId: 2, ApiId: 36},
+		{RoleId: 2, ApiId: 37},
+		{RoleId: 2, ApiId: 38},
+		{RoleId: 2, ApiId: 39},
+		{RoleId: 2, ApiId: 40},
+		{RoleId: 2, ApiId: 41},
+		{RoleId: 2, ApiId: 42},
+		{RoleId: 2, ApiId: 43},
+		{RoleId: 2, ApiId: 44},
+		{RoleId: 2, ApiId: 45},
+		{RoleId: 2, ApiId: 46},
+		{RoleId: 2, ApiId: 47},
+		{RoleId: 2, ApiId: 48},
+		{RoleId: 2, ApiId: 49},
+		{RoleId: 2, ApiId: 50},
+		{RoleId: 2, ApiId: 51},
+		{RoleId: 2, ApiId: 52},
+		{RoleId: 2, ApiId: 53},
+		{RoleId: 2, ApiId: 54},
+		{RoleId: 2, ApiId: 55},
+		{RoleId: 3, ApiId: 1},
+		{RoleId: 3, ApiId: 2},
+		{RoleId: 3, ApiId: 3},
+		{RoleId: 3, ApiId: 4},
+		{RoleId: 3, ApiId: 6},
+		{RoleId: 3, ApiId: 8},
+		{RoleId: 3, ApiId: 9},
+		{RoleId: 3, ApiId: 10},
+		{RoleId: 3, ApiId: 11},
+		{RoleId: 3, ApiId: 13},
+		{RoleId: 3, ApiId: 17},
+		{RoleId: 3, ApiId: 18},
+		{RoleId: 3, ApiId: 19},
+		{RoleId: 3, ApiId: 23},
+		{RoleId: 3, ApiId: 24},
+		{RoleId: 3, ApiId: 25},
+		{RoleId: 3, ApiId: 26},
+		{RoleId: 3, ApiId: 27},
+		{RoleId: 3, ApiId: 28},
+		{RoleId: 3, ApiId: 29},
+		{RoleId: 3, ApiId: 30},
+		{RoleId: 3, ApiId: 34},
+		{RoleId: 3, ApiId: 35},
+		{RoleId: 3, ApiId: 39},
+		{RoleId: 3, ApiId: 40},
+		{RoleId: 3, ApiId: 44},
+		{RoleId: 3, ApiId: 45},
+		{RoleId: 3, ApiId: 49},
+		{RoleId: 3, ApiId: 50},
+		{RoleId: 3, ApiId: 51},
+		{RoleId: 3, ApiId: 53},
+		{RoleId: 3, ApiId: 55},
+	}
+	err = SysRoleApiDao.MultiCreate(roleApiList)
+	if err != nil {
+		logs.Error("create role api error: {}", err.Error())
 	}
 }
