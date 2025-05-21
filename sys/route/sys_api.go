@@ -16,5 +16,6 @@ func (c *sysApiRouter) Register(g *gin.RouterGroup) {
 		group.GET("get", handle(controller.SysApi.Get))
 		group.GET("get/uri", handle(controller.SysApi.GetUri))
 		group.GET("list", handle(controller.SysApi.List))
+		group.GET("group", handle(controller.SysApi.ListByGroup))
 	}
 }

@@ -47,8 +47,8 @@ type GetSysUserReq struct {
 type GetCaptchaReq struct {
 	Width  int `json:"width" form:"width" binding:"required"`
 	Height int `json:"height" form:"height" binding:"required"`
-	Length int `json:"length" form:"length;default=4"`
-	Type   int `json:"type" form:"type:default=0"` //0:数字 1:字母 2:算术
+	Length int `json:"length" form:"length"`
+	Type   int `json:"type" form:"type"` //0:数字 1:字母 2:算术
 }
 
 type VerifyCaptchaReq struct {
@@ -62,5 +62,5 @@ type DeleteByIdReq struct {
 
 type ChangeStatusReq struct {
 	Id     int64 `json:"id" form:"id" binding:"required"`
-	Status int   `json:"status" form:"status" binding:"required"`
+	Status *int  `json:"status" form:"status" binding:"required"`
 }

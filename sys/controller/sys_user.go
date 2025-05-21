@@ -19,7 +19,7 @@ type sysUserController struct{}
 // @Param registerReq body request.RegisterReq true "用户注册请求参数"
 // @Success 200 {object} models.Result[any] "注册成功，返回用户信息"
 // @Failure 500 {object} models.Result[any] "请求参数错误或注册失败"
-// @Router /sys/user/register [post]
+// @Router /api/v1/register [post]
 func (s *sysUserController) Register(c *gin.Context) models.Result[any] {
 	var req request.RegisterReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -41,7 +41,7 @@ func (s *sysUserController) Register(c *gin.Context) models.Result[any] {
 // @Param loginReq body request.LoginReq true "用户登录请求参数"
 // @Success 200 {object} models.Result[any] "登录成功，返回 token"
 // @Failure 500 {object} models.Result[any] "请求参数错误或登录失败"
-// @Router /sys/user/login [post]
+// @Router /api/v1/login [post]
 func (s *sysUserController) Login(c *gin.Context) models.Result[any] {
 	var req request.LoginReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -60,10 +60,11 @@ func (s *sysUserController) Login(c *gin.Context) models.Result[any] {
 // @Tags 用户管理
 // @Accept json
 // @Produce json
+// @Param Authorization header string true "用户令牌"
 // @Param user body sys.SysUser true "新增用户信息"
 // @Success 200 {object} models.Result[any] "新增成功，返回用户信息"
 // @Failure 500 {object} models.Result[any] "请求参数错误或新增用户失败"
-// @Router /sys/user/add [post]
+// @Router /api/v1/users/add [post]
 func (s *sysUserController) Add(c *gin.Context) models.Result[any] {
 	var req sys.SysUser
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -86,10 +87,11 @@ func (s *sysUserController) Add(c *gin.Context) models.Result[any] {
 // @Tags 用户管理
 // @Accept json
 // @Produce json
+// @Param Authorization header string true "用户令牌"
 // @Param user body sys.SysUser true "修改后的用户信息"
 // @Success 200 {object} models.Result[any] "修改成功"
 // @Failure 500 {object} models.Result[any] "请求参数错误、用户 ID 为空或修改用户失败"
-// @Router /sys/user/update [put]
+// @Router /api/v1/users/update [post]
 func (s *sysUserController) Update(c *gin.Context) models.Result[any] {
 	var req sys.SysUser
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -111,10 +113,11 @@ func (s *sysUserController) Update(c *gin.Context) models.Result[any] {
 // @Tags 用户管理
 // @Accept json
 // @Produce json
+// @Param Authorization header string true "用户令牌"
 // @Param deleteReq body request.DeleteByIdReq true "删除用户请求参数，包含用户 ID"
 // @Success 200 {object} models.Result[any] "删除成功"
 // @Failure 500 {object} models.Result[any] "请求参数错误或删除用户失败"
-// @Router /sys/user/delete [delete]
+// @Router /api/v1/users/del [post]
 func (s *sysUserController) Delete(c *gin.Context) models.Result[any] {
 	var req request.DeleteByIdReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -133,10 +136,11 @@ func (s *sysUserController) Delete(c *gin.Context) models.Result[any] {
 // @Tags 用户管理
 // @Accept json
 // @Produce json
+// @Param Authorization header string true "用户令牌"
 // @Param getReq query request.GetSysUserReq true "获取用户信息请求参数"
 // @Success 200 {object} models.Result[any] "获取成功，返回用户信息"
 // @Failure 500 {object} models.Result[any] "请求参数错误或获取用户信息失败"
-// @Router /sys/user/get [get]
+// @Router /api/v1/users/get [get]
 func (s *sysUserController) Get(c *gin.Context) models.Result[any] {
 	var req request.GetSysUserReq
 	if err := c.ShouldBindQuery(&req); err != nil {
@@ -156,10 +160,11 @@ func (s *sysUserController) Get(c *gin.Context) models.Result[any] {
 // @Tags 用户管理
 // @Accept json
 // @Produce json
+// @Param Authorization header string true "用户令牌"
 // @Param listReq query request.ListSysUserReq true "获取用户列表请求参数"
 // @Success 200 {object} models.ResultPage[any] "获取成功，返回用户列表和分页信息"
 // @Failure 500 {object} models.Result[any] "请求参数错误或获取用户列表失败"
-// @Router /sys/user/list [get]
+// @Router /api/v1/users/list [get]
 func (s *sysUserController) List(c *gin.Context) models.Result[any] {
 	var req request.ListSysUserReq
 	if err := c.ShouldBindQuery(&req); err != nil {
@@ -181,7 +186,7 @@ func (s *sysUserController) List(c *gin.Context) models.Result[any] {
 // @Param verifyReq body request.VerifyTokenReq true "验证 token 请求参数"
 // @Success 200 {object} models.Result[any] "验证成功，返回验证结果和 claims"
 // @Failure 500 {object} models.Result[any] "请求参数错误或验证失败"
-// @Router /sys/user/verify-token [post]
+// @Router /api/v1/token [post]
 func (s *sysUserController) VerifyToken(c *gin.Context) models.Result[any] {
 	var req request.VerifyTokenReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -200,10 +205,11 @@ func (s *sysUserController) VerifyToken(c *gin.Context) models.Result[any] {
 // @Tags 用户管理
 // @Accept json
 // @Produce json
+// @Param Authorization header string true "用户令牌"
 // @Param changePwdReq body request.ChangePasswordReq true "修改密码请求参数"
 // @Success 200 {object} models.Result[any] "修改成功"
 // @Failure 500 {object} models.Result[any] "请求参数错误或修改密码失败"
-// @Router /sys/user/change-password [post]
+// @Router /api/v1/users/pwd [post]
 func (s *sysUserController) ChangePassword(c *gin.Context) models.Result[any] {
 	var req request.ChangePasswordReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -222,16 +228,17 @@ func (s *sysUserController) ChangePassword(c *gin.Context) models.Result[any] {
 // @Tags 用户管理
 // @Accept json
 // @Produce json
+// @Param Authorization header string true "用户令牌"
 // @Param changeStatusReq body request.ChangeStatusReq true "修改用户状态请求参数"
 // @Success 200 {object} models.Result[any] "修改成功"
 // @Failure 500 {object} models.Result[any] "请求参数错误或修改用户状态失败"
-// @Router /sys/user/change-status [post]
+// @Router /api/v1/users/status [post]
 func (s *sysUserController) ChangeStatus(c *gin.Context) models.Result[any] {
 	var req request.ChangeStatusReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		return models.Error(500, "请求参数错误: "+err.Error())
 	}
-	err := service.SysUser.WithContext(c).ChangeStatus(req.Id, uint8(req.Status))
+	err := service.SysUser.WithContext(c).ChangeStatus(req.Id, uint8(*req.Status))
 	if err != nil {
 		return models.Error(500, err.Error())
 	}
@@ -244,9 +251,10 @@ func (s *sysUserController) ChangeStatus(c *gin.Context) models.Result[any] {
 // @Tags 用户管理
 // @Accept json
 // @Produce json
+// @Param Authorization header string true "用户令牌"
 // @Success 200 {object} models.Result[any] "退出成功"
 // @Failure 500 {object} models.Result[any] "退出登录失败"
-// @Router /sys/user/logout [post]
+// @Router /api/v1/users/logout [post]
 func (s *sysUserController) Logout(c *gin.Context) models.Result[any] {
 	err := service.SysUser.WithContext(c).Logout()
 	if err != nil {

@@ -6,7 +6,7 @@ import (
 
 // BaseModel 共享属性
 type BaseModel struct {
-	DelFlag  bool      `gorm:"type:tinyint(1);size:1;default:0;index;comment:删除标记;column:del_flag;" json:"delFlag"`
+	DelFlag  uint      `gorm:"type:tinyint;default:0;index;comment:删除标记;column:del_flag;" json:"delFlag"`
 	CreateAt time.Time `gorm:"type:datetime;autoCreateTime;comment:创建日期" json:"createAt"`
 	UpdateAt time.Time `gorm:"type:datetime;autoUpdateTime;comment:更新日期" json:"updateAt"`
 	UpdateBy string    `gorm:"type:string;size:32;comment:更新者;" json:"updateBy"`

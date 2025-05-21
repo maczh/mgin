@@ -16,10 +16,11 @@ type sysDictController struct{}
 // @Tags 系统字典
 // @Accept json
 // @Produce json
+// @Param Authorization header string true "用户令牌"
 // @Param dict body request.CreateDictReq true "新增字典请求参数"
 // @Success 200 {object} models.Result[sys.SysDict] "新增成功，返回新增的字典信息"
 // @Failure 500 {object} models.Result[any] "参数绑定失败或新增字典失败"
-// @Router /sys/dict/add [post]
+// @Router /api/v1/sys/dict/add [post]
 func (s *sysDictController) Add(c *gin.Context) models.Result[any] {
 	var req request.CreateDictReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -38,10 +39,11 @@ func (s *sysDictController) Add(c *gin.Context) models.Result[any] {
 // @Tags 系统字典
 // @Accept json
 // @Produce json
+// @Param Authorization header string true "用户令牌"
 // @Param dict body sys.SysDict true "更新后的字典信息"
 // @Success 200 {object} models.Result[any] "更新成功"
 // @Failure 500 {object} models.Result[any] "参数绑定失败或更新字典失败"
-// @Router /sys/dict/update [put]
+// @Router /api/v1/sys/dict/update [post]
 func (s *sysDictController) Update(c *gin.Context) models.Result[any] {
 	var req sys.SysDict
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -59,10 +61,11 @@ func (s *sysDictController) Update(c *gin.Context) models.Result[any] {
 // @Tags 系统字典
 // @Accept json
 // @Produce json
+// @Param Authorization header string true "用户令牌"
 // @Param dict body request.DeleteByIdReq true "删除字典请求参数，包含字典 ID"
 // @Success 200 {object} models.Result[any] "删除成功"
 // @Failure 500 {object} models.Result[any] "参数绑定失败或删除字典失败"
-// @Router /sys/dict/delete [delete]
+// @Router /api/v1/sys/dict/del [post]
 func (s *sysDictController) Delete(c *gin.Context) models.Result[any] {
 	var req request.DeleteByIdReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -80,10 +83,11 @@ func (s *sysDictController) Delete(c *gin.Context) models.Result[any] {
 // @Tags 系统字典
 // @Accept json
 // @Produce json
+// @Param Authorization header string true "用户令牌"
 // @Param query query request.ListDictReq true "获取字典列表请求参数"
 // @Success 200 {object} models.ResultPage[any] "获取成功，返回字典列表和分页信息"
 // @Failure 500 {object} models.Result[any] "参数绑定失败或获取字典列表失败"
-// @Router /sys/dict/list [get]
+// @Router /api/v1/sys/dict/list [get]
 func (s *sysDictController) List(c *gin.Context) models.Result[any] {
 	var req request.ListDictReq
 	if err := c.ShouldBindQuery(&req); err != nil {
@@ -102,11 +106,12 @@ func (s *sysDictController) List(c *gin.Context) models.Result[any] {
 // @Tags 系统字典
 // @Accept json
 // @Produce json
+// @Param Authorization header string true "用户令牌"
 // @Param dict body request.GetDictReq true "获取单个字典请求参数"
 // @Success 200 {object} models.Result[sys.SysDict] "获取成功，返回单个字典信息"
 // @Failure 500 {object} models.Result[any] "参数绑定失败、参数不完整或获取字典失败"
 // @Failure 400 {object} models.Result[any] "参数不完整"
-// @Router /sys/dict/get [post]
+// @Router /api/v1/sys/dict/get [post]
 func (s *sysDictController) Get(c *gin.Context) models.Result[any] {
 	var req request.GetDictReq
 	if err := c.ShouldBindJSON(&req); err != nil {

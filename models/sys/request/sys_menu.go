@@ -9,11 +9,11 @@ type CreateMenuReq struct {
 	Icon       string `json:"icon" form:"icon"`
 	Title      string `json:"title" form:"title" binding:"required"`
 	Sort       int    `json:"sort" form:"sort"`
-	Hidden     bool   `json:"hidden" form:"hidden"`
-	KeepAlive  bool   `json:"keepAlive" form:"keepAlive"`
-	AlwaysShow bool   `json:"alwaysShow" form:"alwaysShow"`
-	Breadcrumb bool   `json:"breadcrumb" form:"breadcrumb"`
-	Affix      bool   `json:"affix" form:"affix"`
+	Hidden     uint8  `json:"hidden" form:"hidden"`
+	KeepAlive  uint8  `json:"keepAlive" form:"keepAlive"`
+	AlwaysShow uint8  `json:"alwaysShow" form:"alwaysShow"`
+	Breadcrumb uint8  `json:"breadcrumb" form:"breadcrumb"`
+	Affix      uint8  `json:"affix" form:"affix"`
 	ActiveMenu string `json:"activeMenu" form:"activeMenu"`
 	Status     int    `json:"status" form:"status"`
 }

@@ -17,10 +17,11 @@ type sysDeptController struct{}
 // @Tags 系统部门
 // @Accept json
 // @Produce json
+// @Param Authorization header string true "用户令牌"
 // @Param dept body request.CreateDeptReq true "部门创建请求参数"
 // @Success 200 {object} models.Result[sys.SysDept] "新增成功，返回新增的部门信息"
 // @Failure 500 {object} models.Result[any] "参数绑定失败或新增部门失败"
-// @Router /sys/dept/add [post]
+// @Router /api/v1/sys/dept/add [post]
 func (s *sysDeptController) Add(c *gin.Context) models.Result[any] {
 	var req request.CreateDeptReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -39,10 +40,11 @@ func (s *sysDeptController) Add(c *gin.Context) models.Result[any] {
 // @Tags 系统部门
 // @Accept json
 // @Produce json
+// @Param Authorization header string true "用户令牌"
 // @Param dept query request.GetDeptReq true "部门查询请求参数"
 // @Success 200 {object} models.Result[sys.SysDept] "获取成功，返回部门信息"
 // @Failure 500 {object} models.Result[any] "参数绑定失败或获取部门信息失败"
-// @Router /sys/dept/get [get]
+// @Router /api/v1/sys/dept/get [get]
 func (s *sysDeptController) Get(c *gin.Context) models.Result[any] {
 	var req request.GetDeptReq
 	if err := c.ShouldBindQuery(&req); err != nil {
@@ -61,10 +63,11 @@ func (s *sysDeptController) Get(c *gin.Context) models.Result[any] {
 // @Tags 系统部门
 // @Accept json
 // @Produce json
+// @Param Authorization header string true "用户令牌"
 // @Param dept body sys.SysDept true "更新后的部门信息"
 // @Success 200 {object} models.Result[any] "更新成功"
 // @Failure 500 {object} models.Result[any] "参数绑定失败或更新部门信息失败"
-// @Router /sys/dept/update [put]
+// @Router /api/v1/sys/dept/update [post]
 func (s *sysDeptController) Update(c *gin.Context) models.Result[any] {
 	var req *sys.SysDept
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -84,10 +87,11 @@ func (s *sysDeptController) Update(c *gin.Context) models.Result[any] {
 // @Tags 系统部门
 // @Accept json
 // @Produce json
+// @Param Authorization header string true "用户令牌"
 // @Param dept query request.DeleteByIdReq true "部门删除请求参数，包含部门 ID"
 // @Success 200 {object} models.Result[any] "删除成功"
 // @Failure 500 {object} models.Result[any] "参数绑定失败或删除部门失败"
-// @Router /sys/dept/delete [delete]
+// @Router /api/v1/sys/dept/del [post]
 func (s *sysDeptController) Delete(c *gin.Context) models.Result[any] {
 	var req request.DeleteByIdReq
 	if err := c.ShouldBindQuery(&req); err != nil {
@@ -105,10 +109,11 @@ func (s *sysDeptController) Delete(c *gin.Context) models.Result[any] {
 // @Tags 系统部门
 // @Accept json
 // @Produce json
+// @Param Authorization header string true "用户令牌"
 // @Param dept query request.ListDeptReq true "部门列表查询请求参数"
-// @Success 200 {object} models.Result[map[string]any] "获取成功，返回部门列表和总数"
+// @Success 200 {object} models.Result[any] "获取成功，返回部门列表和总数"
 // @Failure 500 {object} models.Result[any] "参数绑定失败或获取部门列表失败"
-// @Router /sys/dept/list [get]
+// @Router /api/v1/sys/dept/list [get]
 func (s *sysDeptController) List(c *gin.Context) models.Result[any] {
 	var req request.ListDeptReq
 	if err := c.ShouldBindQuery(&req); err != nil {
@@ -127,10 +132,11 @@ func (s *sysDeptController) List(c *gin.Context) models.Result[any] {
 // @Tags 系统部门
 // @Accept json
 // @Produce json
+// @Param Authorization header string true "用户令牌"
 // @Param dept query request.DeleteByIdReq true "部门树查询请求参数，包含部门 ID"
 // @Success 200 {object} models.Result[any] "获取成功，返回部门树信息"
 // @Failure 500 {object} models.Result[any] "参数绑定失败或获取部门树失败"
-// @Router /sys/dept/tree [get]
+// @Router /api/v1/sys/dept/tree [get]
 func (s *sysDeptController) GetTree(c *gin.Context) models.Result[any] {
 	var req request.DeleteByIdReq
 	if err := c.ShouldBindQuery(&req); err != nil {

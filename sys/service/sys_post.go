@@ -73,7 +73,7 @@ func (s *sysPostService) Update(req *sys.SysPost) error {
 	post.DeptId = req.DeptId
 	post.Status = req.Status
 	post.UpdateAt = time.Now()
-	err = dao.SysPostDao.Updates(post)
+	err = dao.SysPostDao.Save(post)
 	return err
 }
 

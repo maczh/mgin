@@ -7,19 +7,23 @@ import (
 	"github.com/maczh/mgin/models/sys"
 	"github.com/maczh/mgin/sys/service"
 	"net/http"
+	"strings"
 )
 
 // JwtAuthorize JWT认证中间件
 func JwtAuthorize() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if strings.HasPrefix(c.Request.URL.Path, "/docs/") || strings.HasPrefix(c.Request.URL.Path, "/swagger/sys") || strings.HasPrefix(c.Request.URL.Path, "/api/v1/swagger/sys") {
+			c.Next()
+			return
+		}
 		// 获取api信息
 		api, err := service.SysApi.GetUri(c.Request.URL.Path)
 		if err != nil || api == nil {
 			logs.Error("获取api信息失败,默认为必须难")
-			api = &sys.SysApi{NeedAuth: true}
+			api = &sys.SysApi{NeedAuth: 1}
 		}
-		logs.Debug("api={}", api)
-		if !api.NeedAuth {
+		if api.NeedAuth == 0 {
 			c.Next()
 			return
 		}

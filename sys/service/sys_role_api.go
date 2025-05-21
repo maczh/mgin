@@ -6,6 +6,7 @@ import (
 	"github.com/maczh/mgin/logs"
 	"github.com/maczh/mgin/models/sys"
 	"github.com/maczh/mgin/models/sys/request"
+	"github.com/maczh/mgin/models/sys/vo"
 	"github.com/maczh/mgin/sys/dao"
 )
 
@@ -32,7 +33,7 @@ func (s *sysRoleApiService) BindRoleApi(req request.BindRoleApiReq) error {
 }
 
 // ListRoleApi 获取角色的API列表
-func (s *sysRoleApiService) ListRoleApi(req request.ListRoleApiReq) ([]sys.SysRoleApi, error) {
+func (s *sysRoleApiService) ListRoleApi(req request.ListRoleApiReq) (*vo.ListRoleApiResp, error) {
 	list, err := dao.SysRoleApiDao.All(sys.SysRoleApi{RoleId: uint(req.RoleId)})
 	if err != nil {
 		logs.Error("获取角色{}的API列表时发生错误：{}", req.RoleId, err.Error())
@@ -42,14 +43,26 @@ func (s *sysRoleApiService) ListRoleApi(req request.ListRoleApiReq) ([]sys.SysRo
 	if err != nil {
 		logs.Error("获取角色{}的信息时发生错误：{}", req.RoleId, err.Error())
 	}
+	resp := &vo.ListRoleApiResp{
+		RoleId:   int64(role.ID),
+		RoleName: role.RoleName,
+		Apis:     make([]vo.ListRoleApiItem, len(list)),
+	}
 	for i, api := range list {
-		list[i].Api, err = dao.SysApiDao.One(sys.SysApi{ID: api.ApiId})
+		apiInfo, err := dao.SysApiDao.One(sys.SysApi{ID: api.ApiId})
 		if err != nil {
 			logs.Error("获取API{}的信息时发生错误：{}", api.ApiId, err.Error())
 		}
-		list[i].Role = role
+		resp.Apis[i] = vo.ListRoleApiItem{
+			ApiId:   int64(apiInfo.ID),
+			Name:    apiInfo.Name,
+			ApiPath: apiInfo.APIPath,
+			Method:  apiInfo.Method,
+			Group:   apiInfo.APIGroup,
+		}
 	}
-	return list, nil
+	return resp, nil
+
 }
 
 func (s *sysRoleApiService) matchRoleApiPath(roleId int64, path string) bool {

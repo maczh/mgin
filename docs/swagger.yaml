@@ -1,0 +1,2412 @@
+definitions:
+  github_com_maczh_mgin_models.Result-any:
+    properties:
+      data: {}
+      msg:
+        type: string
+      page:
+        $ref: '#/definitions/models.ResultPage'
+      status:
+        type: integer
+    type: object
+  github_com_maczh_mgin_models.Result-github_com_maczh_mgin_models_sys_SysApi:
+    properties:
+      data:
+        $ref: '#/definitions/github_com_maczh_mgin_models_sys.SysApi'
+      msg:
+        type: string
+      page:
+        $ref: '#/definitions/models.ResultPage'
+      status:
+        type: integer
+    type: object
+  github_com_maczh_mgin_models.Result-github_com_maczh_mgin_models_sys_SysDept:
+    properties:
+      data:
+        $ref: '#/definitions/github_com_maczh_mgin_models_sys.SysDept'
+      msg:
+        type: string
+      page:
+        $ref: '#/definitions/models.ResultPage'
+      status:
+        type: integer
+    type: object
+  github_com_maczh_mgin_models.Result-github_com_maczh_mgin_models_sys_SysDict:
+    properties:
+      data:
+        $ref: '#/definitions/github_com_maczh_mgin_models_sys.SysDict'
+      msg:
+        type: string
+      page:
+        $ref: '#/definitions/models.ResultPage'
+      status:
+        type: integer
+    type: object
+  github_com_maczh_mgin_models.Result-github_com_maczh_mgin_models_sys_SysMenu:
+    properties:
+      data:
+        $ref: '#/definitions/github_com_maczh_mgin_models_sys.SysMenu'
+      msg:
+        type: string
+      page:
+        $ref: '#/definitions/models.ResultPage'
+      status:
+        type: integer
+    type: object
+  github_com_maczh_mgin_models.Result-github_com_maczh_mgin_models_sys_SysPost:
+    properties:
+      data:
+        $ref: '#/definitions/github_com_maczh_mgin_models_sys.SysPost'
+      msg:
+        type: string
+      page:
+        $ref: '#/definitions/models.ResultPage'
+      status:
+        type: integer
+    type: object
+  github_com_maczh_mgin_models.Result-github_com_maczh_mgin_models_sys_SysRole:
+    properties:
+      data:
+        $ref: '#/definitions/github_com_maczh_mgin_models_sys.SysRole'
+      msg:
+        type: string
+      page:
+        $ref: '#/definitions/models.ResultPage'
+      status:
+        type: integer
+    type: object
+  github_com_maczh_mgin_models.ResultPage:
+    properties:
+      count:
+        description: 总页数
+        type: integer
+      index:
+        description: 页号
+        type: integer
+      size:
+        description: 分页大小
+        type: integer
+      total:
+        description: 总记录数
+        type: integer
+    type: object
+  github_com_maczh_mgin_models_sys.SysApi:
+    properties:
+      api_group:
+        type: string
+      api_path:
+        type: string
+      createAt:
+        type: string
+      createBy:
+        type: string
+      delFlag:
+        type: integer
+      description:
+        type: string
+      enabled:
+        type: integer
+      id:
+        type: integer
+      method:
+        type: string
+      name:
+        type: string
+      need_auth:
+        type: integer
+      need_log:
+        type: integer
+      tenantId:
+        type: integer
+      updateAt:
+        type: string
+      updateBy:
+        type: string
+    type: object
+  github_com_maczh_mgin_models_sys.SysDept:
+    properties:
+      ancestors:
+        type: string
+      children:
+        items:
+          $ref: '#/definitions/github_com_maczh_mgin_models_sys.SysDept'
+        type: array
+      createAt:
+        type: string
+      createBy:
+        type: string
+      delFlag:
+        type: integer
+      deptType:
+        type: string
+      id:
+        type: integer
+      leader:
+        type: string
+      mobile:
+        type: string
+      name:
+        type: string
+      parentId:
+        type: integer
+      parentName:
+        type: string
+      sort:
+        type: integer
+      status:
+        type: integer
+      tenantId:
+        type: integer
+      updateAt:
+        type: string
+      updateBy:
+        type: string
+    type: object
+  github_com_maczh_mgin_models_sys.SysDict:
+    properties:
+      createAt:
+        type: string
+      createBy:
+        type: string
+      delFlag:
+        type: integer
+      id:
+        description: 主键ID
+        type: integer
+      key:
+        description: 字典键名
+        type: string
+      name:
+        description: 字典名称
+        type: string
+      parent_id:
+        description: 父级ID
+        type: integer
+      remark:
+        description: 备注
+        type: string
+      sort:
+        description: 排序
+        type: integer
+      tenantId:
+        type: integer
+      type:
+        description: 字典类型
+        type: string
+      updateAt:
+        type: string
+      updateBy:
+        type: string
+      value:
+        description: 字典值
+        type: string
+    type: object
+  github_com_maczh_mgin_models_sys.SysMenu:
+    properties:
+      active_menu:
+        type: string
+      affix:
+        type: integer
+      always_show:
+        type: integer
+      breadcrumb:
+        type: integer
+      children;omitempty:
+        description: 关联关系
+        items:
+          $ref: '#/definitions/github_com_maczh_mgin_models_sys.SysMenu'
+        type: array
+      component:
+        type: string
+      createAt:
+        type: string
+      createBy:
+        type: string
+      delFlag:
+        type: integer
+      hidden:
+        type: integer
+      icon:
+        type: string
+      id:
+        type: integer
+      keep_alive:
+        type: integer
+      name:
+        type: string
+      parent;omitempty:
+        allOf:
+        - $ref: '#/definitions/github_com_maczh_mgin_models_sys.SysMenu'
+        description: 自关联
+      parent_id:
+        type: integer
+      path:
+        type: string
+      redirect:
+        type: string
+      roles;omitempty:
+        description: 多对多关联
+        items:
+          $ref: '#/definitions/github_com_maczh_mgin_models_sys.SysRole'
+        type: array
+      sort:
+        type: integer
+      status:
+        type: integer
+      tenantId:
+        type: integer
+      title:
+        type: string
+      updateAt:
+        type: string
+      updateBy:
+        type: string
+    type: object
+  github_com_maczh_mgin_models_sys.SysPost:
+    properties:
+      createAt:
+        type: string
+      createBy:
+        type: string
+      delFlag:
+        type: integer
+      dept_id:
+        type: integer
+      id:
+        type: integer
+      post_code:
+        type: string
+      post_name:
+        type: string
+      remark:
+        type: string
+      sort:
+        type: integer
+      status:
+        type: integer
+      tenantId:
+        type: integer
+      updateAt:
+        type: string
+      updateBy:
+        type: string
+    type: object
+  github_com_maczh_mgin_models_sys.SysRole:
+    properties:
+      apis;omitempty:
+        items:
+          $ref: '#/definitions/github_com_maczh_mgin_models_sys.SysApi'
+        type: array
+      createAt:
+        type: string
+      createBy:
+        type: string
+      delFlag:
+        type: integer
+      description:
+        type: string
+      id:
+        type: integer
+      isEnable:
+        type: integer
+      menus;omitempty:
+        items:
+          $ref: '#/definitions/github_com_maczh_mgin_models_sys.SysMenu'
+        type: array
+      roleIdent:
+        type: string
+      roleName:
+        type: string
+      tenantId:
+        type: integer
+      updateAt:
+        type: string
+      updateBy:
+        type: string
+      users;omitempty:
+        description: 关联关系
+        items:
+          $ref: '#/definitions/github_com_maczh_mgin_models_sys.SysUser'
+        type: array
+    type: object
+  github_com_maczh_mgin_models_sys.SysUser:
+    properties:
+      avatar:
+        type: string
+      createAt:
+        type: string
+      createBy:
+        type: string
+      delFlag:
+        type: integer
+      email:
+        type: string
+      id:
+        type: integer
+      loginDate:
+        type: string
+      loginIp:
+        type: string
+      loginName:
+        type: string
+      mobile:
+        type: string
+      nickName:
+        type: string
+      password:
+        type: string
+      remark:
+        type: string
+      sex:
+        type: integer
+      status:
+        type: integer
+      tenantId:
+        type: integer
+      updateAt:
+        type: string
+      updateBy:
+        type: string
+      userType:
+        type: string
+    type: object
+  github_com_maczh_mgin_models_sys.SysUserExt:
+    properties:
+      departmentId:
+        type: integer
+      id:
+        type: integer
+      positionId:
+        type: integer
+      roleId:
+        type: integer
+      userId:
+        type: integer
+    type: object
+  github_com_maczh_mgin_models_sys_request.BindRoleApiReq:
+    properties:
+      apiIds:
+        items:
+          type: integer
+        type: array
+      roleId:
+        type: integer
+    required:
+    - apiIds
+    - roleId
+    type: object
+  github_com_maczh_mgin_models_sys_request.BindRoleMenuReq:
+    properties:
+      menuIds:
+        items:
+          type: integer
+        type: array
+      roleId:
+        type: integer
+    required:
+    - menuIds
+    - roleId
+    type: object
+  github_com_maczh_mgin_models_sys_request.ChangePasswordReq:
+    properties:
+      loginName:
+        type: string
+      newPassword:
+        type: string
+      oldPassword:
+        type: string
+    required:
+    - loginName
+    - newPassword
+    - oldPassword
+    type: object
+  github_com_maczh_mgin_models_sys_request.ChangeStatusReq:
+    properties:
+      id:
+        type: integer
+      status:
+        type: integer
+    required:
+    - id
+    - status
+    type: object
+  github_com_maczh_mgin_models_sys_request.CreateDeptReq:
+    properties:
+      ancestors:
+        type: string
+      leader:
+        type: string
+      mobile:
+        type: string
+      name:
+        type: string
+      parentId:
+        type: integer
+      sort:
+        type: integer
+      type:
+        type: string
+    required:
+    - name
+    type: object
+  github_com_maczh_mgin_models_sys_request.CreateDictReq:
+    properties:
+      key:
+        type: string
+      name:
+        type: string
+      parentId:
+        type: integer
+      remark:
+        type: string
+      sort:
+        type: integer
+      type:
+        type: string
+      value:
+        type: string
+    required:
+    - key
+    - name
+    - type
+    - value
+    type: object
+  github_com_maczh_mgin_models_sys_request.CreateMenuReq:
+    properties:
+      activeMenu:
+        type: string
+      affix:
+        type: integer
+      alwaysShow:
+        type: integer
+      breadcrumb:
+        type: integer
+      component:
+        type: string
+      hidden:
+        type: integer
+      icon:
+        type: string
+      keepAlive:
+        type: integer
+      name:
+        type: string
+      parentId:
+        type: integer
+      path:
+        type: string
+      redirect:
+        type: string
+      sort:
+        type: integer
+      status:
+        type: integer
+      title:
+        type: string
+    required:
+    - component
+    - name
+    - path
+    - title
+    type: object
+  github_com_maczh_mgin_models_sys_request.CreatePostReq:
+    properties:
+      dept_id:
+        type: integer
+      post_code:
+        type: string
+      post_name:
+        type: string
+    required:
+    - dept_id
+    - post_code
+    - post_name
+    type: object
+  github_com_maczh_mgin_models_sys_request.CreateRoleReq:
+    properties:
+      description:
+        type: string
+      ident:
+        type: string
+      name:
+        type: string
+    required:
+    - ident
+    - name
+    type: object
+  github_com_maczh_mgin_models_sys_request.CreateSysUserExtReq:
+    properties:
+      departmentId:
+        type: integer
+      page:
+        type: integer
+      pageSize:
+        type: integer
+      positionId:
+        type: integer
+      roleId:
+        type: integer
+      userId:
+        type: integer
+    required:
+    - userId
+    type: object
+  github_com_maczh_mgin_models_sys_request.DeleteByIdReq:
+    properties:
+      id:
+        type: integer
+    required:
+    - id
+    type: object
+  github_com_maczh_mgin_models_sys_request.GetDictReq:
+    properties:
+      id:
+        type: integer
+      key:
+        type: string
+      name:
+        type: string
+      type:
+        type: string
+    type: object
+  github_com_maczh_mgin_models_sys_request.ListRoleApiReq:
+    properties:
+      roleId:
+        type: integer
+    required:
+    - roleId
+    type: object
+  github_com_maczh_mgin_models_sys_request.ListRoleMenuReq:
+    properties:
+      roleId:
+        type: integer
+    required:
+    - roleId
+    type: object
+  github_com_maczh_mgin_models_sys_request.LoginReq:
+    properties:
+      loginName:
+        description: 可以是用户名或邮箱或手机号，自动识别
+        type: string
+      password:
+        type: string
+    required:
+    - loginName
+    - password
+    type: object
+  github_com_maczh_mgin_models_sys_request.RegisterReq:
+    properties:
+      avatar:
+        type: string
+      email:
+        type: string
+      loginName:
+        type: string
+      mobile:
+        type: string
+      nickName:
+        type: string
+      password:
+        type: string
+      sex:
+        type: integer
+    required:
+    - loginName
+    - password
+    type: object
+  github_com_maczh_mgin_models_sys_request.VerifyCaptchaReq:
+    properties:
+      code:
+        type: string
+      id:
+        type: string
+    required:
+    - code
+    - id
+    type: object
+  github_com_maczh_mgin_models_sys_request.VerifyTokenReq:
+    properties:
+      token:
+        type: string
+    required:
+    - token
+    type: object
+  models.ResultPage:
+    properties:
+      count:
+        description: 总页数
+        type: integer
+      index:
+        description: 页号
+        type: integer
+      size:
+        description: 分页大小
+        type: integer
+      total:
+        description: 总记录数
+        type: integer
+    type: object
+info:
+  contact: {}
+paths:
+  /api/v1/captcha/get:
+    get:
+      consumes:
+      - application/json
+      description: 获取图片验证码，返回验证码 ID 和 Base64 编码的图片
+      parameters:
+      - in: query
+        name: height
+        required: true
+        type: integer
+      - in: query
+        name: length
+        type: integer
+      - description: 0:数字 1:字母 2:算术
+        in: query
+        name: type
+        type: integer
+      - in: query
+        name: width
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功返回验证码信息
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+        "500":
+          description: 参数绑定失败或获取验证码失败
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+      summary: 获取验证码
+      tags:
+      - 验证码
+  /api/v1/captcha/verify:
+    post:
+      consumes:
+      - application/json
+      description: 验证用户输入的验证码是否正确
+      parameters:
+      - description: 验证验证码请求参数
+        in: body
+        name: verifyReq
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_maczh_mgin_models_sys_request.VerifyCaptchaReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 验证码验证成功
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+        "500":
+          description: 参数绑定失败或验证码错误
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+      summary: 验证验证码
+      tags:
+      - 验证码
+  /api/v1/login:
+    post:
+      consumes:
+      - application/json
+      description: 已注册用户进行登录操作
+      parameters:
+      - description: 用户登录请求参数
+        in: body
+        name: loginReq
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_maczh_mgin_models_sys_request.LoginReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 登录成功，返回 token
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+        "500":
+          description: 请求参数错误或登录失败
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+      summary: 用户登录
+      tags:
+      - 用户管理
+  /api/v1/register:
+    post:
+      consumes:
+      - application/json
+      description: 新用户进行注册操作
+      parameters:
+      - description: 用户注册请求参数
+        in: body
+        name: registerReq
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_maczh_mgin_models_sys_request.RegisterReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 注册成功，返回用户信息
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+        "500":
+          description: 请求参数错误或注册失败
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+      summary: 用户注册
+      tags:
+      - 用户管理
+  /api/v1/role_api/bind:
+    post:
+      consumes:
+      - application/json
+      description: 将指定角色与 API 进行绑定操作,先全量解绑再批量绑定
+      parameters:
+      - description: 用户令牌
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: 角色与 API 绑定请求参数
+        in: body
+        name: bindReq
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_maczh_mgin_models_sys_request.BindRoleApiReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 绑定成功
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+        "500":
+          description: 参数绑定失败或绑定操作失败
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+      summary: 绑定角色和API
+      tags:
+      - 角色API绑定
+  /api/v1/role_api/list:
+    post:
+      consumes:
+      - application/json
+      description: 根据请求参数获取指定角色关联的 API 列表
+      parameters:
+      - description: 用户令牌
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: 获取角色 API 列表请求参数
+        in: body
+        name: listReq
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_maczh_mgin_models_sys_request.ListRoleApiReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功，返回角色关联的 API 列表
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+        "500":
+          description: 参数绑定失败或获取 API 列表失败
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+      summary: 获取角色的API列表
+      tags:
+      - 角色API绑定
+  /api/v1/role_menu/bind:
+    post:
+      consumes:
+      - application/json
+      description: 将指定角色与菜单进行绑定操作
+      parameters:
+      - description: 用户令牌
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: 角色菜单绑定请求参数
+        in: body
+        name: bindReq
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_maczh_mgin_models_sys_request.BindRoleMenuReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 绑定成功
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+        "500":
+          description: 参数绑定失败或绑定操作失败
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+      summary: 绑定角色和菜单
+      tags:
+      - 角色菜单管理
+  /api/v1/role_menu/list:
+    post:
+      consumes:
+      - application/json
+      description: 根据请求参数获取指定角色关联的菜单列表
+      parameters:
+      - description: 用户令牌
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: 获取角色菜单列表请求参数
+        in: body
+        name: listReq
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_maczh_mgin_models_sys_request.ListRoleMenuReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功，返回角色关联的菜单列表
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+        "500":
+          description: 参数绑定失败或获取菜单列表失败
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+      summary: 获取角色的菜单列表
+      tags:
+      - 角色菜单管理
+  /api/v1/sys/dept/add:
+    post:
+      consumes:
+      - application/json
+      description: 创建一个新的部门信息
+      parameters:
+      - description: 用户令牌
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: 部门创建请求参数
+        in: body
+        name: dept
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_maczh_mgin_models_sys_request.CreateDeptReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 新增成功，返回新增的部门信息
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-github_com_maczh_mgin_models_sys_SysDept'
+        "500":
+          description: 参数绑定失败或新增部门失败
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+      summary: 新增部门
+      tags:
+      - 系统部门
+  /api/v1/sys/dept/del:
+    post:
+      consumes:
+      - application/json
+      description: 根据部门 ID 删除指定部门，软删除
+      parameters:
+      - description: 用户令牌
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - in: query
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+        "500":
+          description: 参数绑定失败或删除部门失败
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+      summary: 删除部门
+      tags:
+      - 系统部门
+  /api/v1/sys/dept/get:
+    get:
+      consumes:
+      - application/json
+      description: 根据请求参数获取指定部门的信息
+      parameters:
+      - description: 用户令牌
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - in: query
+        name: id
+        type: integer
+      - in: query
+        name: name
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功，返回部门信息
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-github_com_maczh_mgin_models_sys_SysDept'
+        "500":
+          description: 参数绑定失败或获取部门信息失败
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+      summary: 获取部门信息
+      tags:
+      - 系统部门
+  /api/v1/sys/dept/list:
+    get:
+      consumes:
+      - application/json
+      description: 根据请求参数获取部门的分页列表信息
+      parameters:
+      - description: 用户令牌
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - in: query
+        name: page
+        type: integer
+      - in: query
+        name: pageSize
+        type: integer
+      - in: query
+        name: parentId
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功，返回部门列表和总数
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+        "500":
+          description: 参数绑定失败或获取部门列表失败
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+      summary: 获取部门列表
+      tags:
+      - 系统部门
+  /api/v1/sys/dept/tree:
+    get:
+      consumes:
+      - application/json
+      description: 根据部门 ID 获取部门的树形结构信息
+      parameters:
+      - description: 用户令牌
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - in: query
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功，返回部门树信息
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+        "500":
+          description: 参数绑定失败或获取部门树失败
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+      summary: 获取部门树
+      tags:
+      - 系统部门
+  /api/v1/sys/dept/update:
+    post:
+      consumes:
+      - application/json
+      description: 更新指定部门的相关信息
+      parameters:
+      - description: 用户令牌
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: 更新后的部门信息
+        in: body
+        name: dept
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_maczh_mgin_models_sys.SysDept'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+        "500":
+          description: 参数绑定失败或更新部门信息失败
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+      summary: 更新部门信息
+      tags:
+      - 系统部门
+  /api/v1/sys/dict/add:
+    post:
+      consumes:
+      - application/json
+      description: 新增一个系统字典信息
+      parameters:
+      - description: 用户令牌
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: 新增字典请求参数
+        in: body
+        name: dict
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_maczh_mgin_models_sys_request.CreateDictReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 新增成功，返回新增的字典信息
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-github_com_maczh_mgin_models_sys_SysDict'
+        "500":
+          description: 参数绑定失败或新增字典失败
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+      summary: 新增字典
+      tags:
+      - 系统字典
+  /api/v1/sys/dict/del:
+    post:
+      consumes:
+      - application/json
+      description: 根据 ID 删除系统字典信息
+      parameters:
+      - description: 用户令牌
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: 删除字典请求参数，包含字典 ID
+        in: body
+        name: dict
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_maczh_mgin_models_sys_request.DeleteByIdReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+        "500":
+          description: 参数绑定失败或删除字典失败
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+      summary: 删除字典
+      tags:
+      - 系统字典
+  /api/v1/sys/dict/get:
+    post:
+      consumes:
+      - application/json
+      description: 根据 ID 或其他组合条件获取单个系统字典信息
+      parameters:
+      - description: 用户令牌
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: 获取单个字典请求参数
+        in: body
+        name: dict
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_maczh_mgin_models_sys_request.GetDictReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功，返回单个字典信息
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-github_com_maczh_mgin_models_sys_SysDict'
+        "400":
+          description: 参数不完整
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+        "500":
+          description: 参数绑定失败、参数不完整或获取字典失败
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+      summary: 获取单个字典
+      tags:
+      - 系统字典
+  /api/v1/sys/dict/list:
+    get:
+      consumes:
+      - application/json
+      description: 根据查询条件获取系统字典列表
+      parameters:
+      - description: 用户令牌
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - in: query
+        name: name
+        type: string
+      - in: query
+        name: page
+        type: integer
+      - in: query
+        name: pageSize
+        type: integer
+      - in: query
+        name: parentId
+        type: integer
+      - in: query
+        name: type
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功，返回字典列表和分页信息
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.ResultPage'
+        "500":
+          description: 参数绑定失败或获取字典列表失败
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+      summary: 获取字典列表
+      tags:
+      - 系统字典
+  /api/v1/sys/dict/update:
+    post:
+      consumes:
+      - application/json
+      description: 更新系统字典信息
+      parameters:
+      - description: 用户令牌
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: 更新后的字典信息
+        in: body
+        name: dict
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_maczh_mgin_models_sys.SysDict'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+        "500":
+          description: 参数绑定失败或更新字典失败
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+      summary: 更新字典
+      tags:
+      - 系统字典
+  /api/v1/sys/menu/add:
+    post:
+      consumes:
+      - application/json
+      description: 新增一个系统菜单信息
+      parameters:
+      - description: 用户令牌
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: 新增菜单请求体
+        in: body
+        name: menu
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_maczh_mgin_models_sys_request.CreateMenuReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 新增菜单成功，返回新增的菜单信息
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-github_com_maczh_mgin_models_sys_SysMenu'
+        "500":
+          description: 参数绑定失败或新增菜单失败
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+      summary: 新增菜单
+      tags:
+      - 系统菜单
+  /api/v1/sys/menu/del:
+    post:
+      consumes:
+      - application/json
+      description: 根据菜单 ID 删除对应的菜单信息
+      parameters:
+      - description: 用户令牌
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - in: query
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除菜单成功
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+        "500":
+          description: 参数绑定失败或删除菜单失败
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+      summary: 删除菜单
+      tags:
+      - 系统菜单
+  /api/v1/sys/menu/get:
+    get:
+      consumes:
+      - application/json
+      description: 根据请求参数获取单个菜单的详细信息
+      parameters:
+      - description: 用户令牌
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - in: query
+        name: id
+        type: integer
+      - in: query
+        name: path
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取菜单信息成功，返回菜单详细信息
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-github_com_maczh_mgin_models_sys_SysMenu'
+        "500":
+          description: 参数绑定失败或获取菜单信息失败
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+      summary: 获取菜单信息
+      tags:
+      - 系统菜单
+  /api/v1/sys/menu/list:
+    get:
+      consumes:
+      - application/json
+      description: 根据请求参数获取菜单列表，支持分页
+      parameters:
+      - description: 用户令牌
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - in: query
+        name: page
+        type: integer
+      - in: query
+        name: pageSize
+        type: integer
+      - in: query
+        name: parentId
+        type: integer
+      - in: query
+        name: status
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取菜单列表成功，返回菜单列表和分页信息
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.ResultPage'
+        "500":
+          description: 参数绑定失败或获取菜单列表失败
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+      summary: 获取菜单列表
+      tags:
+      - 系统菜单
+  /api/v1/sys/menu/tree:
+    get:
+      consumes:
+      - application/json
+      description: 根据父菜单 ID 获取菜单的树形结构信息
+      parameters:
+      - description: 用户令牌
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - in: query
+        name: parentId
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取菜单树成功，返回菜单树形结构信息
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+        "500":
+          description: 参数绑定失败或获取菜单树失败
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+      summary: 获取菜单树
+      tags:
+      - 系统菜单
+  /api/v1/sys/menu/update:
+    post:
+      consumes:
+      - application/json
+      description: 更新已存在的菜单信息
+      parameters:
+      - description: 用户令牌
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: 更新后的菜单信息
+        in: body
+        name: menu
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_maczh_mgin_models_sys.SysMenu'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新菜单信息成功
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+        "500":
+          description: 参数绑定失败或更新菜单信息失败
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+      summary: 更新菜单信息
+      tags:
+      - 系统菜单
+  /api/v1/sys/post/add:
+    post:
+      consumes:
+      - application/json
+      description: 新增一个岗位信息
+      parameters:
+      - description: 用户令牌
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: 岗位信息，包含岗位名称、编码等
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_maczh_mgin_models_sys_request.CreatePostReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功新增岗位，返回新增的岗位信息
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-github_com_maczh_mgin_models_sys_SysPost'
+        "500":
+          description: 参数绑定失败或新增岗位失败
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+      summary: 新增岗位
+      tags:
+      - 岗位管理
+  /api/v1/sys/post/del:
+    post:
+      consumes:
+      - application/json
+      description: 根据岗位 ID 软删除指定岗位
+      parameters:
+      - description: 用户令牌
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - in: query
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功删除岗位
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+        "500":
+          description: 参数绑定失败或删除岗位失败
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+      summary: 删除岗位
+      tags:
+      - 岗位管理
+  /api/v1/sys/post/get:
+    get:
+      consumes:
+      - application/json
+      description: 根据请求参数获取指定岗位的详细信息
+      parameters:
+      - description: 用户令牌
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - in: query
+        name: id
+        type: integer
+      - in: query
+        name: post_code
+        type: string
+      - in: query
+        name: post_name
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功获取岗位信息，返回该岗位详细信息
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-github_com_maczh_mgin_models_sys_SysPost'
+        "500":
+          description: 参数绑定失败或获取岗位信息失败
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+      summary: 获取岗位信息
+      tags:
+      - 岗位管理
+  /api/v1/sys/post/list:
+    get:
+      consumes:
+      - application/json
+      description: 根据请求参数获取岗位的分页列表
+      parameters:
+      - description: 用户令牌
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - in: query
+        name: dept_id
+        type: integer
+      - in: query
+        name: page
+        type: integer
+      - in: query
+        name: pageSize
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功获取岗位列表，返回岗位列表及分页信息
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.ResultPage'
+        "500":
+          description: 参数绑定失败或获取岗位列表失败
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+      summary: 岗位列表
+      tags:
+      - 岗位管理
+  /api/v1/sys/post/update:
+    post:
+      consumes:
+      - application/json
+      description: 更新指定岗位的相关信息
+      parameters:
+      - description: 用户令牌
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: 更新后的岗位信息
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_maczh_mgin_models_sys.SysPost'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功更新岗位信息
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+        "500":
+          description: 参数绑定失败或更新岗位信息失败
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+      summary: 更新岗位信息
+      tags:
+      - 岗位管理
+  /api/v1/sys/role/add:
+    post:
+      consumes:
+      - application/json
+      description: 用于新增一个系统角色
+      parameters:
+      - description: 用户令牌
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: 角色创建请求体，包含角色名称、标识等信息
+        in: body
+        name: role
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_maczh_mgin_models_sys_request.CreateRoleReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功新增角色，返回新增的角色信息
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-github_com_maczh_mgin_models_sys_SysRole'
+        "500":
+          description: 参数绑定失败或新增角色失败
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+      summary: 新增角色
+      tags:
+      - 系统角色
+  /api/v1/sys/role/del:
+    post:
+      consumes:
+      - application/json
+      description: 根据角色 ID 删除指定角色
+      parameters:
+      - description: 用户令牌
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - in: query
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功删除角色
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+        "500":
+          description: 参数绑定失败或删除角色失败
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+      summary: 删除角色
+      tags:
+      - 系统角色
+  /api/v1/sys/role/get:
+    get:
+      consumes:
+      - application/json
+      description: 根据请求参数获取指定角色的信息
+      parameters:
+      - description: 用户令牌
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - in: query
+        name: id
+        type: integer
+      - in: query
+        name: ident
+        type: string
+      - in: query
+        name: name
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功获取角色信息，返回该角色信息
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-github_com_maczh_mgin_models_sys_SysRole'
+        "500":
+          description: 参数绑定失败或获取角色失败
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+      summary: 获取角色
+      tags:
+      - 系统角色
+  /api/v1/sys/role/list:
+    get:
+      consumes:
+      - application/json
+      description: 根据请求参数获取角色的分页列表
+      parameters:
+      - description: 用户令牌
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - in: query
+        name: page
+        type: integer
+      - in: query
+        name: pageSize
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功获取角色列表，返回角色列表和分页信息
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.ResultPage'
+        "500":
+          description: 参数绑定失败或获取角色列表失败
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+      summary: 获取角色列表
+      tags:
+      - 系统角色
+  /api/v1/sys/role/update:
+    post:
+      consumes:
+      - application/json
+      description: 更新指定角色的信息
+      parameters:
+      - description: 用户令牌
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: 角色更新请求体，包含需要更新的角色信息
+        in: body
+        name: role
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_maczh_mgin_models_sys.SysRole'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功更新角色信息
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+        "500":
+          description: 参数绑定失败或更新角色失败
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+      summary: 更新角色
+      tags:
+      - 系统角色
+  /api/v1/sys_api/add:
+    post:
+      consumes:
+      - application/json
+      description: 创建一个新的API接口
+      parameters:
+      - description: 用户令牌
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: API接口信息
+        in: body
+        name: api
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_maczh_mgin_models_sys.SysApi'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 创建成功，返回创建的API接口信息
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-github_com_maczh_mgin_models_sys_SysApi'
+        "500":
+          description: 请求参数错误或创建API接口失败
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+      summary: 创建API接口
+      tags:
+      - 系统API
+  /api/v1/sys_api/del:
+    post:
+      consumes:
+      - application/json
+      description: 根据ID软删除指定的API接口
+      parameters:
+      - description: 用户令牌
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: API接口ID
+        in: body
+        name: id
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_maczh_mgin_models_sys_request.DeleteByIdReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+        "500":
+          description: 参数绑定失败或删除API接口失败
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+      summary: 删除API接口
+      tags:
+      - 系统API
+  /api/v1/sys_api/get:
+    get:
+      consumes:
+      - application/json
+      description: 根据ID获取API接口信息
+      parameters:
+      - description: 用户令牌
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - in: query
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功，返回API接口信息
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-github_com_maczh_mgin_models_sys_SysApi'
+        "500":
+          description: 请求参数错误或获取API接口失败
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+      summary: 获取API接口
+      tags:
+      - 系统API
+  /api/v1/sys_api/get/uri:
+    get:
+      consumes:
+      - application/json
+      description: 根据URI获取对应的API接口信息
+      parameters:
+      - description: 用户令牌
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - in: query
+        name: uri
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功，返回API接口信息
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-github_com_maczh_mgin_models_sys_SysApi'
+        "500":
+          description: 请求参数错误或获取API接口失败
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+      summary: 根据URI获取API接口
+      tags:
+      - 系统API
+  /api/v1/sys_api/group:
+    get:
+      consumes:
+      - application/json
+      description: 按模块分组获取API接口列表, for 前端使用
+      parameters:
+      - description: 用户令牌
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功，返回API接口列表和分页信息
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.ResultPage'
+        "500":
+          description: 参数绑定失败或获取API接口列表失败
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+      summary: 按模块分组获取API接口列表
+      tags:
+      - 系统API
+  /api/v1/sys_api/list:
+    get:
+      consumes:
+      - application/json
+      description: 获取API接口的分页列表
+      parameters:
+      - description: 用户令牌
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - in: query
+        name: group
+        type: string
+      - in: query
+        name: needAuth
+        type: integer
+      - in: query
+        name: page
+        type: integer
+      - in: query
+        name: pageSize
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功，返回API接口列表和分页信息
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.ResultPage'
+        "500":
+          description: 参数绑定失败或获取API接口列表失败
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+      summary: 获取API接口列表
+      tags:
+      - 系统API
+  /api/v1/sys_api/update:
+    post:
+      consumes:
+      - application/json
+      description: 更新指定API接口的信息
+      parameters:
+      - description: 用户令牌
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: 更新后的API接口信息
+        in: body
+        name: api
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_maczh_mgin_models_sys.SysApi'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+        "500":
+          description: 参数绑定失败或更新API接口失败
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+      summary: 更新API接口
+      tags:
+      - 系统API
+  /api/v1/token:
+    post:
+      consumes:
+      - application/json
+      description: 验证用户提供的 token 是否有效
+      parameters:
+      - description: 验证 token 请求参数
+        in: body
+        name: verifyReq
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_maczh_mgin_models_sys_request.VerifyTokenReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 验证成功，返回验证结果和 claims
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+        "500":
+          description: 请求参数错误或验证失败
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+      summary: 验证token
+      tags:
+      - 用户管理
+  /api/v1/user/ext/add:
+    post:
+      consumes:
+      - application/json
+      description: 创建用户的扩展信息，如部门、角色、职位等
+      parameters:
+      - description: 用户令牌
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: 创建用户扩展信息请求参数
+        in: body
+        name: createReq
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_maczh_mgin_models_sys_request.CreateSysUserExtReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 创建成功，返回创建的用户扩展信息
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+        "500":
+          description: 参数绑定失败或创建用户扩展信息失败
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+      summary: 创建用户扩展信息
+      tags:
+      - 用户扩展信息
+  /api/v1/user/ext/del:
+    post:
+      consumes:
+      - application/json
+      description: 根据用户 ID 删除单个用户的扩展信息
+      parameters:
+      - description: 用户令牌
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - in: query
+        name: userId
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+        "500":
+          description: 参数绑定失败或删除用户扩展信息失败
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+      summary: 删除单个用户扩展信息
+      tags:
+      - 用户扩展信息
+  /api/v1/user/ext/get:
+    get:
+      consumes:
+      - application/json
+      description: 根据用户 ID 获取单个用户的扩展信息
+      parameters:
+      - description: 用户令牌
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - in: query
+        name: userId
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功，返回用户扩展信息
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+        "500":
+          description: 参数绑定失败或获取用户扩展信息失败
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+      summary: 获取单个用户扩展信息
+      tags:
+      - 用户扩展信息
+  /api/v1/user/ext/list:
+    get:
+      consumes:
+      - application/json
+      description: 根据查询条件获取用户扩展信息的列表，支持分页
+      parameters:
+      - description: 用户令牌
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - in: query
+        name: departmentId
+        type: integer
+      - in: query
+        name: page
+        type: integer
+      - in: query
+        name: pageSize
+        type: integer
+      - in: query
+        name: positionId
+        type: integer
+      - in: query
+        name: roleId
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功，返回用户扩展信息列表和总数
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+        "500":
+          description: 参数绑定失败或获取用户扩展信息列表失败
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+      summary: 获取用户扩展信息列表
+      tags:
+      - 用户扩展信息
+  /api/v1/user/ext/update:
+    post:
+      consumes:
+      - application/json
+      description: 更新用户已有的扩展信息，如部门、角色、职位等
+      parameters:
+      - description: 用户令牌
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: 更新用户扩展信息请求参数
+        in: body
+        name: updateReq
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_maczh_mgin_models_sys.SysUserExt'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+        "500":
+          description: 参数绑定失败、获取用户扩展信息失败或更新用户扩展信息失败
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+      summary: 更新用户扩展信息
+      tags:
+      - 用户扩展信息
+  /api/v1/users/add:
+    post:
+      consumes:
+      - application/json
+      description: 管理员新增用户信息
+      parameters:
+      - description: 用户令牌
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: 新增用户信息
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_maczh_mgin_models_sys.SysUser'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 新增成功，返回用户信息
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+        "500":
+          description: 请求参数错误或新增用户失败
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+      summary: 新增用户
+      tags:
+      - 用户管理
+  /api/v1/users/del:
+    post:
+      consumes:
+      - application/json
+      description: 管理员删除用户信息
+      parameters:
+      - description: 用户令牌
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: 删除用户请求参数，包含用户 ID
+        in: body
+        name: deleteReq
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_maczh_mgin_models_sys_request.DeleteByIdReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+        "500":
+          description: 请求参数错误或删除用户失败
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+      summary: 删除用户
+      tags:
+      - 用户管理
+  /api/v1/users/get:
+    get:
+      consumes:
+      - application/json
+      description: 根据请求参数获取用户详细信息
+      parameters:
+      - description: 用户令牌
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - in: query
+        name: email
+        type: string
+      - in: query
+        name: id
+        type: integer
+      - in: query
+        name: loginName
+        type: string
+      - in: query
+        name: mobile
+        type: string
+      - in: query
+        name: nickName
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功，返回用户信息
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+        "500":
+          description: 请求参数错误或获取用户信息失败
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+      summary: 获取用户信息
+      tags:
+      - 用户管理
+  /api/v1/users/list:
+    get:
+      consumes:
+      - application/json
+      description: 根据请求参数获取用户分页列表
+      parameters:
+      - description: 用户令牌
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - in: query
+        name: deptId
+        type: integer
+      - in: query
+        name: keyword
+        type: string
+      - in: query
+        name: page
+        type: integer
+      - in: query
+        name: pageSize
+        type: integer
+      - in: query
+        name: postId
+        type: integer
+      - in: query
+        name: roleId
+        type: integer
+      - in: query
+        name: status
+        type: integer
+      - in: query
+        name: userType
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功，返回用户列表和分页信息
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.ResultPage'
+        "500":
+          description: 请求参数错误或获取用户列表失败
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+      summary: 获取用户列表
+      tags:
+      - 用户管理
+  /api/v1/users/logout:
+    post:
+      consumes:
+      - application/json
+      description: 用户退出当前登录状态
+      parameters:
+      - description: 用户令牌
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 退出成功
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+        "500":
+          description: 退出登录失败
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+      summary: 退出登录
+      tags:
+      - 用户管理
+  /api/v1/users/pwd:
+    post:
+      consumes:
+      - application/json
+      description: 用户修改自己的登录密码
+      parameters:
+      - description: 用户令牌
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: 修改密码请求参数
+        in: body
+        name: changePwdReq
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_maczh_mgin_models_sys_request.ChangePasswordReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 修改成功
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+        "500":
+          description: 请求参数错误或修改密码失败
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+      summary: 修改密码
+      tags:
+      - 用户管理
+  /api/v1/users/status:
+    post:
+      consumes:
+      - application/json
+      description: 管理员修改用户的状态
+      parameters:
+      - description: 用户令牌
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: 修改用户状态请求参数
+        in: body
+        name: changeStatusReq
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_maczh_mgin_models_sys_request.ChangeStatusReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 修改成功
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+        "500":
+          description: 请求参数错误或修改用户状态失败
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+      summary: 修改状态
+      tags:
+      - 用户管理
+  /api/v1/users/update:
+    post:
+      consumes:
+      - application/json
+      description: 管理员修改用户信息
+      parameters:
+      - description: 用户令牌
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: 修改后的用户信息
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_maczh_mgin_models_sys.SysUser'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 修改成功
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+        "500":
+          description: 请求参数错误、用户 ID 为空或修改用户失败
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+      summary: 修改用户
+      tags:
+      - 用户管理
+swagger: "2.0"

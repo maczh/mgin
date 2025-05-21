@@ -87,10 +87,11 @@ func (s *sysUserService) Login(req request.LoginReq) (string, error) {
 		return "", err
 	}
 	// 先从缓存中查找
-	v := redis.Get(fmt.Sprintf("sys:user:%s", req.LoginName)).Val()
+	v := redis.Get(fmt.Sprintf("sys:user:%s", req.LoginName)).Val() //获取到userId
 	var user sys.SysUser
 	if v != "" {
-		utils.FromJSON(v, &user)
+		u := redis.Get(fmt.Sprintf("sys:user:id:%s", v)).Val() //获取到用户信息
+		utils.FromJSON(u, &user)
 	} else {
 		err = dao.SysUserDao.Where("(login_name = ? OR email = ? OR mobile = ?) AND del_flag = 0", req.LoginName, req.LoginName, req.LoginName).First(&user).Error
 		if err != nil {
@@ -371,7 +372,7 @@ func (s *sysUserService) Delete(id int64) error {
 	}
 
 	// 软删除，将状态设置为停用
-	user.DelFlag = true
+	user.DelFlag = 1
 	err = dao.SysUserDao.Updates(user)
 	if err != nil {
 		return err
@@ -401,7 +402,7 @@ func (s *sysUserService) ChangeStatus(id int64, status uint8) error {
 	}
 
 	user.Status = status
-	err = dao.SysUserDao.Updates(user)
+	err = dao.SysUserDao.Save(user)
 	if err != nil {
 		return err
 	}

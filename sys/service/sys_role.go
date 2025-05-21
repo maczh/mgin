@@ -22,7 +22,7 @@ func (s *sysRoleService) Add(req request.CreateRoleReq) (*sys.SysRole, error) {
 	role := &sys.SysRole{
 		RoleName:    req.Name,
 		RoleIdent:   req.Ident,
-		IsEnable:    true,
+		IsEnable:    1,
 		Description: req.Description,
 	}
 	role.CreateAt = time.Now()
@@ -63,7 +63,7 @@ func (s *sysRoleService) Update(req *sys.SysRole) error {
 	role.IsEnable = req.IsEnable
 	role.Description = req.Description
 	role.UpdateAt = time.Now()
-	err = dao.SysRoleDao.Updates(role)
+	err = dao.SysRoleDao.Save(role)
 	if err != nil {
 		return err
 	}

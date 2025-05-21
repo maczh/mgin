@@ -53,7 +53,7 @@ func (s *sysUserExtService) Delete(userId int64) error {
 }
 
 func (s *sysUserExtService) List(req request.ListSysUserExtReq) ([]sys.SysUserExt, *models.ResultPage, error) {
-	var mysql = dao.SysUserExtDao.Where("del_flag = 0")
+	var mysql = dao.SysUserExtDao.Where("1 = 1")
 	if req.DepartmentId != 0 {
 		mysql = dao.SysUserExtDao.Where("department_id =?", req.DepartmentId)
 	}

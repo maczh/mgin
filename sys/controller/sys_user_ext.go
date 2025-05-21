@@ -16,10 +16,11 @@ type sysUserExtController struct{}
 // @Tags 用户扩展信息
 // @Accept json
 // @Produce json
+// @Param Authorization header string true "用户令牌"
 // @Param createReq body request.CreateSysUserExtReq true "创建用户扩展信息请求参数"
 // @Success 200 {object} models.Result[any] "创建成功，返回创建的用户扩展信息"
 // @Failure 500 {object} models.Result[any] "参数绑定失败或创建用户扩展信息失败"
-// @Router /sys/user-ext/create [post]
+// @Router /api/v1/user/ext/add [post]
 func (s *sysUserExtController) Create(c *gin.Context) models.Result[any] {
 	var req request.CreateSysUserExtReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -38,10 +39,11 @@ func (s *sysUserExtController) Create(c *gin.Context) models.Result[any] {
 // @Tags 用户扩展信息
 // @Accept json
 // @Produce json
+// @Param Authorization header string true "用户令牌"
 // @Param updateReq body sys.SysUserExt true "更新用户扩展信息请求参数"
 // @Success 200 {object} models.Result[any] "更新成功"
 // @Failure 500 {object} models.Result[any] "参数绑定失败、获取用户扩展信息失败或更新用户扩展信息失败"
-// @Router /sys/user-ext/update [put]
+// @Router /api/v1/user/ext/update [post]
 func (s *sysUserExtController) Update(c *gin.Context) models.Result[any] {
 	var req sys.SysUserExt
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -67,10 +69,11 @@ func (s *sysUserExtController) Update(c *gin.Context) models.Result[any] {
 // @Tags 用户扩展信息
 // @Accept json
 // @Produce json
+// @Param Authorization header string true "用户令牌"
 // @Param getReq query request.GetSysUserExtReq true "获取用户扩展信息请求参数，包含用户 ID"
 // @Success 200 {object} models.Result[any] "获取成功，返回用户扩展信息"
 // @Failure 500 {object} models.Result[any] "参数绑定失败或获取用户扩展信息失败"
-// @Router /sys/user-ext/get [get]
+// @Router /api/v1/user/ext/get [get]
 func (s *sysUserExtController) Get(c *gin.Context) models.Result[any] {
 	var req request.GetSysUserExtReq
 	if err := c.ShouldBindQuery(&req); err != nil {
@@ -89,10 +92,11 @@ func (s *sysUserExtController) Get(c *gin.Context) models.Result[any] {
 // @Tags 用户扩展信息
 // @Accept json
 // @Produce json
+// @Param Authorization header string true "用户令牌"
 // @Param deleteReq query request.GetSysUserExtReq true "删除用户扩展信息请求参数，包含用户 ID"
 // @Success 200 {object} models.Result[any] "删除成功"
 // @Failure 500 {object} models.Result[any] "参数绑定失败或删除用户扩展信息失败"
-// @Router /sys/user-ext/delete [delete]
+// @Router /api/v1/user/ext/del [post]
 func (s *sysUserExtController) Delete(c *gin.Context) models.Result[any] {
 	var req request.GetSysUserExtReq
 	if err := c.ShouldBindQuery(&req); err != nil {
@@ -111,10 +115,11 @@ func (s *sysUserExtController) Delete(c *gin.Context) models.Result[any] {
 // @Tags 用户扩展信息
 // @Accept json
 // @Produce json
+// @Param Authorization header string true "用户令牌"
 // @Param listReq query request.ListSysUserExtReq true "获取用户扩展信息列表请求参数"
 // @Success 200 {object} models.Result[any] "获取成功，返回用户扩展信息列表和总数"
 // @Failure 500 {object} models.Result[any] "参数绑定失败或获取用户扩展信息列表失败"
-// @Router /sys/user-ext/list [get]
+// @Router /api/v1/user/ext/list [get]
 func (s *sysUserExtController) List(c *gin.Context) models.Result[any] {
 	var req request.ListSysUserExtReq
 	if err := c.ShouldBindQuery(&req); err != nil {
