@@ -10,17 +10,19 @@ MGin微服务框架，用于快速创建基于MGin微服务框架的RESTful微�
 package main
 
 import (
-	"github.com/gin-gonic/gin"
 	"github.com/maczh/mgin"
+	_ "github.com/maczh/mgin/docs"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
 func main() {
 	app := mgin.NewApp("", "测试mgin项目", "1.0.0", false)
-	app.Router.GET("/test", func(c *gin.Context) {
-		c.JSON(200, map[string]string{"msg": "hello world"})
-	})
+	//添加swagger支持
+	app.Router.GET("/api/v1/swagger/sys/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	app.Run()
 }
+
 
 ```
   - 创建一个yml配置文件，即可运行
@@ -31,11 +33,36 @@ func main() {
 
 - Gin
 
+### 内置基础系统管理框架后端组件
+- 开启方式  (v1.20.3之后版本)
+
+```yaml
+go:
+  sys:
+    enabled: true    #是否开启内置系统管理组件
+    initdb: true     #是否自动创建数据库表结构和基础数据
+    baseUri: /api/v1   #基础组件接口地址前缀
+```
+- 内置模块
+  - 用户管理 sys_user
+  - 角色管理 sys_role
+  - 部门管理 sys_dept
+  - 岗位管理 sys_post
+  - API接口管理 sys_api
+  - 菜单管理 sys_menu for Vue前端
+  - 字典管理 sys_dict
+  - 系统配置管理 sys_config
+  - 接口权限管理 sys_role_api
+  - 菜单权限管理 sys_role_menu
+  - JWT token认证
+
 ### 支持统一的配置中心
 
 - Nacos
 - Consul
 - SpringCloud Config
+- Etcd
+- File 本地文件
 
 ### 支持的服务发现与注册中心
 
@@ -46,7 +73,7 @@ func main() {
 ### 内置支持自动连接的数据库
 
 - MySQL (GORM v2)
-- MongoDB (mgo v2)
+- MongoDB (官网驱动仿mgo.v2)
 - Redis (go-redis)
 - ElasitcSearch (olivere/elastic)
 - Kafka
@@ -333,6 +360,8 @@ func handleMsg(msg string) error {
 * 客户端参见 examples/mgin-client项目
 
 ### 版本更新
+- v1.20.3  内置系统管理模块，仅需yml配置开启，自动建表，自带swagger文档
+- v1.20.1  新增App对象，极大简化创建一个新MGin应用
 - v1.19.42 持久化缓存改成bitcask，并且与内存缓存通过接口标准化处理
 - v1.19.38 新增支持断线重连的Redis.PSubscribe(dbName string, handler func(msg *redis.Message), channels ...string)函数,Kafka消费者增加断线重连功能
 - v1.19.36 redis支持cluster集群、哨兵模式集群与单机模式
