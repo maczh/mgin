@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"github.com/gin-gonic/gin"
 	"github.com/maczh/mgin/logs"
 	"github.com/maczh/mgin/models"
 	"github.com/maczh/mgin/models/sys"
@@ -10,7 +11,14 @@ import (
 	"time"
 )
 
-type sysMenuService struct{}
+type sysMenuService struct {
+	ctx *gin.Context
+}
+
+func (s *sysMenuService) WithContext(c *gin.Context) *sysMenuService {
+	s.ctx = c
+	return s
+}
 
 // Add 新增菜单
 func (s *sysMenuService) Add(req request.CreateMenuReq) (*sys.SysMenu, error) {
@@ -41,6 +49,9 @@ func (s *sysMenuService) Add(req request.CreateMenuReq) (*sys.SysMenu, error) {
 	}
 	menu.CreateAt = time.Now()
 	menu.UpdateAt = time.Now()
+	if s.ctx != nil {
+		menu.CreateBy = getCurrentNickName(s.ctx)
+	}
 	err := dao.SysMenuDao.Create(menu)
 	return menu, err
 }
@@ -76,6 +87,9 @@ func (s *sysMenuService) Update(req *sys.SysMenu) error {
 		return errors.New("菜单编码已存在")
 	}
 	req.UpdateAt = time.Now()
+	if s.ctx != nil {
+		menu.UpdateBy = getCurrentNickName(s.ctx)
+	}
 	err = dao.SysMenuDao.Save(req)
 	return err
 }

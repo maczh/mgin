@@ -26,7 +26,7 @@ func (s *sysApiController) Create(c *gin.Context) models.Result[any] {
 	if err := c.ShouldBindJSON(&api); err != nil {
 		return models.Error(500, "请求参数错误: "+err.Error())
 	}
-	if err := service.SysApi.CreateApi(&api); err != nil {
+	if err := service.SysApi.WithContext(c).CreateApi(&api); err != nil {
 		return models.Error(500, "创建API接口失败: "+err.Error())
 	}
 	return models.Success[any](api)
@@ -94,7 +94,7 @@ func (s *sysApiController) Update(c *gin.Context) models.Result[any] {
 	if err := c.ShouldBindJSON(&api); err != nil {
 		return models.Error(500, "参数绑定失败")
 	}
-	if err := service.SysApi.UpdateApi(&api); err != nil {
+	if err := service.SysApi.WithContext(c).UpdateApi(&api); err != nil {
 		return models.Error(500, "更新API接口失败: "+err.Error())
 	}
 	return models.Success[any](nil)

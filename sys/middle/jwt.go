@@ -14,7 +14,7 @@ import (
 // JwtAuthorize JWT认证中间件
 func JwtAuthorize() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if strings.HasPrefix(c.Request.URL.Path, "/docs/") || strings.HasPrefix(c.Request.URL.Path, "/swagger/") || strings.HasPrefix(c.Request.URL.Path, config.Config.Sys.Swagger.Uri) {
+		if strings.HasPrefix(c.Request.URL.Path, "/docs/") || strings.HasPrefix(c.Request.URL.Path, "/swagger/") || strings.HasPrefix(c.Request.URL.Path, config.Config.Sys.BaseUri+config.Config.Sys.Swagger.Uri) {
 			c.Next()
 			return
 		}

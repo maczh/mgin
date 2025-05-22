@@ -26,7 +26,7 @@ func (s *sysMenuController) Add(c *gin.Context) models.Result[any] {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		return models.Error(500, "参数绑定失败:"+err.Error())
 	}
-	menu, err := service.SysMenu.Add(req)
+	menu, err := service.SysMenu.WithContext(c).Add(req)
 	if err != nil {
 		return models.Error(500, err.Error())
 	}
@@ -72,7 +72,7 @@ func (s *sysMenuController) Update(c *gin.Context) models.Result[any] {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		return models.Error(500, "参数绑定失败:"+err.Error())
 	}
-	err := service.SysMenu.Update(req)
+	err := service.SysMenu.WithContext(c).Update(req)
 	if err != nil {
 		return models.Error(500, err.Error())
 	}

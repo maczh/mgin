@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"github.com/gin-gonic/gin"
 	"github.com/maczh/mgin/logs"
 	"github.com/maczh/mgin/models"
 	"github.com/maczh/mgin/models/sys"
@@ -10,7 +11,17 @@ import (
 	"time"
 )
 
-type sysPostService struct{}
+type sysPostService struct {
+	ctx *gin.Context
+}
+
+// WithContext 注入gin.Context
+func (s *sysPostService) WithContext(c *gin.Context) *sysPostService {
+	s.ctx = c
+	return s
+}
+
+// List 获取��位列表
 
 // Add 新增岗位
 func (s *sysPostService) Add(req request.CreatePostReq) (*sys.SysPost, error) {
@@ -30,6 +41,9 @@ func (s *sysPostService) Add(req request.CreatePostReq) (*sys.SysPost, error) {
 	}
 	post.CreateAt = time.Now()
 	post.UpdateAt = time.Now()
+	if s.ctx != nil {
+		post.CreateBy = getCurrentNickName(s.ctx)
+	}
 	err := dao.SysPostDao.Create(post)
 	return post, err
 }
@@ -73,6 +87,9 @@ func (s *sysPostService) Update(req *sys.SysPost) error {
 	post.DeptId = req.DeptId
 	post.Status = req.Status
 	post.UpdateAt = time.Now()
+	if s.ctx != nil {
+		post.UpdateBy = getCurrentNickName(s.ctx)
+	}
 	err = dao.SysPostDao.Save(post)
 	return err
 }

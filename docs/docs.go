@@ -10,10 +10,6 @@ const docTemplate = `{
         "description": "{{escape .Description}}",
         "title": "{{.Title}}",
         "contact": {},
-        "license": {
-            "name": "Apache 2.0",
-            "url": "http://www.apache.org/licenses/LICENSE-2.0.html"
-        },
         "version": "{{.Version}}"
     },
     "host": "{{.Host}}",
@@ -2219,7 +2215,7 @@ const docTemplate = `{
             }
         },
         "/api/v1/sys/role_api/list": {
-            "post": {
+            "get": {
                 "description": "根据请求参数获取指定角色关联的 API 列表",
                 "consumes": [
                     "application/json"
@@ -2240,13 +2236,10 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "获取角色 API 列表请求参数",
-                        "name": "listReq",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/github_com_maczh_mgin_models_sys_request.ListRoleApiReq"
-                        }
+                        "type": "integer",
+                        "name": "roleId",
+                        "in": "query",
+                        "required": true
                     }
                 ],
                 "responses": {
@@ -2313,7 +2306,7 @@ const docTemplate = `{
             }
         },
         "/api/v1/sys/role_menu/list": {
-            "post": {
+            "get": {
                 "description": "根据请求参数获取指定角色关联的菜单列表",
                 "consumes": [
                     "application/json"
@@ -2334,13 +2327,10 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "获取角色菜单列表请求参数",
-                        "name": "listReq",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/github_com_maczh_mgin_models_sys_request.ListRoleMenuReq"
-                        }
+                        "type": "integer",
+                        "name": "roleId",
+                        "in": "query",
+                        "required": true
                     }
                 ],
                 "responses": {
@@ -3945,28 +3935,6 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_maczh_mgin_models_sys_request.ListRoleApiReq": {
-            "type": "object",
-            "required": [
-                "roleId"
-            ],
-            "properties": {
-                "roleId": {
-                    "type": "integer"
-                }
-            }
-        },
-        "github_com_maczh_mgin_models_sys_request.ListRoleMenuReq": {
-            "type": "object",
-            "required": [
-                "roleId"
-            ],
-            "properties": {
-                "roleId": {
-                    "type": "integer"
-                }
-            }
-        },
         "github_com_maczh_mgin_models_sys_request.LoginReq": {
             "type": "object",
             "required": [
@@ -4065,12 +4033,12 @@ const docTemplate = `{
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "1.0.0",
+	Version:          "",
 	Host:             "",
 	BasePath:         "",
 	Schemes:          []string{},
-	Title:            "MGin基础模块API文档",
-	Description:      "MGin基础模块 API 文档。",
+	Title:            "",
+	Description:      "",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",

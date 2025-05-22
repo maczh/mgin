@@ -25,7 +25,7 @@ func (sysRoleApiController) Bind(ctx *gin.Context) models.Result[any] {
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		return models.Error(500, err.Error())
 	}
-	err := service.SysRoleApi.BindRoleApi(req)
+	err := service.SysRoleApi.WithContext(ctx).BindRoleApi(req)
 	if err != nil {
 		return models.Error(500, err.Error())
 	}
@@ -39,10 +39,10 @@ func (sysRoleApiController) Bind(ctx *gin.Context) models.Result[any] {
 // @Accept json
 // @Produce json
 // @Param Authorization header string true "用户令牌"
-// @Param listReq body request.ListRoleApiReq true "获取角色 API 列表请求参数"
+// @Param listReq query request.ListRoleApiReq true "获取角色 API 列表请求参数"
 // @Success 200 {object} models.Result[any] "获取成功，返回角色关联的 API 列表"
 // @Failure 500 {object} models.Result[any] "参数绑定失败或获取 API 列表失败"
-// @Router /api/v1/sys/role_api/list [post]
+// @Router /api/v1/sys/role_api/list [get]
 func (sysRoleApiController) List(ctx *gin.Context) models.Result[any] {
 	var req request.ListRoleApiReq
 	if err := ctx.ShouldBindQuery(&req); err != nil {

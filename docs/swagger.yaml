@@ -589,20 +589,6 @@ definitions:
     required:
     - id
     type: object
-  github_com_maczh_mgin_models_sys_request.ListRoleApiReq:
-    properties:
-      roleId:
-        type: integer
-    required:
-    - roleId
-    type: object
-  github_com_maczh_mgin_models_sys_request.ListRoleMenuReq:
-    properties:
-      roleId:
-        type: integer
-    required:
-    - roleId
-    type: object
   github_com_maczh_mgin_models_sys_request.LoginReq:
     properties:
       loginName:
@@ -668,12 +654,6 @@ definitions:
     type: object
 info:
   contact: {}
-  description: MGin基础模块 API 文档。
-  license:
-    name: Apache 2.0
-    url: http://www.apache.org/licenses/LICENSE-2.0.html
-  title: MGin基础模块API文档
-  version: 1.0.0
 paths:
   /api/v1/login:
     post:
@@ -2114,7 +2094,7 @@ paths:
       tags:
       - 角色API绑定
   /api/v1/sys/role_api/list:
-    post:
+    get:
       consumes:
       - application/json
       description: 根据请求参数获取指定角色关联的 API 列表
@@ -2124,12 +2104,10 @@ paths:
         name: Authorization
         required: true
         type: string
-      - description: 获取角色 API 列表请求参数
-        in: body
-        name: listReq
+      - in: query
+        name: roleId
         required: true
-        schema:
-          $ref: '#/definitions/github_com_maczh_mgin_models_sys_request.ListRoleApiReq'
+        type: integer
       produces:
       - application/json
       responses:
@@ -2176,7 +2154,7 @@ paths:
       tags:
       - 角色菜单管理
   /api/v1/sys/role_menu/list:
-    post:
+    get:
       consumes:
       - application/json
       description: 根据请求参数获取指定角色关联的菜单列表
@@ -2186,12 +2164,10 @@ paths:
         name: Authorization
         required: true
         type: string
-      - description: 获取角色菜单列表请求参数
-        in: body
-        name: listReq
+      - in: query
+        name: roleId
         required: true
-        schema:
-          $ref: '#/definitions/github_com_maczh_mgin_models_sys_request.ListRoleMenuReq'
+        type: integer
       produces:
       - application/json
       responses:

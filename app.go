@@ -129,7 +129,7 @@ func (app *App) baseRouter() {
 		app.Router = route.SysRouter(config.Config.Sys.BaseUri, app.Router)
 		//打开Swagger
 		if config.Config.Sys.Swagger.Enabled {
-			app.Router.GET(config.Config.Sys.Swagger.Uri+"/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+			app.Router.GET(config.Config.Sys.BaseUri+config.Config.Sys.Swagger.Uri+"/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 		}
 	}
 

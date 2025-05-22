@@ -26,7 +26,7 @@ func (s *sysRoleController) Add(c *gin.Context) models.Result[any] {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		return models.Error(500, "参数绑定失败")
 	}
-	role, err := service.SysRole.Add(req)
+	role, err := service.SysRole.WithContext(c).Add(req)
 	if err != nil {
 		return models.Error(500, "新增角色失败: "+err.Error())
 	}
@@ -72,7 +72,7 @@ func (s *sysRoleController) Update(c *gin.Context) models.Result[any] {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		return models.Error(500, "参数绑定失败")
 	}
-	err := service.SysRole.Update(req)
+	err := service.SysRole.WithContext(c).Update(req)
 	if err != nil {
 		return models.Error(500, "更新角色失败: "+err.Error())
 	}

@@ -19,7 +19,9 @@ func (s *sysRoleMenuService) BindRoleMenu(req request.BindRoleMenuReq) error {
 	}
 	for _, apiId := range req.MenuIds {
 		err := dao.SysRoleMenuDao.Save(&sys.SysRoleMenu{RoleId: uint(req.RoleId), MenuId: uint(apiId)})
-		logs.Error("绑定角色{}和菜单 {}时发生错误：{}", req.RoleId, apiId, err.Error())
+		if err != nil {
+			logs.Error("绑定角色{}和菜单 {}时发生错误：{}", req.RoleId, apiId, err.Error())
+		}
 	}
 	return nil
 }

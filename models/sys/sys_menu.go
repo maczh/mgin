@@ -6,7 +6,7 @@ type SysMenu struct {
 	ID         uint   `gorm:"primaryKey;comment:菜单ID" json:"id"`
 	ParentID   uint   `gorm:"index;comment:父菜单ID(0表示根菜单)" json:"parent_id"`
 	Path       string `gorm:"type:varchar(255);index;comment:路由路径(需符合Vue Router规范)" json:"path"`
-	Name       string `gorm:"type:varchar(50);uniqueIndex;comment:路由名称(需唯一)" json:"name"`
+	Name       string `gorm:"type:varchar(50);index;comment:路由名称" json:"name"`
 	Component  string `gorm:"type:varchar(255);comment:组件路径(views目录下的路径)" json:"component"`
 	Redirect   string `gorm:"type:varchar(255);comment:重定向路径" json:"redirect"`
 	Icon       string `gorm:"type:varchar(50);comment:菜单图标(组件名称)" json:"icon"`

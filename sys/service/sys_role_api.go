@@ -2,15 +2,25 @@ package service
 
 import (
 	"fmt"
+	"github.com/gin-gonic/gin"
 	"github.com/maczh/mgin/db"
 	"github.com/maczh/mgin/logs"
 	"github.com/maczh/mgin/models/sys"
 	"github.com/maczh/mgin/models/sys/request"
 	"github.com/maczh/mgin/models/sys/vo"
 	"github.com/maczh/mgin/sys/dao"
+	"time"
 )
 
-type sysRoleApiService struct{}
+type sysRoleApiService struct {
+	ctx *gin.Context
+}
+
+// WithContext 注入gin.Context
+func (s *sysRoleApiService) WithContext(c *gin.Context) *sysRoleApiService {
+	s.ctx = c
+	return s
+}
 
 // BindRoleApi 绑定角色和API,每次都是全量绑定，先删除再新增
 func (s *sysRoleApiService) BindRoleApi(req request.BindRoleApiReq) error {
@@ -20,9 +30,25 @@ func (s *sysRoleApiService) BindRoleApi(req request.BindRoleApiReq) error {
 		logs.Error("删除角色{}的所有API时发生错误：{}", req.RoleId, err.Error())
 		return err
 	}
+	nickName := ""
+	if s.ctx != nil {
+		nickName = getCurrentNickName(s.ctx)
+	}
+
 	for _, apiId := range req.ApiIds {
-		err := dao.SysRoleApiDao.Save(&sys.SysRoleApi{RoleId: uint(req.RoleId), ApiId: uint(apiId)})
-		logs.Error("绑定角色{}和API {}时发生错误：{}", req.RoleId, apiId, err.Error())
+		err := dao.SysRoleApiDao.Save(&sys.SysRoleApi{
+			RoleId: uint(req.RoleId),
+			ApiId:  uint(apiId),
+			BaseModel: sys.BaseModel{
+				CreateAt: time.Now(),
+				UpdateAt: time.Now(),
+				UpdateBy: nickName,
+				CreateBy: nickName,
+			},
+		})
+		if err != nil {
+			logs.Error("绑定角色{}和API {}时发生错误：{}", req.RoleId, apiId, err.Error())
+		}
 	}
 	redis, err := db.Redis.GetConnection()
 	cacheKey := fmt.Sprintf("sys:role:api:%d", req.RoleId)
@@ -65,6 +91,7 @@ func (s *sysRoleApiService) ListRoleApi(req request.ListRoleApiReq) (*vo.ListRol
 
 }
 
+// matchRoleApiPath 匹配角色的API路径
 func (s *sysRoleApiService) matchRoleApiPath(roleId int64, path string) bool {
 	//先从缓存中获取
 	redis, err := db.Redis.GetConnection()

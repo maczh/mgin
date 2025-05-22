@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"github.com/gin-gonic/gin"
 	"github.com/maczh/mgin/logs"
 	"github.com/maczh/mgin/models"
 	"github.com/maczh/mgin/models/sys"
@@ -10,7 +11,14 @@ import (
 	"time"
 )
 
-type sysDictService struct{}
+type sysDictService struct {
+	ctx *gin.Context
+}
+
+func (s *sysDictService) WithContext(c *gin.Context) *sysDictService {
+	s.ctx = c
+	return s
+}
 
 // Add 新增字典项
 func (s *sysDictService) Add(req request.CreateDictReq) (dict *sys.SysDict, err error) {
@@ -33,6 +41,9 @@ func (s *sysDictService) Add(req request.CreateDictReq) (dict *sys.SysDict, err 
 	}
 	dict.CreateAt = time.Now()
 	dict.UpdateAt = time.Now()
+	if s.ctx != nil {
+		dict.CreateBy = getCurrentNickName(s.ctx)
+	}
 	err = dao.SysDictDao.Create(dict)
 	return dict, err
 }
@@ -50,6 +61,9 @@ func (s *sysDictService) Get(req request.GetDictReq) (dict *sys.SysDict, err err
 // Update 更新字典项
 func (s *sysDictService) Update(dict *sys.SysDict) error {
 	dict.UpdateAt = time.Now()
+	if s.ctx != nil {
+		dict.UpdateBy = getCurrentNickName(s.ctx)
+	}
 	err := dao.SysDictDao.Save(dict)
 	if err != nil {
 		logs.Error("更新字典项失败: {}", err.Error())

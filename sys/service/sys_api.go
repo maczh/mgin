@@ -1,6 +1,7 @@
 package service
 
 import (
+	"github.com/gin-gonic/gin"
 	"github.com/maczh/mgin/logs"
 	"github.com/maczh/mgin/models"
 	"github.com/maczh/mgin/models/sys"
@@ -9,11 +10,21 @@ import (
 	"time"
 )
 
-type sysApiService struct{}
+type sysApiService struct {
+	ctx *gin.Context
+}
+
+func (a *sysApiService) WithContext(c *gin.Context) *sysApiService {
+	a.ctx = c
+	return a
+}
 
 func (d *sysApiService) CreateApi(api *sys.SysApi) error {
 	api.CreateAt = time.Now()
 	api.UpdateAt = time.Now()
+	if d.ctx != nil {
+		api.CreateBy = getCurrentNickName(d.ctx)
+	}
 	return dao.SysApiDao.Create(api)
 }
 
@@ -43,6 +54,9 @@ func (d *sysApiService) UpdateApi(api *sys.SysApi) error {
 	}
 	api.CreateAt = dep.CreateAt
 	api.UpdateAt = time.Now()
+	if d.ctx != nil {
+		api.UpdateBy = getCurrentNickName(d.ctx)
+	}
 	return dao.SysApiDao.Save(api)
 }
 

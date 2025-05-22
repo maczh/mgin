@@ -26,7 +26,7 @@ func (s *sysPostController) Add(c *gin.Context) models.Result[any] {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		return models.Error(500, err.Error())
 	}
-	post, err := service.SysPost.Add(req)
+	post, err := service.SysPost.WithContext(c).Add(req)
 	if err != nil {
 		return models.Error(500, err.Error())
 	}
@@ -72,7 +72,7 @@ func (s *sysPostController) Update(c *gin.Context) models.Result[any] {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		return models.Error(500, err.Error())
 	}
-	err := service.SysPost.Update(req)
+	err := service.SysPost.WithContext(c).Update(req)
 	if err != nil {
 		return models.Error(500, err.Error())
 	}

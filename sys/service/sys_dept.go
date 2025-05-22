@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"github.com/gin-gonic/gin"
 	"github.com/maczh/mgin/models"
 	"github.com/maczh/mgin/models/sys"
 	"github.com/maczh/mgin/models/sys/request"
@@ -9,7 +10,14 @@ import (
 	"time"
 )
 
-type sysDeptService struct{}
+type sysDeptService struct {
+	ctx *gin.Context
+}
+
+func (s *sysDeptService) WithContext(c *gin.Context) *sysDeptService {
+	s.ctx = c
+	return s
+}
 
 // Add 新增部门
 func (s *sysDeptService) Add(req request.CreateDeptReq) (*sys.SysDept, error) {
@@ -35,6 +43,9 @@ func (s *sysDeptService) Add(req request.CreateDeptReq) (*sys.SysDept, error) {
 	}
 	dept.CreateAt = time.Now()
 	dept.UpdateAt = time.Now()
+	if s.ctx != nil {
+		dept.CreateBy = getCurrentNickName(s.ctx)
+	}
 	err = dao.SysDeptDao.Save(dept)
 	return dept, err
 }
@@ -68,6 +79,9 @@ func (s *sysDeptService) Update(req *sys.SysDept) error {
 	dept.Mobile = req.Mobile
 	dept.DeptType = req.DeptType
 	dept.UpdateAt = time.Now()
+	if s.ctx != nil {
+		dept.UpdateBy = getCurrentNickName(s.ctx)
+	}
 	err = dao.SysDeptDao.Save(dept)
 	return err
 }

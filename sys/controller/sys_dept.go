@@ -27,7 +27,7 @@ func (s *sysDeptController) Add(c *gin.Context) models.Result[any] {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		return models.Error(500, "参数绑定失败:"+err.Error())
 	}
-	dept, err := service.SysDept.Add(req)
+	dept, err := service.SysDept.WithContext(c).Add(req)
 	if err != nil {
 		return models.Error(500, err.Error())
 	}
@@ -74,7 +74,7 @@ func (s *sysDeptController) Update(c *gin.Context) models.Result[any] {
 		return models.Error(500, "参数绑定失败:"+err.Error())
 	}
 	req.UpdateAt = time.Now()
-	err := service.SysDept.Update(req)
+	err := service.SysDept.WithContext(c).Update(req)
 	if err != nil {
 		return models.Error(500, err.Error())
 	}

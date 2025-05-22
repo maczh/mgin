@@ -26,7 +26,7 @@ func (s *sysDictController) Add(c *gin.Context) models.Result[any] {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		return models.Error(500, "参数绑定失败")
 	}
-	dict, err := service.SysDict.Add(req)
+	dict, err := service.SysDict.WithContext(c).Add(req)
 	if err != nil {
 		return models.Error(500, "新增字典失败: "+err.Error())
 	}
@@ -49,7 +49,7 @@ func (s *sysDictController) Update(c *gin.Context) models.Result[any] {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		return models.Error(500, "参数绑定失败")
 	}
-	if err := service.SysDict.Update(&req); err != nil {
+	if err := service.SysDict.WithContext(c).Update(&req); err != nil {
 		return models.Error(500, "更新字典失败: "+err.Error())
 	}
 	return models.Success[any](nil)

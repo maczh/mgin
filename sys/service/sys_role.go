@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"github.com/gin-gonic/gin"
 	"github.com/maczh/mgin/models"
 	"github.com/maczh/mgin/models/sys"
 	"github.com/maczh/mgin/models/sys/request"
@@ -9,7 +10,15 @@ import (
 	"time"
 )
 
-type sysRoleService struct{}
+type sysRoleService struct {
+	ctx *gin.Context
+}
+
+// WithContext 注入gin.Context
+func (s *sysRoleService) WithContext(c *gin.Context) *sysRoleService {
+	s.ctx = c
+	return s
+}
 
 // Add 新增角色
 func (s *sysRoleService) Add(req request.CreateRoleReq) (*sys.SysRole, error) {
@@ -27,6 +36,9 @@ func (s *sysRoleService) Add(req request.CreateRoleReq) (*sys.SysRole, error) {
 	}
 	role.CreateAt = time.Now()
 	role.UpdateAt = time.Now()
+	if s.ctx != nil {
+		role.CreateBy = getCurrentNickName(s.ctx)
+	}
 	err := dao.SysRoleDao.Create(role)
 	if err != nil {
 		return nil, err
@@ -63,6 +75,9 @@ func (s *sysRoleService) Update(req *sys.SysRole) error {
 	role.IsEnable = req.IsEnable
 	role.Description = req.Description
 	role.UpdateAt = time.Now()
+	if s.ctx != nil {
+		role.UpdateBy = getCurrentNickName(s.ctx)
+	}
 	err = dao.SysRoleDao.Save(role)
 	if err != nil {
 		return err

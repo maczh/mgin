@@ -39,13 +39,13 @@ func (sysRoleMenuController) Bind(ctx *gin.Context) models.Result[any] {
 // @Accept json
 // @Produce json
 // @Param Authorization header string true "用户令牌"
-// @Param listReq body request.ListRoleMenuReq true "获取角色菜单列表请求参数"
+// @Param listReq query request.ListRoleMenuReq true "获取角色菜单列表请求参数"
 // @Success 200 {object} models.Result[any] "获取成功，返回角色关联的菜单列表"
 // @Failure 500 {object} models.Result[any] "参数绑定失败或获取菜单列表失败"
-// @Router /api/v1/sys/role_menu/list [post]
+// @Router /api/v1/sys/role_menu/list [get]
 func (sysRoleMenuController) List(ctx *gin.Context) models.Result[any] {
 	var req request.ListRoleMenuReq
-	if err := ctx.ShouldBindJSON(&req); err != nil {
+	if err := ctx.ShouldBindQuery(&req); err != nil {
 		return models.Error(500, err.Error())
 	}
 	list, err := service.SysRoleMenu.ListRoleMenu(req)

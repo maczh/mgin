@@ -52,6 +52,9 @@ func (s *sysUserService) Register(req request.RegisterReq) (*sys.SysUser, error)
 	// 创建用户
 	user.CreateAt = time.Now()
 	user.UpdateAt = time.Now()
+	if s.ctx != nil {
+		user.CreateBy = getCurrentNickName(s.ctx)
+	}
 	err := dao.SysUserDao.Create(&user)
 	if err != nil {
 		logs.Error("注册失败: {}", err.Error())
@@ -292,10 +295,11 @@ func (s *sysUserService) Update(user *sys.SysUser) error {
 	if (u.Mobile != user.Mobile) && dao.SysUserDao.Exists(sys.SysUser{Mobile: user.Mobile}) {
 		return errors.New("手机号码已经被使用")
 	}
-	claims := s.ctx.MustGet("claims").(jwt.MapClaims)
 	user.Password = u.Password
 	user.CreateBy = u.CreateBy
-	user.UpdateBy = claims["nickName"].(string)
+	if s.ctx != nil {
+		user.UpdateBy = getCurrentNickName(s.ctx)
+	}
 	user.UpdateAt = time.Now()
 	err := dao.SysUserDao.Save(user)
 	if err != nil {
@@ -338,6 +342,9 @@ func (s *sysUserService) ChangePassword(req request.ChangePasswordReq) error {
 	}
 
 	user.Password = utils.MD5Encode(req.NewPassword)
+	if s.ctx != nil {
+		user.UpdateBy = getCurrentNickName(s.ctx)
+	}
 	return dao.SysUserDao.Updates(user)
 }
 
@@ -373,6 +380,9 @@ func (s *sysUserService) Delete(id int64) error {
 
 	// 软删除，将状态设置为停用
 	user.DelFlag = 1
+	if s.ctx != nil {
+		user.UpdateBy = getCurrentNickName(s.ctx)
+	}
 	err = dao.SysUserDao.Updates(user)
 	if err != nil {
 		return err
@@ -402,6 +412,9 @@ func (s *sysUserService) ChangeStatus(id int64, status uint8) error {
 	}
 
 	user.Status = status
+	if s.ctx != nil {
+		user.UpdateBy = getCurrentNickName(s.ctx)
+	}
 	err = dao.SysUserDao.Save(user)
 	if err != nil {
 		return err
