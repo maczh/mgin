@@ -50,7 +50,8 @@ func (s *sysConfigController) Update(c *gin.Context) models.Result[any] {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		return models.Error(500, "参数绑定失败")
 	}
-	if err := service.SysConfig.Update(req); err != nil {
+	err := service.SysConfig.Update(req)
+	if err != nil {
 		return models.Error(500, "更新系统配置失败: "+err.Error())
 	}
 	return models.Success[any](nil)
@@ -118,7 +119,7 @@ func (s *sysConfigController) Get(c *gin.Context) models.Result[any] {
 	if err := c.ShouldBindQuery(&req); err != nil {
 		return models.Error(500, "参数绑定失败")
 	}
-	if !(req.ID == 0 && req.Key == "") {
+	if req.ID == 0 && req.Key == "" {
 		return models.Error(400, "ID或Key必须传一个")
 	}
 	config, err := service.SysConfig.Get(req)

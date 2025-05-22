@@ -27,6 +27,7 @@ func InitDB() {
 		&sys.SysPost{},
 		&sys.SysRoleApi{},
 		&sys.SysRoleMenu{},
+		&sys.SysConfig{},
 	)
 	if err != nil {
 		logs.Error("migrate models to db error: {}", err.Error())
@@ -36,10 +37,10 @@ func InitDB() {
 	initData(conn)
 }
 
-func initData(db *gorm.DB) {
+func initData(mysql *gorm.DB) {
 	//初始化管理员账号
 	admin := sys.SysUser{Id: 1, LoginName: "admin", Password: utils.MD5Encode("admin"), Sex: 1, Status: 1, Email: "admin@mgin.org", Mobile: "13800138000", NickName: "超级管理员"}
-	err := db.Create(&admin).Error
+	err := mysql.Create(&admin).Error
 	if err != nil {
 		logs.Error("create admin user error: {}", err.Error())
 	}
@@ -88,7 +89,7 @@ func initData(db *gorm.DB) {
 	}
 	// 初始化用户扩展属性
 	userExt := sys.SysUserExt{Id: 1, UserId: 1, DepartmentId: 2, PositionId: 2, RoleId: 1}
-	err = db.Create(&userExt).Error
+	err = mysql.Create(&userExt).Error
 	if err != nil {
 		logs.Error("create user ext error: {}", err.Error())
 	}
@@ -336,6 +337,13 @@ func initData(db *gorm.DB) {
 			logs.Error("create role api error: {}", err.Error())
 		}
 	}
+	//清除角色接口权限缓存
+	redis, _ := db.Redis.GetConnection()
+	keys := redis.Keys("sys:role:api:*").Val()
+	for _, key := range keys {
+		redis.Del(key)
+	}
+
 	//初始化菜单资源
 	var sysMenuList = []sys.SysMenu{
 		{ID: 1, Path: "system", Name: "", Component: "", Icon: "system", Title: "系统管理", Sort: 0},

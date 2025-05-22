@@ -80,6 +80,6 @@ func (s *sysConfigService) MultiGet(keys []string) ([]sys.SysConfig, error) {
 		return nil, errors.New("没有传入key")
 	}
 	var configList []sys.SysConfig
-	err := dao.SysConfigDao.Where("key in (?)", keys).Find(&configList).Error
+	err := dao.SysConfigDao.Where("`key` IN ?", keys).Find(&configList).Error
 	return configList, err
 }
