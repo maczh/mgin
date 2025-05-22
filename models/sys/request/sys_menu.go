@@ -19,15 +19,19 @@ type CreateMenuReq struct {
 }
 
 type GetMenuReq struct {
-	Id   uint   `json:"id" form:"id"`
-	Path string `json:"path" form:"path"`
+	Id    uint   `json:"id" form:"id"`
+	Title string `json:"title" form:"title"` //菜单标题
 }
 
 type ListMenuReq struct {
-	ParentID uint `json:"parentId" form:"parentId"`
-	Status   int  `json:"status" form:"status"`
-	Page     int  `json:"page" form:"page"`
-	PageSize int  `json:"pageSize" form:"pageSize"`
+	ParentID  uint   `json:"parentId" form:"parentId"`
+	Path      string `json:"path" form:"path"`           //菜单路径
+	Name      string `json:"name" form:"name"`           //菜单名称
+	Component string `json:"component" form:"component"` //组件路径
+	Title     string `json:"title" form:"title"`         //菜单标题
+	Status    int    `json:"status" form:"status"`
+	Page      int    `json:"page" form:"page"`
+	PageSize  int    `json:"pageSize" form:"pageSize"`
 }
 
 type GetTreeMenuReq struct {

@@ -12,7 +12,7 @@ func (c *sysUserRouter) Register(g *gin.RouterGroup) {
 	g.POST("login", handle(controller.SysUser.Login))
 	g.POST("register", handle(controller.SysUser.Register))
 	g.POST("token", handle(controller.SysUser.VerifyToken))
-	group := g.Group("users")
+	group := g.Group("sys/users")
 	{
 		group.POST("add", handle(controller.SysUser.Add))
 		group.POST("update", handle(controller.SysUser.Update))

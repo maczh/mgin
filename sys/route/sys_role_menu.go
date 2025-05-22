@@ -8,7 +8,7 @@ import (
 type sysRoleMenuRouter struct{}
 
 func (c *sysRoleMenuRouter) Register(g *gin.RouterGroup) {
-	group := g.Group("role_menu")
+	group := g.Group("sys/role_menu")
 	{
 		group.POST("bind", handle(controller.SysRoleMenu.Bind))
 		group.GET("list", handle(controller.SysRoleMenu.List))

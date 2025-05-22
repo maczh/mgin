@@ -8,7 +8,7 @@ import (
 type sysDeptRouter struct{}
 
 func (c *sysDeptRouter) Register(g *gin.RouterGroup) {
-	group := g.Group("dept")
+	group := g.Group("sys/dept")
 	{
 		group.POST("add", handle(controller.SysDept.Add))
 		group.POST("update", handle(controller.SysDept.Update))

@@ -60,6 +60,10 @@ type DeleteByIdReq struct {
 	Id int64 `json:"id" form:"id" binding:"required"`
 }
 
+type GetByIdReq struct {
+	Id *int64 `json:"id" form:"id" binding:"required"`
+}
+
 type ChangeStatusReq struct {
 	Id     int64 `json:"id" form:"id" binding:"required"`
 	Status *int  `json:"status" form:"status" binding:"required"`

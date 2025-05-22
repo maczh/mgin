@@ -8,7 +8,7 @@ import (
 type sysMenuRouter struct{}
 
 func (c *sysMenuRouter) Register(g *gin.RouterGroup) {
-	group := g.Group("menu")
+	group := g.Group("sys/menu")
 	{
 		group.POST("add", handle(controller.SysMenu.Add))
 		group.POST("update", handle(controller.SysMenu.Update))

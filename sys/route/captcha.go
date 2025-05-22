@@ -8,7 +8,7 @@ import (
 type captchaRouter struct{}
 
 func (c *captchaRouter) Register(g *gin.RouterGroup) {
-	group := g.Group("captcha")
+	group := g.Group("sys/captcha")
 	{
 		group.GET("/get", handle(controller.Captcha.GetCaptcha))
 		group.POST("/verify", handle(controller.Captcha.VerifyCaptcha))

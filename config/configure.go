@@ -87,6 +87,10 @@ type sys struct {
 	Enabled bool   `json:"enabled" bson:"enabled"` //是否启用系统内置基础功能(sys模块)
 	Initdb  bool   `json:"initdb" bson:"initdb"`   //是否初始化基础数据(sys模块)
 	BaseUri string `json:"baseUri" bson:"baseUri"` //基础API路径
+	Swagger struct {
+		Enabled bool   `json:"enabled" bson:"enabled"` //是否启用swagger
+		Uri     string `json:"uri" bson:"uri"`         //swagger路径
+	}
 }
 
 var Config = &config{}
@@ -153,8 +157,13 @@ func (c *config) Init(cf string) {
 	c.Sys.Enabled = c.Cnf.Bool("go.sys.enabled")
 	c.Sys.Initdb = c.Cnf.Bool("go.sys.initdb")
 	c.Sys.BaseUri = c.Cnf.String("go.sys.baseUri")
+	c.Sys.Swagger.Enabled = c.Cnf.Bool("go.sys.swagger.enabled")
+	c.Sys.Swagger.Uri = c.Cnf.String("go.sys.swagger.uri")
 	if c.Sys.BaseUri == "" {
 		c.Sys.BaseUri = "/api/v1"
+	}
+	if c.Sys.Swagger.Uri == "" {
+		c.Sys.Swagger.Uri = c.Sys.BaseUri + "/swagger/sys"
 	}
 }
 

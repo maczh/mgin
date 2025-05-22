@@ -18,7 +18,7 @@ type captchaController struct{}
 // @Param   req query request.GetCaptchaReq true "获取验证码请求参数"
 // @Success 200 {object} models.Result[any] "成功返回验证码信息"
 // @Failure 500 {object} models.Result[any] "参数绑定失败或获取验证码失败"
-// @Router /api/v1/captcha/get [get]
+// @Router /api/v1/sys/captcha/get [get]
 func (c *captchaController) GetCaptcha(g *gin.Context) models.Result[any] {
 	var req request.GetCaptchaReq
 	if err := g.ShouldBindQuery(&req); err != nil { // 绑定请求参数
@@ -43,7 +43,7 @@ func (c *captchaController) GetCaptcha(g *gin.Context) models.Result[any] {
 // @Param   verifyReq body request.VerifyCaptchaReq true "验证验证码请求参数"
 // @Success 200 {object} models.Result[any] "验证码验证成功"
 // @Failure 500 {object} models.Result[any] "参数绑定失败或验证码错误"
-// @Router /api/v1/captcha/verify [post]
+// @Router /api/v1/sys/captcha/verify [post]
 func (c *captchaController) VerifyCaptcha(g *gin.Context) models.Result[any] {
 	var req request.VerifyCaptchaReq
 	if err := g.ShouldBindJSON(&req); err != nil { // 绑定请求参数

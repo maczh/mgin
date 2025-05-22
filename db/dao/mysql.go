@@ -282,7 +282,7 @@ func (receiver *MySQLDao[E]) Count(entity E) (int64, error) {
 	if receiver.ctx != nil {
 		conn = conn.WithContext(*receiver.ctx)
 	}
-	err = conn.Where(entity).Count(&count).Error
+	err = conn.Model(&entity).Where(entity).Count(&count).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return 0, nil

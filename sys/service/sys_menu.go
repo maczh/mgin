@@ -51,8 +51,8 @@ func (s *sysMenuService) Get(req request.GetMenuReq) (*sys.SysMenu, error) {
 	var err error
 	if req.Id > 0 {
 		menu, err = dao.SysMenuDao.One(sys.SysMenu{ID: req.Id})
-	} else if req.Path != "" {
-		menu, err = dao.SysMenuDao.One(sys.SysMenu{Name: req.Path})
+	} else if req.Title != "" {
+		menu, err = dao.SysMenuDao.One(sys.SysMenu{Title: req.Title})
 	}
 	return menu, err
 }
@@ -90,6 +90,18 @@ func (s *sysMenuService) List(req request.ListMenuReq) ([]sys.SysMenu, *models.R
 	var mysql = dao.SysMenuDao.Where("del_flag = 0")
 	if req.ParentID > 0 {
 		mysql = mysql.Where("parent_id = ?", req.ParentID)
+	}
+	if req.Title != "" {
+		mysql = mysql.Where("title like ?", "%"+req.Title+"%")
+	}
+	if req.Name != "" {
+		mysql = mysql.Where("name like?", "%"+req.Name+"%")
+	}
+	if req.Path != "" {
+		mysql = mysql.Where("path like?", "%"+req.Path+"%")
+	}
+	if req.Component != "" {
+		mysql = mysql.Where("component like?", "%"+req.Component+"%")
 	}
 	if req.Status > 0 {
 		mysql = mysql.Where("status =?", req.Status)

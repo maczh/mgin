@@ -20,6 +20,7 @@ func SysRouter(basePath string, router *gin.Engine) *gin.Engine {
 		sysPost     = sysPostRouter{}
 		sysRoleApi  = sysRoleApiRouter{}
 		sysRoleMenu = sysRoleMenuRouter{}
+		SysConfig   = sysConfigRouter{}
 	)
 	captcha.Register(r)
 	sysUser.Register(r)
@@ -32,6 +33,7 @@ func SysRouter(basePath string, router *gin.Engine) *gin.Engine {
 	sysPost.Register(r)
 	sysRoleApi.Register(r)
 	sysRoleMenu.Register(r)
+	SysConfig.Register(r)
 
 	return router
 }

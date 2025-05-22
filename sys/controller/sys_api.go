@@ -20,7 +20,7 @@ type sysApiController struct{}
 // @Param api body sys.SysApi true "API接口信息"
 // @Success 200 {object} models.Result[sys.SysApi] "创建成功，返回创建的API接口信息"
 // @Failure 500 {object} models.Result[any] "请求参数错误或创建API接口失败"
-// @Router /api/v1/sys_api/add [post]
+// @Router /api/v1/sys/api/add [post]
 func (s *sysApiController) Create(c *gin.Context) models.Result[any] {
 	var api sys.SysApi
 	if err := c.ShouldBindJSON(&api); err != nil {
@@ -42,7 +42,7 @@ func (s *sysApiController) Create(c *gin.Context) models.Result[any] {
 // @Param id query request.GetApiReq true "API接口ID"
 // @Success 200 {object} models.Result[sys.SysApi] "获取成功，返回API接口信息"
 // @Failure 500 {object} models.Result[any] "请求参数错误或获取API接口失败"
-// @Router /api/v1/sys_api/get [get]
+// @Router /api/v1/sys/api/get [get]
 func (s *sysApiController) Get(c *gin.Context) models.Result[any] {
 	var req request.GetApiReq
 	if err := c.ShouldBindQuery(&req); err != nil {
@@ -65,7 +65,7 @@ func (s *sysApiController) Get(c *gin.Context) models.Result[any] {
 // @Param uri query request.GetUriReq true "API接口URI"
 // @Success 200 {object} models.Result[sys.SysApi] "获取成功，返回API接口信息"
 // @Failure 500 {object} models.Result[any] "请求参数错误或获取API接口失败"
-// @Router /api/v1/sys_api/get/uri [get]
+// @Router /api/v1/sys/api/get/uri [get]
 func (s *sysApiController) GetUri(c *gin.Context) models.Result[any] {
 	var req request.GetUriReq
 	if err := c.ShouldBindQuery(&req); err != nil {
@@ -88,7 +88,7 @@ func (s *sysApiController) GetUri(c *gin.Context) models.Result[any] {
 // @Param api body sys.SysApi true "更新后的API接口信息"
 // @Success 200 {object} models.Result[any] "更新成功"
 // @Failure 500 {object} models.Result[any] "参数绑定失败或更新API接口失败"
-// @Router /api/v1/sys_api/update [post]
+// @Router /api/v1/sys/api/update [post]
 func (s *sysApiController) Update(c *gin.Context) models.Result[any] {
 	var api sys.SysApi
 	if err := c.ShouldBindJSON(&api); err != nil {
@@ -110,7 +110,7 @@ func (s *sysApiController) Update(c *gin.Context) models.Result[any] {
 // @Param req query request.ListApiReq false "查询参数"
 // @Success 200 {object} models.ResultPage[any] "获取成功，返回API接口列表和分页信息"
 // @Failure 500 {object} models.Result[any] "参数绑定失败或获取API接口列表失败"
-// @Router /api/v1/sys_api/list [get]
+// @Router /api/v1/sys/api/list [get]
 func (s *sysApiController) List(c *gin.Context) models.Result[any] {
 	var req request.ListApiReq
 	if err := c.ShouldBindQuery(&req); err != nil {
@@ -133,7 +133,7 @@ func (s *sysApiController) List(c *gin.Context) models.Result[any] {
 // @Param id body request.DeleteByIdReq true "API接口ID"
 // @Success 200 {object} models.Result[any] "删除成功"
 // @Failure 500 {object} models.Result[any] "参数绑定失败或删除API接口失败"
-// @Router /api/v1/sys_api/del [post]
+// @Router /api/v1/sys/api/del [post]
 func (s *sysApiController) Delete(c *gin.Context) models.Result[any] {
 	var req request.DeleteByIdReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -154,7 +154,7 @@ func (s *sysApiController) Delete(c *gin.Context) models.Result[any] {
 // @Param Authorization header string true "用户令牌"
 // @Success 200 {object} models.ResultPage[any] "获取成功，返回API接口列表和分页信息"
 // @Failure 500 {object} models.Result[any] "参数绑定失败或获取API接口列表失败"
-// @Router /api/v1/sys_api/group [get]
+// @Router /api/v1/sys/api/group [get]
 func (s *sysApiController) ListByGroup(c *gin.Context) models.Result[any] {
 	apis, err := service.SysApi.ListApiByGroup()
 	if err != nil {

@@ -2,12 +2,10 @@ package service
 
 import (
 	"errors"
-	"fmt"
 	"github.com/maczh/mgin/models"
 	"github.com/maczh/mgin/models/sys"
 	"github.com/maczh/mgin/models/sys/request"
 	"github.com/maczh/mgin/sys/dao"
-	"strings"
 	"time"
 )
 
@@ -76,6 +74,11 @@ func (s *sysDeptService) Update(req *sys.SysDept) error {
 
 // Delete 删除部门
 func (s *sysDeptService) Delete(id uint) error {
+	// 检查是否存在下级部门
+	count, _ := dao.SysDeptDao.Count(sys.SysDept{ParentId: id})
+	if count > 0 {
+		return errors.New("存在下级部门，无法删除")
+	}
 	dept, err := s.Get(request.GetDeptReq{Id: id})
 	if err != nil {
 		return err
@@ -99,50 +102,48 @@ func (s *sysDeptService) List(req request.ListDeptReq) ([]sys.SysDept, *models.R
 // GetTree 获取部门树
 func (s *sysDeptService) GetTree(id int64) ([]sys.SysDept, error) {
 	var depts []sys.SysDept
-	var rootDepts []sys.SysDept
-	deptMap := make(map[uint]*sys.SysDept)
-
-	// 查询所有部门
+	// 查询所有状态正常且未删除的部门
 	if err := dao.SysDeptDao.Where("status = 1 AND del_flag = 0").Order("sort asc").Find(&depts).Error; err != nil {
 		return nil, err
 	}
 
+	deptMap := make(map[uint]*sys.SysDept)
 	// 构建部门映射表
 	for i := range depts {
 		deptMap[depts[i].Id] = &depts[i]
 	}
 
-	// 构建树结构
+	var rootDepts []sys.SysDept
+	// 找出根部门
 	for i := range depts {
 		dept := &depts[i]
-		parentId := dept.ParentId
-
-		// 如果父部门不存在或为自身，则视为根部门
-		if parentId == 0 || parentId == dept.Id || deptMap[parentId] == nil {
-			if id == 0 || int64(dept.Id) == id {
-				rootDepts = append(rootDepts, *dept)
+		// 如果父部门 ID 为 0 或者指定的 id 等于当前部门 ID，则视为根部门
+		if id > 0 {
+			if int64(dept.Id) == id {
+				rootDepts = append(rootDepts, *buildTree(dept, deptMap))
+			} else {
+				continue
 			}
-			continue
-		}
-
-		// 将当前部门添加到父部门的子节点列表
-		parent := deptMap[parentId]
-		if parent.Children == nil {
-			parent.Children = make([]*sys.SysDept, 0)
-		}
-		parent.Children = append(parent.Children, dept)
-	}
-
-	// 如果指定了id且未找到对应部门树，则尝试查找以该id为祖先的部门树
-	if id != 0 && len(rootDepts) == 0 {
-		for i := range depts {
-			dept := &depts[i]
-			if strings.Contains(dept.Ancestors, fmt.Sprintf(",%d,", id)) {
-				rootDepts = append(rootDepts, *dept)
-				break
-			}
+		} else if dept.ParentId == 0 {
+			rootDepts = append(rootDepts, *buildTree(dept, deptMap))
 		}
 	}
 
 	return rootDepts, nil
 }
+
+// buildTree 递归构建部门树
+func buildTree(dept *sys.SysDept, deptMap map[uint]*sys.SysDept) *sys.SysDept {
+	for _, childDept := range deptMap {
+		if childDept.ParentId == dept.Id {
+			if dept.Children == nil {
+				dept.Children = make([]*sys.SysDept, 0)
+			}
+			// 递归构建子部门树
+			dept.Children = append(dept.Children, buildTree(childDept, deptMap))
+		}
+	}
+	return dept
+}
+
+// ... 已有代码 ...

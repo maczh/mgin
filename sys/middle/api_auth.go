@@ -3,6 +3,7 @@ package middle
 import (
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
+	"github.com/maczh/mgin/config"
 	"github.com/maczh/mgin/models"
 	"github.com/maczh/mgin/sys/service"
 	"strings"
@@ -10,7 +11,7 @@ import (
 
 func ApiAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if strings.HasPrefix(c.Request.URL.Path, "/docs/") || strings.HasPrefix(c.Request.URL.Path, "/swagger/ui") || strings.HasPrefix(c.Request.URL.Path, "/swagger/doc") {
+		if strings.HasPrefix(c.Request.URL.Path, "/docs/") || strings.HasPrefix(c.Request.URL.Path, "/swagger/") || strings.HasPrefix(c.Request.URL.Path, config.Config.Sys.Swagger.Uri) {
 			c.Next()
 			return
 		}

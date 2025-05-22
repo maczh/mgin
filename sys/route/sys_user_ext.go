@@ -8,7 +8,7 @@ import (
 type sysUserExtRouter struct{}
 
 func (c *sysUserExtRouter) Register(g *gin.RouterGroup) {
-	group := g.Group("user/ext")
+	group := g.Group("sys/user/ext")
 	{
 		group.POST("add", handle(controller.SysUserExt.Create))
 		group.POST("update", handle(controller.SysUserExt.Update))

@@ -8,7 +8,7 @@ import (
 type sysDictRouter struct{}
 
 func (c *sysDictRouter) Register(g *gin.RouterGroup) {
-	group := g.Group("dict")
+	group := g.Group("sys/dict")
 	{
 		group.POST("add", handle(controller.SysDict.Add))
 		group.POST("update", handle(controller.SysDict.Update))

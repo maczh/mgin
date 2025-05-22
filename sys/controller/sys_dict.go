@@ -107,14 +107,14 @@ func (s *sysDictController) List(c *gin.Context) models.Result[any] {
 // @Accept json
 // @Produce json
 // @Param Authorization header string true "用户令牌"
-// @Param dict body request.GetDictReq true "获取单个字典请求参数"
+// @Param dict query request.GetDictReq true "获取单个字典请求参数"
 // @Success 200 {object} models.Result[sys.SysDict] "获取成功，返回单个字典信息"
 // @Failure 500 {object} models.Result[any] "参数绑定失败、参数不完整或获取字典失败"
 // @Failure 400 {object} models.Result[any] "参数不完整"
-// @Router /api/v1/sys/dict/get [post]
+// @Router /api/v1/sys/dict/get [get]
 func (s *sysDictController) Get(c *gin.Context) models.Result[any] {
 	var req request.GetDictReq
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := c.ShouldBindQuery(&req); err != nil {
 		return models.Error(500, "参数绑定失败")
 	}
 	if !(req.ID > 0 || (req.Name != "" && req.Type != "" && req.Key != "")) {

@@ -10,105 +10,15 @@ const docTemplate = `{
         "description": "{{escape .Description}}",
         "title": "{{.Title}}",
         "contact": {},
+        "license": {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0.html"
+        },
         "version": "{{.Version}}"
     },
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/api/v1/captcha/get": {
-            "get": {
-                "description": "获取图片验证码，返回验证码 ID 和 Base64 编码的图片",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "验证码"
-                ],
-                "summary": "获取验证码",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "name": "height",
-                        "in": "query",
-                        "required": true
-                    },
-                    {
-                        "type": "integer",
-                        "name": "length",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "0:数字 1:字母 2:算术",
-                        "name": "type",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "name": "width",
-                        "in": "query",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "成功返回验证码信息",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
-                        }
-                    },
-                    "500": {
-                        "description": "参数绑定失败或获取验证码失败",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/captcha/verify": {
-            "post": {
-                "description": "验证用户输入的验证码是否正确",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "验证码"
-                ],
-                "summary": "验证验证码",
-                "parameters": [
-                    {
-                        "description": "验证验证码请求参数",
-                        "name": "verifyReq",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/github_com_maczh_mgin_models_sys_request.VerifyCaptchaReq"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "验证码验证成功",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
-                        }
-                    },
-                    "500": {
-                        "description": "参数绑定失败或验证码错误",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
-                        }
-                    }
-                }
-            }
-        },
         "/api/v1/login": {
             "post": {
                 "description": "已注册用户进行登录操作",
@@ -189,9 +99,9 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/role_api/bind": {
+        "/api/v1/sys/api/add": {
             "post": {
-                "description": "将指定角色与 API 进行绑定操作,先全量解绑再批量绑定",
+                "description": "创建一个新的API接口",
                 "consumes": [
                     "application/json"
                 ],
@@ -199,9 +109,9 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "角色API绑定"
+                    "系统API"
                 ],
-                "summary": "绑定角色和API",
+                "summary": "创建API接口",
                 "parameters": [
                     {
                         "type": "string",
@@ -211,24 +121,24 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "角色与 API 绑定请求参数",
-                        "name": "bindReq",
+                        "description": "API接口信息",
+                        "name": "api",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_maczh_mgin_models_sys_request.BindRoleApiReq"
+                            "$ref": "#/definitions/github_com_maczh_mgin_models_sys.SysApi"
                         }
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "绑定成功",
+                        "description": "创建成功，返回创建的API接口信息",
                         "schema": {
-                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
+                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-github_com_maczh_mgin_models_sys_SysApi"
                         }
                     },
                     "500": {
-                        "description": "参数绑定失败或绑定操作失败",
+                        "description": "请求参数错误或创建API接口失败",
                         "schema": {
                             "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
                         }
@@ -236,9 +146,9 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/role_api/list": {
+        "/api/v1/sys/api/del": {
             "post": {
-                "description": "根据请求参数获取指定角色关联的 API 列表",
+                "description": "根据ID软删除指定的API接口",
                 "consumes": [
                     "application/json"
                 ],
@@ -246,9 +156,9 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "角色API绑定"
+                    "系统API"
                 ],
-                "summary": "获取角色的API列表",
+                "summary": "删除API接口",
                 "parameters": [
                     {
                         "type": "string",
@@ -258,24 +168,24 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "获取角色 API 列表请求参数",
-                        "name": "listReq",
+                        "description": "API接口ID",
+                        "name": "id",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_maczh_mgin_models_sys_request.ListRoleApiReq"
+                            "$ref": "#/definitions/github_com_maczh_mgin_models_sys_request.DeleteByIdReq"
                         }
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "获取成功，返回角色关联的 API 列表",
+                        "description": "删除成功",
                         "schema": {
                             "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
                         }
                     },
                     "500": {
-                        "description": "参数绑定失败或获取 API 列表失败",
+                        "description": "参数绑定失败或删除API接口失败",
                         "schema": {
                             "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
                         }
@@ -283,9 +193,9 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/role_menu/bind": {
-            "post": {
-                "description": "将指定角色与菜单进行绑定操作",
+        "/api/v1/sys/api/get": {
+            "get": {
+                "description": "根据ID获取API接口信息",
                 "consumes": [
                     "application/json"
                 ],
@@ -293,9 +203,9 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "角色菜单管理"
+                    "系统API"
                 ],
-                "summary": "绑定角色和菜单",
+                "summary": "获取API接口",
                 "parameters": [
                     {
                         "type": "string",
@@ -305,24 +215,21 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "角色菜单绑定请求参数",
-                        "name": "bindReq",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/github_com_maczh_mgin_models_sys_request.BindRoleMenuReq"
-                        }
+                        "type": "integer",
+                        "name": "id",
+                        "in": "query",
+                        "required": true
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "绑定成功",
+                        "description": "获取成功，返回API接口信息",
                         "schema": {
-                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
+                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-github_com_maczh_mgin_models_sys_SysApi"
                         }
                     },
                     "500": {
-                        "description": "参数绑定失败或绑定操作失败",
+                        "description": "请求参数错误或获取API接口失败",
                         "schema": {
                             "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
                         }
@@ -330,9 +237,9 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/role_menu/list": {
-            "post": {
-                "description": "根据请求参数获取指定角色关联的菜单列表",
+        "/api/v1/sys/api/get/uri": {
+            "get": {
+                "description": "根据URI获取对应的API接口信息",
                 "consumes": [
                     "application/json"
                 ],
@@ -340,9 +247,9 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "角色菜单管理"
+                    "系统API"
                 ],
-                "summary": "获取角色的菜单列表",
+                "summary": "根据URI获取API接口",
                 "parameters": [
                     {
                         "type": "string",
@@ -352,24 +259,562 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "获取角色菜单列表请求参数",
-                        "name": "listReq",
+                        "type": "string",
+                        "name": "uri",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功，返回API接口信息",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-github_com_maczh_mgin_models_sys_SysApi"
+                        }
+                    },
+                    "500": {
+                        "description": "请求参数错误或获取API接口失败",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/sys/api/group": {
+            "get": {
+                "description": "按模块分组获取API接口列表, for 前端使用",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "系统API"
+                ],
+                "summary": "按模块分组获取API接口列表",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "用户令牌",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功，返回API接口列表和分页信息",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_maczh_mgin_models.ResultPage"
+                        }
+                    },
+                    "500": {
+                        "description": "参数绑定失败或获取API接口列表失败",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/sys/api/list": {
+            "get": {
+                "description": "获取API接口的分页列表",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "系统API"
+                ],
+                "summary": "获取API接口列表",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "用户令牌",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "name": "group",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "name": "needAuth",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "name": "pageSize",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功，返回API接口列表和分页信息",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_maczh_mgin_models.ResultPage"
+                        }
+                    },
+                    "500": {
+                        "description": "参数绑定失败或获取API接口列表失败",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/sys/api/update": {
+            "post": {
+                "description": "更新指定API接口的信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "系统API"
+                ],
+                "summary": "更新API接口",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "用户令牌",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "更新后的API接口信息",
+                        "name": "api",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_maczh_mgin_models_sys_request.ListRoleMenuReq"
+                            "$ref": "#/definitions/github_com_maczh_mgin_models_sys.SysApi"
                         }
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "获取成功，返回角色关联的菜单列表",
+                        "description": "更新成功",
                         "schema": {
                             "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
                         }
                     },
                     "500": {
-                        "description": "参数绑定失败或获取菜单列表失败",
+                        "description": "参数绑定失败或更新API接口失败",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/sys/captcha/get": {
+            "get": {
+                "description": "获取图片验证码，返回验证码 ID 和 Base64 编码的图片",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "验证码"
+                ],
+                "summary": "获取验证码",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "name": "height",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "name": "length",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "0:数字 1:字母 2:算术",
+                        "name": "type",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "name": "width",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功返回验证码信息",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
+                        }
+                    },
+                    "500": {
+                        "description": "参数绑定失败或获取验证码失败",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/sys/captcha/verify": {
+            "post": {
+                "description": "验证用户输入的验证码是否正确",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "验证码"
+                ],
+                "summary": "验证验证码",
+                "parameters": [
+                    {
+                        "description": "验证验证码请求参数",
+                        "name": "verifyReq",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_maczh_mgin_models_sys_request.VerifyCaptchaReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "验证码验证成功",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
+                        }
+                    },
+                    "500": {
+                        "description": "参数绑定失败或验证码错误",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/sys/config/add": {
+            "post": {
+                "description": "新增一个系统配置信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "系统配置"
+                ],
+                "summary": "新增系统配置",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "用户令牌",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "新增系统配置请求参数",
+                        "name": "config",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_maczh_mgin_models_sys.SysConfig"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "新增成功，返回新增的系统配置信息",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-github_com_maczh_mgin_models_sys_SysConfig"
+                        }
+                    },
+                    "500": {
+                        "description": "参数绑定失败或新增系统配置失败",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/sys/config/del": {
+            "post": {
+                "description": "根据 ID 删除系统配置信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "系统配置"
+                ],
+                "summary": "删除系统配置",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "用户令牌",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "删除系统配置请求参数，包含系统配置 ID",
+                        "name": "config",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_maczh_mgin_models_sys_request.DeleteByIdReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "删除成功",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
+                        }
+                    },
+                    "500": {
+                        "description": "参数绑定失败或删除系统配置失败",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/sys/config/get": {
+            "get": {
+                "description": "根据 ID 或其他组合条件获取单个系统配置信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "系统配置"
+                ],
+                "summary": "获取单个系统配置",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "用户令牌",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "ID",
+                        "name": "id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "配置键名",
+                        "name": "key",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功，返回单个系统配置信息",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-github_com_maczh_mgin_models_sys_SysConfig"
+                        }
+                    },
+                    "400": {
+                        "description": "参数不完整",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
+                        }
+                    },
+                    "500": {
+                        "description": "参数绑定失败、参数不完整或获取系统配置失败",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/sys/config/get/multi": {
+            "get": {
+                "description": "根据多个key获取多个系统配置信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "系统配置"
+                ],
+                "summary": "批量获取多个系统配置",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "用户令牌",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "多个键名，以逗号分隔",
+                        "name": "keys",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功，返回单个系统配置信息",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-github_com_maczh_mgin_models_sys_SysConfig"
+                        }
+                    },
+                    "400": {
+                        "description": "参数不完整",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
+                        }
+                    },
+                    "500": {
+                        "description": "参数绑定失败、参数不完整或获取系统配置失败",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/sys/config/list": {
+            "get": {
+                "description": "根据查询条件获取系统配置列表",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "系统配置"
+                ],
+                "summary": "获取系统配置列表",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "用户令牌",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "模块",
+                        "name": "module",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "页码",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "每页数量",
+                        "name": "pageSize",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功，返回系统配置列表和分页信息",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_maczh_mgin_models.ResultPage"
+                        }
+                    },
+                    "500": {
+                        "description": "参数绑定失败或获取系统配置列表失败",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/sys/config/update": {
+            "post": {
+                "description": "更新系统配置信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "系统配置"
+                ],
+                "summary": "更新系统配置",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "用户令牌",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "更新后的系统配置信息",
+                        "name": "config",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_maczh_mgin_models_sys.SysConfig"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "更新成功",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
+                        }
+                    },
+                    "500": {
+                        "description": "参数绑定失败或更新系统配置失败",
                         "schema": {
                             "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
                         }
@@ -446,10 +891,13 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "type": "integer",
-                        "name": "id",
-                        "in": "query",
-                        "required": true
+                        "description": "部门删除请求参数，包含部门 ID",
+                        "name": "dept",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_maczh_mgin_models_sys_request.DeleteByIdReq"
+                        }
                     }
                 ],
                 "responses": {
@@ -755,7 +1203,7 @@ const docTemplate = `{
             }
         },
         "/api/v1/sys/dict/get": {
-            "post": {
+            "get": {
                 "description": "根据 ID 或其他组合条件获取单个系统字典信息",
                 "consumes": [
                     "application/json"
@@ -776,13 +1224,24 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "获取单个字典请求参数",
-                        "name": "dict",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/github_com_maczh_mgin_models_sys_request.GetDictReq"
-                        }
+                        "type": "integer",
+                        "name": "id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "name": "key",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "name": "name",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "name": "type",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -1036,7 +1495,8 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "name": "path",
+                        "description": "菜单标题",
+                        "name": "title",
                         "in": "query"
                     }
                 ],
@@ -1078,6 +1538,18 @@ const docTemplate = `{
                         "required": true
                     },
                     {
+                        "type": "string",
+                        "description": "组件路径",
+                        "name": "component",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "菜单名称",
+                        "name": "name",
+                        "in": "query"
+                    },
+                    {
                         "type": "integer",
                         "name": "page",
                         "in": "query"
@@ -1093,8 +1565,20 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
+                        "type": "string",
+                        "description": "菜单路径",
+                        "name": "path",
+                        "in": "query"
+                    },
+                    {
                         "type": "integer",
                         "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "菜单标题",
+                        "name": "title",
                         "in": "query"
                     }
                 ],
@@ -1687,9 +2171,9 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/sys_api/add": {
+        "/api/v1/sys/role_api/bind": {
             "post": {
-                "description": "创建一个新的API接口",
+                "description": "将指定角色与 API 进行绑定操作,先全量解绑再批量绑定",
                 "consumes": [
                     "application/json"
                 ],
@@ -1697,9 +2181,9 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "系统API"
+                    "角色API绑定"
                 ],
-                "summary": "创建API接口",
+                "summary": "绑定角色和API",
                 "parameters": [
                     {
                         "type": "string",
@@ -1709,24 +2193,24 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "API接口信息",
-                        "name": "api",
+                        "description": "角色与 API 绑定请求参数",
+                        "name": "bindReq",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_maczh_mgin_models_sys.SysApi"
+                            "$ref": "#/definitions/github_com_maczh_mgin_models_sys_request.BindRoleApiReq"
                         }
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "创建成功，返回创建的API接口信息",
+                        "description": "绑定成功",
                         "schema": {
-                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-github_com_maczh_mgin_models_sys_SysApi"
+                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
                         }
                     },
                     "500": {
-                        "description": "请求参数错误或创建API接口失败",
+                        "description": "参数绑定失败或绑定操作失败",
                         "schema": {
                             "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
                         }
@@ -1734,9 +2218,9 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/sys_api/del": {
+        "/api/v1/sys/role_api/list": {
             "post": {
-                "description": "根据ID软删除指定的API接口",
+                "description": "根据请求参数获取指定角色关联的 API 列表",
                 "consumes": [
                     "application/json"
                 ],
@@ -1744,9 +2228,9 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "系统API"
+                    "角色API绑定"
                 ],
-                "summary": "删除API接口",
+                "summary": "获取角色的API列表",
                 "parameters": [
                     {
                         "type": "string",
@@ -1756,24 +2240,24 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "API接口ID",
-                        "name": "id",
+                        "description": "获取角色 API 列表请求参数",
+                        "name": "listReq",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_maczh_mgin_models_sys_request.DeleteByIdReq"
+                            "$ref": "#/definitions/github_com_maczh_mgin_models_sys_request.ListRoleApiReq"
                         }
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "删除成功",
+                        "description": "获取成功，返回角色关联的 API 列表",
                         "schema": {
                             "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
                         }
                     },
                     "500": {
-                        "description": "参数绑定失败或删除API接口失败",
+                        "description": "参数绑定失败或获取 API 列表失败",
                         "schema": {
                             "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
                         }
@@ -1781,193 +2265,9 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/sys_api/get": {
-            "get": {
-                "description": "根据ID获取API接口信息",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "系统API"
-                ],
-                "summary": "获取API接口",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "用户令牌",
-                        "name": "Authorization",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "integer",
-                        "name": "id",
-                        "in": "query",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "获取成功，返回API接口信息",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-github_com_maczh_mgin_models_sys_SysApi"
-                        }
-                    },
-                    "500": {
-                        "description": "请求参数错误或获取API接口失败",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/sys_api/get/uri": {
-            "get": {
-                "description": "根据URI获取对应的API接口信息",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "系统API"
-                ],
-                "summary": "根据URI获取API接口",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "用户令牌",
-                        "name": "Authorization",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "name": "uri",
-                        "in": "query",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "获取成功，返回API接口信息",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-github_com_maczh_mgin_models_sys_SysApi"
-                        }
-                    },
-                    "500": {
-                        "description": "请求参数错误或获取API接口失败",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/sys_api/group": {
-            "get": {
-                "description": "按模块分组获取API接口列表, for 前端使用",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "系统API"
-                ],
-                "summary": "按模块分组获取API接口列表",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "用户令牌",
-                        "name": "Authorization",
-                        "in": "header",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "获取成功，返回API接口列表和分页信息",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_maczh_mgin_models.ResultPage"
-                        }
-                    },
-                    "500": {
-                        "description": "参数绑定失败或获取API接口列表失败",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/sys_api/list": {
-            "get": {
-                "description": "获取API接口的分页列表",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "系统API"
-                ],
-                "summary": "获取API接口列表",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "用户令牌",
-                        "name": "Authorization",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "name": "group",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "name": "needAuth",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "name": "pageSize",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "获取成功，返回API接口列表和分页信息",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_maczh_mgin_models.ResultPage"
-                        }
-                    },
-                    "500": {
-                        "description": "参数绑定失败或获取API接口列表失败",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/sys_api/update": {
+        "/api/v1/sys/role_menu/bind": {
             "post": {
-                "description": "更新指定API接口的信息",
+                "description": "将指定角色与菜单进行绑定操作",
                 "consumes": [
                     "application/json"
                 ],
@@ -1975,9 +2275,9 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "系统API"
+                    "角色菜单管理"
                 ],
-                "summary": "更新API接口",
+                "summary": "绑定角色和菜单",
                 "parameters": [
                     {
                         "type": "string",
@@ -1987,24 +2287,24 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "更新后的API接口信息",
-                        "name": "api",
+                        "description": "角色菜单绑定请求参数",
+                        "name": "bindReq",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_maczh_mgin_models_sys.SysApi"
+                            "$ref": "#/definitions/github_com_maczh_mgin_models_sys_request.BindRoleMenuReq"
                         }
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "更新成功",
+                        "description": "绑定成功",
                         "schema": {
                             "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
                         }
                     },
                     "500": {
-                        "description": "参数绑定失败或更新API接口失败",
+                        "description": "参数绑定失败或绑定操作失败",
                         "schema": {
                             "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
                         }
@@ -2012,9 +2312,9 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/token": {
+        "/api/v1/sys/role_menu/list": {
             "post": {
-                "description": "验证用户提供的 token 是否有效",
+                "description": "根据请求参数获取指定角色关联的菜单列表",
                 "consumes": [
                     "application/json"
                 ],
@@ -2022,29 +2322,36 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "用户管理"
+                    "角色菜单管理"
                 ],
-                "summary": "验证token",
+                "summary": "获取角色的菜单列表",
                 "parameters": [
                     {
-                        "description": "验证 token 请求参数",
-                        "name": "verifyReq",
+                        "type": "string",
+                        "description": "用户令牌",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "获取角色菜单列表请求参数",
+                        "name": "listReq",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_maczh_mgin_models_sys_request.VerifyTokenReq"
+                            "$ref": "#/definitions/github_com_maczh_mgin_models_sys_request.ListRoleMenuReq"
                         }
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "验证成功，返回验证结果和 claims",
+                        "description": "获取成功，返回角色关联的菜单列表",
                         "schema": {
                             "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
                         }
                     },
                     "500": {
-                        "description": "请求参数错误或验证失败",
+                        "description": "参数绑定失败或获取菜单列表失败",
                         "schema": {
                             "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
                         }
@@ -2052,7 +2359,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/user/ext/add": {
+        "/api/v1/sys/user/ext/add": {
             "post": {
                 "description": "创建用户的扩展信息，如部门、角色、职位等",
                 "consumes": [
@@ -2099,7 +2406,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/user/ext/del": {
+        "/api/v1/sys/user/ext/del": {
             "post": {
                 "description": "根据用户 ID 删除单个用户的扩展信息",
                 "consumes": [
@@ -2143,7 +2450,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/user/ext/get": {
+        "/api/v1/sys/user/ext/get": {
             "get": {
                 "description": "根据用户 ID 获取单个用户的扩展信息",
                 "consumes": [
@@ -2187,7 +2494,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/user/ext/list": {
+        "/api/v1/sys/user/ext/list": {
             "get": {
                 "description": "根据查询条件获取用户扩展信息的列表，支持分页",
                 "consumes": [
@@ -2250,7 +2557,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/user/ext/update": {
+        "/api/v1/sys/user/ext/update": {
             "post": {
                 "description": "更新用户已有的扩展信息，如部门、角色、职位等",
                 "consumes": [
@@ -2297,7 +2604,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/users/add": {
+        "/api/v1/sys/users/add": {
             "post": {
                 "description": "管理员新增用户信息",
                 "consumes": [
@@ -2344,7 +2651,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/users/del": {
+        "/api/v1/sys/users/del": {
             "post": {
                 "description": "管理员删除用户信息",
                 "consumes": [
@@ -2391,7 +2698,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/users/get": {
+        "/api/v1/sys/users/get": {
             "get": {
                 "description": "根据请求参数获取用户详细信息",
                 "consumes": [
@@ -2454,7 +2761,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/users/list": {
+        "/api/v1/sys/users/list": {
             "get": {
                 "description": "根据请求参数获取用户分页列表",
                 "consumes": [
@@ -2532,7 +2839,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/users/logout": {
+        "/api/v1/sys/users/logout": {
             "post": {
                 "description": "用户退出当前登录状态",
                 "consumes": [
@@ -2570,7 +2877,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/users/pwd": {
+        "/api/v1/sys/users/pwd": {
             "post": {
                 "description": "用户修改自己的登录密码",
                 "consumes": [
@@ -2617,7 +2924,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/users/status": {
+        "/api/v1/sys/users/status": {
             "post": {
                 "description": "管理员修改用户的状态",
                 "consumes": [
@@ -2664,7 +2971,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/users/update": {
+        "/api/v1/sys/users/update": {
             "post": {
                 "description": "管理员修改用户信息",
                 "consumes": [
@@ -2710,6 +3017,46 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/api/v1/token": {
+            "post": {
+                "description": "验证用户提供的 token 是否有效",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "用户管理"
+                ],
+                "summary": "验证token",
+                "parameters": [
+                    {
+                        "description": "验证 token 请求参数",
+                        "name": "verifyReq",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_maczh_mgin_models_sys_request.VerifyTokenReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "验证成功，返回验证结果和 claims",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
+                        }
+                    },
+                    "500": {
+                        "description": "请求参数错误或验证失败",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -2733,6 +3080,23 @@ const docTemplate = `{
             "properties": {
                 "data": {
                     "$ref": "#/definitions/github_com_maczh_mgin_models_sys.SysApi"
+                },
+                "msg": {
+                    "type": "string"
+                },
+                "page": {
+                    "$ref": "#/definitions/models.ResultPage"
+                },
+                "status": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_maczh_mgin_models.Result-github_com_maczh_mgin_models_sys_SysConfig": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/github_com_maczh_mgin_models_sys.SysConfig"
                 },
                 "msg": {
                     "type": "string"
@@ -2897,6 +3261,35 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "updateBy": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_maczh_mgin_models_sys.SysConfig": {
+            "type": "object",
+            "required": [
+                "key",
+                "module",
+                "name",
+                "value"
+            ],
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "module": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "value": {
                     "type": "string"
                 }
             }
@@ -3552,23 +3945,6 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_maczh_mgin_models_sys_request.GetDictReq": {
-            "type": "object",
-            "properties": {
-                "id": {
-                    "type": "integer"
-                },
-                "key": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "type": {
-                    "type": "string"
-                }
-            }
-        },
         "github_com_maczh_mgin_models_sys_request.ListRoleApiReq": {
             "type": "object",
             "required": [
@@ -3689,12 +4065,12 @@ const docTemplate = `{
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "",
+	Version:          "1.0.0",
 	Host:             "",
 	BasePath:         "",
 	Schemes:          []string{},
-	Title:            "",
-	Description:      "",
+	Title:            "MGin基础模块API文档",
+	Description:      "MGin基础模块 API 文档。",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",

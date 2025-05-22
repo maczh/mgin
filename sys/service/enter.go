@@ -12,4 +12,5 @@ var (
 	SysMenu     = &sysMenuService{}
 	SysRoleApi  = &sysRoleApiService{}
 	SysRoleMenu = &sysRoleMenuService{}
+	SysConfig   = &sysConfigService{}
 )

@@ -12,4 +12,5 @@ var (
 	SysRoleApi  = &sysRoleApiController{}
 	SysRoleMenu = &sysRoleMenuController{}
 	SysUserExt  = &sysUserExtController{}
+	SysConfig   = &sysConfigController{}
 )

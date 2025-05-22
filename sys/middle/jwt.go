@@ -2,6 +2,7 @@ package middle
 
 import (
 	"github.com/gin-gonic/gin"
+	"github.com/maczh/mgin/config"
 	"github.com/maczh/mgin/logs"
 	"github.com/maczh/mgin/models"
 	"github.com/maczh/mgin/models/sys"
@@ -13,7 +14,7 @@ import (
 // JwtAuthorize JWT认证中间件
 func JwtAuthorize() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if strings.HasPrefix(c.Request.URL.Path, "/docs/") || strings.HasPrefix(c.Request.URL.Path, "/swagger/sys") || strings.HasPrefix(c.Request.URL.Path, "/api/v1/swagger/sys") {
+		if strings.HasPrefix(c.Request.URL.Path, "/docs/") || strings.HasPrefix(c.Request.URL.Path, "/swagger/") || strings.HasPrefix(c.Request.URL.Path, config.Config.Sys.Swagger.Uri) {
 			c.Next()
 			return
 		}

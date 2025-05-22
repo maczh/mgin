@@ -8,7 +8,7 @@ import (
 type sysRoleRouter struct{}
 
 func (c *sysRoleRouter) Register(g *gin.RouterGroup) {
-	group := g.Group("role")
+	group := g.Group("sys/role")
 	{
 		group.POST("add", handle(controller.SysRole.Add))
 		group.POST("update", handle(controller.SysRole.Update))

@@ -8,7 +8,7 @@ import (
 type sysApiRouter struct{}
 
 func (c *sysApiRouter) Register(g *gin.RouterGroup) {
-	group := g.Group("sys_api")
+	group := g.Group("sys/api")
 	{
 		group.POST("add", handle(controller.SysApi.Create))
 		group.POST("update", handle(controller.SysApi.Update))

@@ -16,4 +16,5 @@ var (
 	SysRoleApiDao  = dao.MySQLDao[sys.SysRoleApi]{}
 	SysRoleMenuDao = dao.MySQLDao[sys.SysRoleMenu]{}
 	SysUserExtDao  = dao.MySQLDao[sys.SysUserExt]{}
+	SysConfigDao   = dao.MySQLDao[sys.SysConfig]{}
 )
