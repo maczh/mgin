@@ -54,3 +54,49 @@ func (sysRoleApiController) List(ctx *gin.Context) models.Result[any] {
 	}
 	return models.Success[any](list)
 }
+
+// Add 增量绑定角色和API
+// @Summary 绑定角色和API
+// @Description 将指定角色与 API 进行增量绑定操作
+// @Tags 角色API绑定
+// @Accept json
+// @Produce json
+// @Param Authorization header string true "用户令牌"
+// @Param addReq body request.BindRoleApiReq true "角色与 API 绑定请求参数"
+// @Success 200 {object} models.Result[any] "绑定成功"
+// @Failure 500 {object} models.Result[any] "参数绑定失败或绑定操作失败"
+// @Router /api/v1/sys/role_api/add [post]
+func (sysRoleApiController) Add(ctx *gin.Context) models.Result[any] {
+	var req request.BindRoleApiReq
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		return models.Error(500, err.Error())
+	}
+	err := service.SysRoleApi.WithContext(ctx).AddRoleApi(req)
+	if err != nil {
+		return models.Error(500, err.Error())
+	}
+	return models.Success[any](nil)
+}
+
+// Remove 解绑角色和API
+// @Summary 解绑角色和API
+// @Description 在保留原角色接口权限情况下解绑指定角色与 API
+// @Tags 角色API绑定
+// @Accept json
+// @Produce json
+// @Param Authorization header string true "用户令牌"
+// @Param unbindReq body request.BindRoleApiReq true "角色与 API 解绑请求参数"
+// @Success 200 {object} models.Result[any] "解绑成功"
+// @Failure 500 {object} models.Result[any] "参数绑定失败或绑定操作失败"
+// @Router /api/v1/sys/role_api/remove [post]
+func (sysRoleApiController) Remove(ctx *gin.Context) models.Result[any] {
+	var req request.BindRoleApiReq
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		return models.Error(500, err.Error())
+	}
+	err := service.SysRoleApi.WithContext(ctx).RemoveRoleApi(req)
+	if err != nil {
+		return models.Error(500, err.Error())
+	}
+	return models.Success[any](nil)
+}

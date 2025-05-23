@@ -2171,6 +2171,53 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/sys/role_api/add": {
+            "post": {
+                "description": "将指定角色与 API 进行增量绑定操作",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "角色API绑定"
+                ],
+                "summary": "绑定角色和API",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "用户令牌",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "角色与 API 绑定请求参数",
+                        "name": "addReq",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_maczh_mgin_models_sys_request.BindRoleApiReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "绑定成功",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
+                        }
+                    },
+                    "500": {
+                        "description": "参数绑定失败或绑定操作失败",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/sys/role_api/bind": {
             "post": {
                 "description": "将指定角色与 API 进行绑定操作,先全量解绑再批量绑定",
@@ -2255,6 +2302,53 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "参数绑定失败或获取 API 列表失败",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/sys/role_api/remove": {
+            "post": {
+                "description": "在保留原角色接口权限情况下解绑指定角色与 API",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "角色API绑定"
+                ],
+                "summary": "解绑角色和API",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "用户令牌",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "角色与 API 解绑请求参数",
+                        "name": "unbindReq",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_maczh_mgin_models_sys_request.BindRoleApiReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "解绑成功",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
+                        }
+                    },
+                    "500": {
+                        "description": "参数绑定失败或绑定操作失败",
                         "schema": {
                             "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
                         }

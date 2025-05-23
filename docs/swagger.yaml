@@ -2068,6 +2068,37 @@ paths:
       summary: 更新角色
       tags:
       - 系统角色
+  /api/v1/sys/role_api/add:
+    post:
+      consumes:
+      - application/json
+      description: 将指定角色与 API 进行增量绑定操作
+      parameters:
+      - description: 用户令牌
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: 角色与 API 绑定请求参数
+        in: body
+        name: addReq
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_maczh_mgin_models_sys_request.BindRoleApiReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 绑定成功
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+        "500":
+          description: 参数绑定失败或绑定操作失败
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+      summary: 绑定角色和API
+      tags:
+      - 角色API绑定
   /api/v1/sys/role_api/bind:
     post:
       consumes:
@@ -2126,6 +2157,37 @@ paths:
           schema:
             $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
       summary: 获取角色的API列表
+      tags:
+      - 角色API绑定
+  /api/v1/sys/role_api/remove:
+    post:
+      consumes:
+      - application/json
+      description: 在保留原角色接口权限情况下解绑指定角色与 API
+      parameters:
+      - description: 用户令牌
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: 角色与 API 解绑请求参数
+        in: body
+        name: unbindReq
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_maczh_mgin_models_sys_request.BindRoleApiReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 解绑成功
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+        "500":
+          description: 参数绑定失败或绑定操作失败
+          schema:
+            $ref: '#/definitions/github_com_maczh_mgin_models.Result-any'
+      summary: 解绑角色和API
       tags:
       - 角色API绑定
   /api/v1/sys/role_menu/bind:

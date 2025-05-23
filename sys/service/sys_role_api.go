@@ -3,6 +3,8 @@ package service
 import (
 	"fmt"
 	"github.com/gin-gonic/gin"
+	"github.com/maczh/mgin/casbin"
+	"github.com/maczh/mgin/config"
 	"github.com/maczh/mgin/db"
 	"github.com/maczh/mgin/logs"
 	"github.com/maczh/mgin/models/sys"
@@ -34,7 +36,8 @@ func (s *sysRoleApiService) BindRoleApi(req request.BindRoleApiReq) error {
 	if s.ctx != nil {
 		nickName = getCurrentNickName(s.ctx)
 	}
-
+	// 先获取API列表，然后全量绑定
+	casbinInfos := make([]casbin.CasbinInfo, 0)
 	for _, apiId := range req.ApiIds {
 		err := dao.SysRoleApiDao.Save(&sys.SysRoleApi{
 			RoleId: uint(req.RoleId),
@@ -49,6 +52,20 @@ func (s *sysRoleApiService) BindRoleApi(req request.BindRoleApiReq) error {
 		if err != nil {
 			logs.Error("绑定角色{}和API {}时发生错误：{}", req.RoleId, apiId, err.Error())
 		}
+		api, err := dao.SysApiDao.One(sys.SysApi{ID: uint(apiId)})
+		if err != nil {
+			logs.Error("获取API{}的信息时发生错误：{}", apiId, err.Error())
+			continue
+		}
+		casbinInfos = append(casbinInfos, casbin.CasbinInfo{
+			Path:   api.APIPath,
+			Method: api.Method,
+		})
+	}
+	// 更新 Casbin接口权限
+	if config.Config.Sys.Casbin {
+		casbin.Casbin.UpdateCasbin(uint(req.RoleId), casbinInfos)
+		casbin.Casbin.GetEnforcer().LoadPolicy()
 	}
 	redis, err := db.Redis.GetConnection()
 	cacheKey := fmt.Sprintf("sys:role:api:%d", req.RoleId)
@@ -89,6 +106,82 @@ func (s *sysRoleApiService) ListRoleApi(req request.ListRoleApiReq) (*vo.ListRol
 	}
 	return resp, nil
 
+}
+
+// AddRoleApi 新增几个角色和API接口绑定,增量绑定
+func (s *sysRoleApiService) AddRoleApi(req request.BindRoleApiReq) error {
+	nickName := ""
+	if s.ctx != nil {
+		nickName = getCurrentNickName(s.ctx)
+	}
+	// 先获取API列表，然后全量绑定
+	for _, apiId := range req.ApiIds {
+		err := dao.SysRoleApiDao.Save(&sys.SysRoleApi{
+			RoleId: uint(req.RoleId),
+			ApiId:  uint(apiId),
+			BaseModel: sys.BaseModel{
+				CreateAt: time.Now(),
+				UpdateAt: time.Now(),
+				UpdateBy: nickName,
+				CreateBy: nickName,
+			},
+		})
+		if err != nil {
+			logs.Error("绑定角色{}和API {}时发生错误：{}", req.RoleId, apiId, err.Error())
+		}
+		api, err := dao.SysApiDao.One(sys.SysApi{ID: uint(apiId)})
+		if err != nil {
+			logs.Error("获取API{}的信息时发生错误：{}", apiId, err.Error())
+			continue
+		}
+		if config.Config.Sys.Casbin {
+			casbin.Casbin.GetEnforcer().AddPolicy(uint(req.RoleId), api.APIPath, api.Method)
+		}
+	}
+	// 更新 Casbin接口权限
+	if config.Config.Sys.Casbin {
+		casbin.Casbin.GetEnforcer().SavePolicy()
+		casbin.Casbin.GetEnforcer().LoadPolicy()
+	}
+	redis, err := db.Redis.GetConnection()
+	cacheKey := fmt.Sprintf("sys:role:api:%d", req.RoleId)
+	if err == nil {
+		redis.Del(cacheKey)
+	}
+	return nil
+}
+
+// RemoveRoleApi 删除几个角色和API,增量解绑
+func (s *sysRoleApiService) RemoveRoleApi(req request.BindRoleApiReq) error {
+	//删除角色的所有API
+	for _, apiId := range req.ApiIds {
+		err := dao.SysRoleApiDao.Delete(sys.SysRoleApi{
+			RoleId: uint(req.RoleId),
+			ApiId:  uint(apiId),
+		})
+		if err != nil {
+			logs.Error("解绑角色{}和API {}时发生错误：{}", req.RoleId, apiId, err.Error())
+		}
+		api, err := dao.SysApiDao.One(sys.SysApi{ID: uint(apiId)})
+		if err != nil {
+			logs.Error("获取API{}的信息时发生错误：{}", apiId, err.Error())
+			continue
+		}
+		if config.Config.Sys.Casbin {
+			casbin.Casbin.GetEnforcer().RemovePolicy(uint(req.RoleId), api.APIPath, api.Method)
+		}
+	}
+	// 更新 Casbin接口权限
+	if config.Config.Sys.Casbin {
+		casbin.Casbin.GetEnforcer().SavePolicy()
+		casbin.Casbin.GetEnforcer().LoadPolicy()
+	}
+	redis, err := db.Redis.GetConnection()
+	cacheKey := fmt.Sprintf("sys:role:api:%d", req.RoleId)
+	if err == nil {
+		redis.Del(cacheKey)
+	}
+	return nil
 }
 
 // matchRoleApiPath 匹配角色的API路径

@@ -11,15 +11,10 @@ package main
 
 import (
 	"github.com/maczh/mgin"
-	_ "github.com/maczh/mgin/docs"
-	swaggerFiles "github.com/swaggo/files"
-	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
 func main() {
 	app := mgin.NewApp("", "测试mgin项目", "1.0.0", false)
-	//添加swagger支持
-	app.Router.GET("/api/v1/swagger/sys/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	app.Run()
 }
 
@@ -42,6 +37,15 @@ go:
     enabled: true    #是否开启内置系统管理组件
     initdb: true     #是否自动创建数据库表结构和基础数据
     baseUri: /api/v1   #基础组件接口地址前缀
+    casbin: true    #是否开启casbin作为接口权限控制
+    swagger:
+      enabled: true       #是否开启sys基础模块的swagger接口文档
+      uri: /swagger/sys   #swagger接口文档地址,此时地址为 /api/v1/swagger/sys/index.html
+  casbin:
+    enabled: true             #是否全局开启asbin,用于 middleware/casbin对外中间件使用
+    model_file: casbin.conf   #casbin模型路径
+  jwt:
+    secret: 1234567890abcdef            #jwt密钥    
 ```
 - 内置模块
   - 用户管理 sys_user
@@ -55,6 +59,8 @@ go:
   - 接口权限管理 sys_role_api
   - 菜单权限管理 sys_role_menu
   - JWT token认证
+  - Casbin接口权限控制
+  - 角色接口表模式接口权限控制
 
 ### 支持统一的配置中心
 

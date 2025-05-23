@@ -158,17 +158,13 @@ func initData(mysql *gorm.DB) {
 	apiList = append(apiList, &sys.SysApi{ID: 60, APIPath: config.Config.Sys.BaseUri + "/sys/config/get", Method: "GET", Name: "获取系统配置信息", Description: "", APIGroup: "系统配置模块", Enabled: 1, NeedLog: 1, NeedAuth: 1})
 	apiList = append(apiList, &sys.SysApi{ID: 61, APIPath: config.Config.Sys.BaseUri + "/sys/config/list", Method: "GET", Name: "分页查询系统配置", Description: "分页查询系统配置", APIGroup: "系统配置模块", Enabled: 1, NeedLog: 1, NeedAuth: 1})
 	apiList = append(apiList, &sys.SysApi{ID: 62, APIPath: config.Config.Sys.BaseUri + "/sys/config/get/multi", Method: "GET", Name: "批量获取系统配置信息", Description: "", APIGroup: "系统配置模块", Enabled: 1, NeedLog: 1, NeedAuth: 1})
+	apiList = append(apiList, &sys.SysApi{ID: 63, APIPath: config.Config.Sys.BaseUri + "/sys/role_api/add", Method: "POST", Name: "增量绑定角色API接口权限", Description: "批量全量绑定", APIGroup: "权限模块", Enabled: 1, NeedLog: 1, NeedAuth: 1})
+	apiList = append(apiList, &sys.SysApi{ID: 64, APIPath: config.Config.Sys.BaseUri + "/sys/role_api/remove", Method: "POST", Name: "解绑角色API接口权限", Description: "批量全量绑定", APIGroup: "权限模块", Enabled: 1, NeedLog: 1, NeedAuth: 1})
 
 	for _, v := range apiList {
 		err = SysApiDao.Create(v)
 		if err != nil {
 			logs.Error("create api error: {}", err.Error())
-		}
-		if v.NeedAuth == 0 {
-			casbin.Casbin.UnAuthPath = append(casbin.Casbin.UnAuthPath, casbin.CasbinInfo{
-				Path:   v.APIPath,
-				Method: v.Method,
-			})
 		}
 	}
 
@@ -337,31 +333,15 @@ func initData(mysql *gorm.DB) {
 		{ID: 161, RoleId: 3, ApiId: 60},
 		{ID: 162, RoleId: 3, ApiId: 61},
 		{ID: 163, RoleId: 3, ApiId: 62},
+		{ID: 164, RoleId: 1, ApiId: 63},
+		{ID: 165, RoleId: 1, ApiId: 64},
+		{ID: 166, RoleId: 2, ApiId: 63},
+		{ID: 167, RoleId: 2, ApiId: 64},
 	}
-	casbinApiRules := make(map[uint][]casbin.CasbinInfo)
 	for _, v := range roleApiList {
 		err = SysRoleApiDao.Create(v)
 		if err != nil {
 			logs.Error("create role api error: {}", err.Error())
-		}
-		// 初始化角色API接口权限缓存
-		if config.Config.Sys.Casbin {
-			if casbinInfos, ok := casbinApiRules[v.RoleId]; !ok {
-				casbinInfos = make([]casbin.CasbinInfo, 0)
-				casbinApiRules[v.RoleId] = casbinInfos
-			}
-			api, _ := SysApiDao.One(sys.SysApi{ID: v.ApiId})
-			casbinApiRules[v.RoleId] = append(casbinApiRules[v.RoleId], casbin.CasbinInfo{Path: api.APIPath, Method: api.Method})
-		}
-	}
-	if config.Config.Sys.Casbin {
-		for roleId, casbinInfos := range casbinApiRules {
-			casbin.Casbin.UpdateCasbin(roleId, casbinInfos)
-		}
-		err := casbin.Casbin.GetEnforcer().LoadPolicy()
-		if err != nil {
-			logs.Error("load casbin policy error: {}", err.Error())
-			return
 		}
 	}
 	//清除角色接口权限缓存
@@ -616,4 +596,36 @@ func initData(mysql *gorm.DB) {
 		}
 	}
 
+	// 初始化casbin
+	unAuthApiList, _ := SysApiDao.All(sys.SysApi{NeedAuth: 0})
+	for _, api := range unAuthApiList {
+		casbin.Casbin.UnAuthPath = append(casbin.Casbin.UnAuthPath, casbin.CasbinInfo{
+			Path:   api.APIPath,
+			Method: api.Method,
+		})
+	}
+	// 初始化角色API接口权限，重新从数据库中读取所有角色API接口并初始化casbin
+	roleApis, _ := SysRoleApiDao.All(sys.SysRoleApi{})
+	casbinApiRules := make(map[uint][]casbin.CasbinInfo)
+	for _, v := range roleApis {
+		// 初始化角色API接口权限缓存
+		if config.Config.Sys.Casbin {
+			if casbinInfos, ok := casbinApiRules[v.RoleId]; !ok {
+				casbinInfos = make([]casbin.CasbinInfo, 0)
+				casbinApiRules[v.RoleId] = casbinInfos
+			}
+			api, _ := SysApiDao.One(sys.SysApi{ID: v.ApiId})
+			casbinApiRules[v.RoleId] = append(casbinApiRules[v.RoleId], casbin.CasbinInfo{Path: api.APIPath, Method: api.Method})
+		}
+	}
+	if config.Config.Sys.Casbin {
+		for roleId, casbinInfos := range casbinApiRules {
+			casbin.Casbin.UpdateCasbin(roleId, casbinInfos)
+		}
+		err := casbin.Casbin.GetEnforcer().LoadPolicy()
+		if err != nil {
+			logs.Error("load casbin policy error: {}", err.Error())
+			return
+		}
+	}
 }

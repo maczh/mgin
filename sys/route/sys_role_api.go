@@ -11,6 +11,8 @@ func (c *sysRoleApiRouter) Register(g *gin.RouterGroup) {
 	group := g.Group("sys/role_api")
 	{
 		group.POST("bind", handle(controller.SysRoleApi.Bind))
+		group.POST("add", handle(controller.SysRoleApi.Add))
+		group.POST("remove", handle(controller.SysRoleApi.Remove))
 		group.GET("list", handle(controller.SysRoleApi.List))
 	}
 }
