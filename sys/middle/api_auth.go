@@ -4,6 +4,7 @@ import (
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
 	"github.com/maczh/mgin/config"
+	"github.com/maczh/mgin/logs"
 	"github.com/maczh/mgin/models"
 	"github.com/maczh/mgin/sys/service"
 	"strings"
@@ -11,6 +12,8 @@ import (
 
 func ApiAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		logs.Debug("验证权限：{},前缀: {}", c.Request.URL.Path, config.Config.Sys.BaseUri+config.Config.Sys.Swagger.Uri)
+		// swagger和文档接口不验证权限
 		if strings.HasPrefix(c.Request.URL.Path, "/docs/") || strings.HasPrefix(c.Request.URL.Path, "/swagger/") || strings.HasPrefix(c.Request.URL.Path, config.Config.Sys.BaseUri+config.Config.Sys.Swagger.Uri) {
 			c.Next()
 			return

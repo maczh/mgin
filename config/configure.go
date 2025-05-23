@@ -25,6 +25,7 @@ type config struct {
 	Discovery discovery `json:"discovery" bson:"discovery"`
 	Jwt       jwtConfig `json:"jwt" bson:"jwt"`
 	Sys       sys       `json:"sys" bson:"sys"`
+	Casbin    casbin    `json:"casbin" bson:"casbin"`
 }
 
 type app struct {
@@ -91,6 +92,12 @@ type sys struct {
 		Enabled bool   `json:"enabled" bson:"enabled"` //是否启用swagger
 		Uri     string `json:"uri" bson:"uri"`         //swagger路径
 	}
+	Casbin bool `json:"casbin" bson:"casbin"` //是否在sys模块中启用casbin
+}
+
+type casbin struct {
+	Enabled   bool   `json:"enabled" bson:"enabled"`     //是否启用casbin
+	ModelFile string `json:"modelFile" bson:"modelFile"` //casbin模型文件路径
 }
 
 var Config = &config{}
@@ -163,8 +170,11 @@ func (c *config) Init(cf string) {
 		c.Sys.BaseUri = "/api/v1"
 	}
 	if c.Sys.Swagger.Uri == "" {
-		c.Sys.Swagger.Uri = c.Sys.BaseUri + "/swagger/sys"
+		c.Sys.Swagger.Uri = "/swagger/sys"
 	}
+	c.Casbin.Enabled = c.Cnf.Bool("go.casbin.enabled")
+	c.Casbin.ModelFile = c.Cnf.String("go.casbin.modelFile")
+	c.Sys.Casbin = c.Cnf.Bool("go.sys.casbin")
 }
 
 func (c *config) GetConfigString(name string) string {
