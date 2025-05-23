@@ -1,6 +1,7 @@
 package dao
 
 import (
+	"github.com/maczh/mgin/casbin"
 	"github.com/maczh/mgin/config"
 	"github.com/maczh/mgin/db"
 	"github.com/maczh/mgin/logs"
@@ -162,6 +163,12 @@ func initData(mysql *gorm.DB) {
 		err = SysApiDao.Create(v)
 		if err != nil {
 			logs.Error("create api error: {}", err.Error())
+		}
+		if v.NeedAuth == 0 {
+			casbin.Casbin.UnAuthPath = append(casbin.Casbin.UnAuthPath, casbin.CasbinInfo{
+				Path:   v.APIPath,
+				Method: v.Method,
+			})
 		}
 	}
 
@@ -331,10 +338,30 @@ func initData(mysql *gorm.DB) {
 		{ID: 162, RoleId: 3, ApiId: 61},
 		{ID: 163, RoleId: 3, ApiId: 62},
 	}
+	casbinApiRules := make(map[uint][]casbin.CasbinInfo)
 	for _, v := range roleApiList {
 		err = SysRoleApiDao.Create(v)
 		if err != nil {
 			logs.Error("create role api error: {}", err.Error())
+		}
+		// 初始化角色API接口权限缓存
+		if config.Config.Sys.Casbin {
+			if casbinInfos, ok := casbinApiRules[v.RoleId]; !ok {
+				casbinInfos = make([]casbin.CasbinInfo, 0)
+				casbinApiRules[v.RoleId] = casbinInfos
+			}
+			api, _ := SysApiDao.One(sys.SysApi{ID: v.ApiId})
+			casbinApiRules[v.RoleId] = append(casbinApiRules[v.RoleId], casbin.CasbinInfo{Path: api.APIPath, Method: api.Method})
+		}
+	}
+	if config.Config.Sys.Casbin {
+		for roleId, casbinInfos := range casbinApiRules {
+			casbin.Casbin.UpdateCasbin(roleId, casbinInfos)
+		}
+		err := casbin.Casbin.GetEnforcer().LoadPolicy()
+		if err != nil {
+			logs.Error("load casbin policy error: {}", err.Error())
+			return
 		}
 	}
 	//清除角色接口权限缓存

@@ -29,7 +29,7 @@ func getCurrentNickName(c *gin.Context) string {
 // 从*gin.Context 获取用户id
 func getCurrentUserId(c *gin.Context) uint {
 	claims := c.MustGet("claims").(jwt.MapClaims)
-	return uint(claims["id"].(float64))
+	return uint(claims["userId"].(float64))
 }
 
 // 从*gin.Context 获取用户角色id

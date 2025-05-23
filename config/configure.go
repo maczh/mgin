@@ -96,8 +96,8 @@ type sys struct {
 }
 
 type casbin struct {
-	Enabled   bool   `json:"enabled" bson:"enabled"`     //是否启用casbin
-	ModelFile string `json:"modelFile" bson:"modelFile"` //casbin模型文件路径
+	Enabled   bool   `json:"enabled" bson:"enabled"`       //是否启用casbin
+	ModelFile string `json:"model_file" bson:"model_file"` //casbin模型文件路径
 }
 
 var Config = &config{}
@@ -173,7 +173,10 @@ func (c *config) Init(cf string) {
 		c.Sys.Swagger.Uri = "/swagger/sys"
 	}
 	c.Casbin.Enabled = c.Cnf.Bool("go.casbin.enabled")
-	c.Casbin.ModelFile = c.Cnf.String("go.casbin.modelFile")
+	c.Casbin.ModelFile = c.Cnf.String("go.casbin.model_file")
+	if !(strings.Contains(c.Casbin.ModelFile, "/") || strings.Contains(c.Casbin.ModelFile, "\\")) {
+		c.Casbin.ModelFile = filepath.Join(c.WorkDir, c.Casbin.ModelFile)
+	}
 	c.Sys.Casbin = c.Cnf.Bool("go.sys.casbin")
 }
 

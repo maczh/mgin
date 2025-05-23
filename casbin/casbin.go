@@ -2,6 +2,7 @@ package casbin
 
 import (
 	"errors"
+	"fmt"
 	"github.com/casbin/casbin/v2"
 	"github.com/maczh/mgin/config"
 	"github.com/maczh/mgin/db"
@@ -16,9 +17,12 @@ import (
 type casbinService struct {
 	SyncedCachedEnforcer *casbin.SyncedCachedEnforcer
 	Once                 sync.Once
+	UnAuthPath           []CasbinInfo
 }
 
-var Casbin = new(casbinService)
+var Casbin = &casbinService{
+	UnAuthPath: make([]CasbinInfo, 0),
+}
 
 type CasbinInfo struct {
 	Path   string
@@ -31,9 +35,9 @@ type CasbinInfo struct {
 // @description: 更新 casbin
 // @param: RoleID uint, casbinInfos []request.CasbinInfo
 // @return: error
-func (casbinService *casbinService) UpdateCasbin(RoleID uint, casbinInfos []CasbinInfo) error {
-	roleId := strconv.Itoa(int(RoleID))
-	casbinService.ClearCasbin(0, roleId)
+func (s *casbinService) UpdateCasbin(RoleID uint, casbinInfos []CasbinInfo) error {
+	roleId := fmt.Sprintf("%d", RoleID)
+	s.ClearCasbin(0, roleId)
 	rules := [][]string{}
 	// 权限去重
 	deDuplicateMap := make(map[string]bool)
@@ -45,7 +49,7 @@ func (casbinService *casbinService) UpdateCasbin(RoleID uint, casbinInfos []Casb
 		}
 	}
 
-	enforcer := casbinService.GetEnforcer()
+	enforcer := s.GetEnforcer()
 	success, _ := enforcer.AddPolicies(rules)
 	if !success {
 		return errors.New("添加失败")

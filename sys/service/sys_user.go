@@ -134,7 +134,7 @@ func (s *sysUserService) Login(req request.LoginReq) (string, error) {
 	}
 	// 生成JWT token
 	claims := jwt.MapClaims{
-		"id":        user.Id,
+		"userId":    user.Id,
 		"loginName": user.LoginName,
 		"nickName":  user.NickName,
 		"avatar":    user.Avatar,
@@ -153,7 +153,7 @@ func (s *sysUserService) Login(req request.LoginReq) (string, error) {
 // Logout 用户退出登录
 func (s *sysUserService) Logout() error {
 	claims := s.ctx.MustGet("claims").(jwt.MapClaims)
-	userId := uint(claims["id"].(float64))
+	userId := uint(claims["userId"].(float64))
 	user, err := s.GetSysUser(request.GetSysUserReq{Id: uint64(userId)})
 	if err != nil {
 		return err
@@ -175,7 +175,7 @@ func (s *sysUserService) VerifyJwt(jwtToken string) (bool, *jwt.MapClaims, error
 		return false, nil, err
 	}
 	claims, _ := token.Claims.(jwt.MapClaims)
-	userId := uint(claims["id"].(float64))
+	userId := uint(claims["userId"].(float64))
 	sysUser, err := s.GetSysUser(request.GetSysUserReq{Id: uint64(userId)})
 	if err != nil {
 		return false, &claims, err
