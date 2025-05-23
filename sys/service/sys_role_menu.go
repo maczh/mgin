@@ -1,13 +1,22 @@
 package service
 
 import (
+	"github.com/gin-gonic/gin"
 	"github.com/maczh/mgin/logs"
 	"github.com/maczh/mgin/models/sys"
 	"github.com/maczh/mgin/models/sys/request"
 	"github.com/maczh/mgin/sys/dao"
+	"time"
 )
 
-type sysRoleMenuService struct{}
+type sysRoleMenuService struct {
+	ctx *gin.Context
+}
+
+func (s *sysRoleMenuService) WithContext(ctx *gin.Context) *sysRoleMenuService {
+	s.ctx = ctx
+	return s
+}
 
 // BindRoleMenu 绑定角色和菜单,每次都是全量绑定，先删除再新增
 func (s *sysRoleMenuService) BindRoleMenu(req request.BindRoleMenuReq) error {
@@ -17,8 +26,12 @@ func (s *sysRoleMenuService) BindRoleMenu(req request.BindRoleMenuReq) error {
 		logs.Error("删除角色{}的所有菜单时发生错误：{}", req.RoleId, err.Error())
 		return err
 	}
+	var nickName string
+	if s.ctx != nil {
+		nickName = s.ctx.GetString("nickName")
+	}
 	for _, apiId := range req.MenuIds {
-		err := dao.SysRoleMenuDao.Save(&sys.SysRoleMenu{RoleId: uint(req.RoleId), MenuId: uint(apiId)})
+		err := dao.SysRoleMenuDao.Save(&sys.SysRoleMenu{RoleId: uint(req.RoleId), MenuId: uint(apiId), BaseModel: sys.BaseModel{CreateBy: nickName, UpdateBy: nickName, CreateAt: time.Now(), UpdateAt: time.Now()}})
 		if err != nil {
 			logs.Error("绑定角色{}和菜单 {}时发生错误：{}", req.RoleId, apiId, err.Error())
 		}

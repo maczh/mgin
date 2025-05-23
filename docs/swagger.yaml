@@ -654,6 +654,12 @@ definitions:
     type: object
 info:
   contact: {}
+  description: MGin基础模块 API 文档。
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  title: MGin基础模块API文档
+  version: 1.0.0
 paths:
   /api/v1/login:
     post:

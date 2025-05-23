@@ -25,7 +25,7 @@ func (sysRoleMenuController) Bind(ctx *gin.Context) models.Result[any] {
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		return models.Error(500, err.Error())
 	}
-	err := service.SysRoleMenu.BindRoleMenu(req)
+	err := service.SysRoleMenu.WithContext(ctx).BindRoleMenu(req)
 	if err != nil {
 		return models.Error(500, err.Error())
 	}
