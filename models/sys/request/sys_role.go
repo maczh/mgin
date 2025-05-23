@@ -7,7 +7,7 @@ type CreateRoleReq struct {
 }
 
 type GetRoleReq struct {
-	Id    uint   `json:"id" form:"id"`
+	ID    uint   `json:"id" form:"id"`
 	Name  string `json:"name" form:"name"`
 	Ident string `json:"ident" form:"ident"`
 }

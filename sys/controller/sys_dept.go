@@ -97,7 +97,7 @@ func (s *sysDeptController) Delete(c *gin.Context) models.Result[any] {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		return models.Error(500, "参数绑定失败:"+err.Error())
 	}
-	if err := service.SysDept.Delete(uint(req.Id)); err != nil {
+	if err := service.SysDept.Delete(uint(req.ID)); err != nil {
 		return models.Error(500, err.Error())
 	}
 	return models.Success[any](nil)
@@ -142,7 +142,7 @@ func (s *sysDeptController) GetTree(c *gin.Context) models.Result[any] {
 	if err := c.ShouldBindQuery(&req); err != nil {
 		return models.Error(500, "参数绑定失败:"+err.Error())
 	}
-	depts, err := service.SysDept.GetTree(*req.Id)
+	depts, err := service.SysDept.GetTree(*req.ID)
 	if err != nil {
 		return models.Error(500, err.Error())
 	}

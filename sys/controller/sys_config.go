@@ -73,7 +73,7 @@ func (s *sysConfigController) Delete(c *gin.Context) models.Result[any] {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		return models.Error(500, "参数绑定失败")
 	}
-	if err := service.SysConfig.Delete(int(req.Id)); err != nil {
+	if err := service.SysConfig.Delete(int(req.ID)); err != nil {
 		return models.Error(500, "删除系统配置失败: "+err.Error())
 	}
 	return models.Success[any](nil)

@@ -48,8 +48,8 @@ func (s *sysRoleService) Add(req request.CreateRoleReq) (*sys.SysRole, error) {
 
 // Get 获取角色
 func (s *sysRoleService) Get(req request.GetRoleReq) (*sys.SysRole, error) {
-	if req.Id > 0 {
-		return dao.SysRoleDao.One(sys.SysRole{ID: req.Id})
+	if req.ID > 0 {
+		return dao.SysRoleDao.One(sys.SysRole{ID: req.ID})
 	} else if req.Ident != "" {
 		return dao.SysRoleDao.One(sys.SysRole{RoleIdent: req.Ident})
 	} else if req.Name != "" {
@@ -63,7 +63,7 @@ func (s *sysRoleService) Update(req *sys.SysRole) error {
 	if req.ID <= 0 {
 		return errors.New("角色ID参数不能为空")
 	}
-	role, err := s.Get(request.GetRoleReq{Id: req.ID})
+	role, err := s.Get(request.GetRoleReq{ID: req.ID})
 	if err != nil {
 		return err
 	}
@@ -87,7 +87,7 @@ func (s *sysRoleService) Update(req *sys.SysRole) error {
 
 // Delete 删除角色
 func (s *sysRoleService) Delete(id uint) error {
-	role, err := s.Get(request.GetRoleReq{Id: id})
+	role, err := s.Get(request.GetRoleReq{ID: id})
 	if err != nil {
 		return err
 	}

@@ -95,7 +95,7 @@ func (s *sysPostController) Delete(c *gin.Context) models.Result[any] {
 	if err := c.ShouldBindQuery(&req); err != nil {
 		return models.Error(500, err.Error())
 	}
-	err := service.SysPost.Delete(uint(req.Id))
+	err := service.SysPost.Delete(uint(req.ID))
 	if err != nil {
 		return models.Error(500, err.Error())
 	}

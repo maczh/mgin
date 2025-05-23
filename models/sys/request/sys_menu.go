@@ -1,7 +1,8 @@
 package request
 
 type CreateMenuReq struct {
-	ParentID   uint   `json:"parentId" form:"parentId"`
+	MenuLevel  int    `json:"menuLevel" form:"menuLevel" binding:"required"` // 菜单等级(1主菜单 2子菜单)
+	ParentId   uint   `json:"parentId" form:"parentId"`
 	Path       string `json:"path" form:"path" binding:"required"`
 	Name       string `json:"name" form:"name" binding:"required"`
 	Component  string `json:"component" form:"component" binding:"required"`
@@ -19,12 +20,12 @@ type CreateMenuReq struct {
 }
 
 type GetMenuReq struct {
-	Id    uint   `json:"id" form:"id"`
+	ID    uint   `json:"id" form:"id"`
 	Title string `json:"title" form:"title"` //菜单标题
 }
 
 type ListMenuReq struct {
-	ParentID  uint   `json:"parentId" form:"parentId"`
+	ParentId  uint   `json:"parentId" form:"parentId"`
 	Path      string `json:"path" form:"path"`           //菜单路径
 	Name      string `json:"name" form:"name"`           //菜单名称
 	Component string `json:"component" form:"component"` //组件路径
@@ -35,5 +36,6 @@ type ListMenuReq struct {
 }
 
 type GetTreeMenuReq struct {
-	ParentID uint `json:"parentId" form:"parentId"`
+	ParentId uint `json:"parentId" form:"parentId"` //父级菜单id，0表示获取所有一级菜单
+	ByRole   bool `json:"byRole" form:"byRole"`     // 按角色获取菜单
 }

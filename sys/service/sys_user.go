@@ -68,7 +68,7 @@ func (s *sysUserService) Register(req request.RegisterReq) (*sys.SysUser, error)
 	}
 	// 自动创建扩展信息
 	userExt := sys.SysUserExt{
-		UserId:       user1.Id,
+		UserId:       user1.ID,
 		RoleId:       2, // 默认角色ID
 		DepartmentId: 1, // 默认部门ID
 		PositionId:   1, // 默认岗位ID
@@ -103,7 +103,7 @@ func (s *sysUserService) Login(req request.LoginReq) (string, error) {
 			}
 			return "", err
 		}
-		if user.Id == 0 {
+		if user.ID == 0 {
 			return "", errors.New("用户不存在")
 		}
 		if user.Status != 1 {
@@ -128,13 +128,13 @@ func (s *sysUserService) Login(req request.LoginReq) (string, error) {
 
 	// 获取角色信息
 	var roleId int64 = 0
-	ext, err := dao.SysUserExtDao.One(sys.SysUserExt{UserId: user.Id})
+	ext, err := dao.SysUserExtDao.One(sys.SysUserExt{UserId: user.ID})
 	if ext != nil {
 		roleId = ext.RoleId
 	}
 	// 生成JWT token
 	claims := jwt.MapClaims{
-		"userId":    user.Id,
+		"userId":    user.ID,
 		"loginName": user.LoginName,
 		"nickName":  user.NickName,
 		"avatar":    user.Avatar,
@@ -146,7 +146,7 @@ func (s *sysUserService) Login(req request.LoginReq) (string, error) {
 		logs.Error("生成Token失败: {}", err.Error())
 		return "", err
 	}
-	redis.Set(fmt.Sprintf("sys:user:token:%d", user.Id), token, 7*24*time.Hour)
+	redis.Set(fmt.Sprintf("sys:user:token:%d", user.ID), token, 7*24*time.Hour)
 	return token, nil
 }
 
@@ -154,7 +154,7 @@ func (s *sysUserService) Login(req request.LoginReq) (string, error) {
 func (s *sysUserService) Logout() error {
 	claims := s.ctx.MustGet("claims").(jwt.MapClaims)
 	userId := uint(claims["userId"].(float64))
-	user, err := s.GetSysUser(request.GetSysUserReq{Id: uint64(userId)})
+	user, err := s.GetSysUser(request.GetSysUserReq{ID: uint64(userId)})
 	if err != nil {
 		return err
 	}
@@ -164,7 +164,7 @@ func (s *sysUserService) Logout() error {
 		return err
 	}
 	//删除token缓存
-	redis.Del(fmt.Sprintf("sys:user:token:%d", user.Id))
+	redis.Del(fmt.Sprintf("sys:user:token:%d", user.ID))
 	return nil
 }
 
@@ -176,7 +176,7 @@ func (s *sysUserService) VerifyJwt(jwtToken string) (bool, *jwt.MapClaims, error
 	}
 	claims, _ := token.Claims.(jwt.MapClaims)
 	userId := uint(claims["userId"].(float64))
-	sysUser, err := s.GetSysUser(request.GetSysUserReq{Id: uint64(userId)})
+	sysUser, err := s.GetSysUser(request.GetSysUserReq{ID: uint64(userId)})
 	if err != nil {
 		return false, &claims, err
 	}
@@ -188,7 +188,7 @@ func (s *sysUserService) VerifyJwt(jwtToken string) (bool, *jwt.MapClaims, error
 		logs.Error("获取 Redis 连接失败: {}", err.Error())
 		return false, &claims, err
 	}
-	tokenStr := redis.Get(fmt.Sprintf("sys:user:token:%d", sysUser.Id)).Val()
+	tokenStr := redis.Get(fmt.Sprintf("sys:user:token:%d", sysUser.ID)).Val()
 	if tokenStr != jwtToken {
 		return false, &claims, errors.New("Token 无效")
 	}
@@ -204,8 +204,8 @@ func (s *sysUserService) GetSysUser(req request.GetSysUserReq) (*sys.SysUser, er
 	}
 	// 先从缓存中查找
 	var user sys.SysUser
-	if req.Id == 0 {
-		userStr := redis.Get(fmt.Sprintf("sys:user:id:%d", req.Id)).Val()
+	if req.ID == 0 {
+		userStr := redis.Get(fmt.Sprintf("sys:user:id:%d", req.ID)).Val()
 		if userStr != "" {
 			utils.FromJSON(userStr, &user)
 		}
@@ -225,21 +225,21 @@ func (s *sysUserService) GetSysUser(req request.GetSysUserReq) (*sys.SysUser, er
 			}
 		}
 	}
-	if user.Id == 0 { //缓存中没有，从数据库中查找
-		err = dao.SysUserDao.Where("(id =? or login_name = ? or email = ? or mobile = ?) AND del_flag = 0", req.Id, req.LoginName, req.Email, req.Mobile).First(&user).Error
+	if user.ID == 0 { //缓存中没有，从数据库中查找
+		err = dao.SysUserDao.Where("(id =? or login_name = ? or email = ? or mobile = ?) AND del_flag = 0", req.ID, req.LoginName, req.Email, req.Mobile).First(&user).Error
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return nil, errors.New("用户不存在")
 			}
 		}
-		if user.Id != 0 { //将用户信息存入缓存
-			redis.Set(fmt.Sprintf("sys:user:id:%d", user.Id), utils.ToJSON(user), 0)
-			redis.Set(fmt.Sprintf("sys:user:%s", user.LoginName), user.Id, 0)
+		if user.ID != 0 { //将用户信息存入缓存
+			redis.Set(fmt.Sprintf("sys:user:id:%d", user.ID), utils.ToJSON(user), 0)
+			redis.Set(fmt.Sprintf("sys:user:%s", user.LoginName), user.ID, 0)
 			if user.Email != "" {
-				redis.Set(fmt.Sprintf("sys:user:%s", user.Email), user.Id, 0)
+				redis.Set(fmt.Sprintf("sys:user:%s", user.Email), user.ID, 0)
 			}
 			if user.Mobile != "" {
-				redis.Set(fmt.Sprintf("sys:user:%s", user.Mobile), user.Id, 0)
+				redis.Set(fmt.Sprintf("sys:user:%s", user.Mobile), user.ID, 0)
 			}
 		}
 	}
@@ -282,7 +282,7 @@ func (s *sysUserService) ListSysUser(req request.ListSysUserReq) ([]sys.SysUser,
 // Update 更新用户信息
 func (s *sysUserService) Update(user *sys.SysUser) error {
 	// 检查用户是否存在
-	u, _ := dao.SysUserDao.One(sys.SysUser{Id: user.Id})
+	u, _ := dao.SysUserDao.One(sys.SysUser{ID: user.ID})
 	if u == nil {
 		return errors.New("用户不存在")
 	}
@@ -313,7 +313,7 @@ func (s *sysUserService) Update(user *sys.SysUser) error {
 		logs.Error("获取 Redis 连接失败: {}", err.Error())
 		return err
 	}
-	redis.Del(fmt.Sprintf("sys:user:id:%d", user.Id))
+	redis.Del(fmt.Sprintf("sys:user:id:%d", user.ID))
 	redis.Del(fmt.Sprintf("sys:user:%s", user.LoginName))
 	if user.Email != "" {
 		redis.Del(fmt.Sprintf("sys:user:%s", user.Email))
@@ -367,7 +367,7 @@ func (s *sysUserService) New(user *sys.SysUser) (*sys.SysUser, error) {
 
 // Delete 软删除用户
 func (s *sysUserService) Delete(id int64) error {
-	user, err := s.GetSysUser(request.GetSysUserReq{Id: uint64(id)})
+	user, err := s.GetSysUser(request.GetSysUserReq{ID: uint64(id)})
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return errors.New("用户不存在")
@@ -394,13 +394,13 @@ func (s *sysUserService) Delete(id int64) error {
 		logs.Error("获取 Redis 连接失败: {}", err.Error())
 		return err
 	}
-	redis.Del(fmt.Sprintf("sys:user:id:%d", user.Id))
+	redis.Del(fmt.Sprintf("sys:user:id:%d", user.ID))
 	return nil
 }
 
 // ChangeStatus 更改用户状态
 func (s *sysUserService) ChangeStatus(id int64, status uint8) error {
-	user, err := s.GetSysUser(request.GetSysUserReq{Id: uint64(id)})
+	user, err := s.GetSysUser(request.GetSysUserReq{ID: uint64(id)})
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return errors.New("用户不存在")
@@ -426,7 +426,7 @@ func (s *sysUserService) ChangeStatus(id int64, status uint8) error {
 		logs.Error("获取 Redis 连接失败: {}", err.Error())
 		return err
 	}
-	redis.Del(fmt.Sprintf("sys:user:id:%d", user.Id))
+	redis.Del(fmt.Sprintf("sys:user:id:%d", user.ID))
 
 	return nil
 }

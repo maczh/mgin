@@ -6,12 +6,12 @@ package sys
 // 该表可以通过模块和键名进行查询和更新操作，方便管理系统的配置信息。
 // 注意：该表中的配置项名称是唯一的，不允许重复。
 type SysConfig struct {
-	ID          int64  `gorm:"primaryKey;autoIncrement;comment:主键ID" json:"id"`
-	Module      string `gorm:"type:varchar(100);comment:所属功能模块;index" json:"module" binding:"required"`
-	Name        string `gorm:"type:varchar(50);not null;index;comment:配置名" json:"name" binding:"required"`
-	Key         string `gorm:"type:varchar(100);uniqueIndex;not null;comment:配置项名称，即配置变量名，唯一" json:"key" binding:"required"`
-	Value       string `gorm:"type:text;comment:该配置保存值" json:"value" binding:"required"`
-	Description string `gorm:"type:varchar(255);comment:配置项描述" json:"description"`
+	ID          int64  `gorm:"primaryKey;autoIncrement;comment:主键ID" json:"id"`                                              // 主键ID
+	Module      string `gorm:"type:varchar(100);comment:所属功能模块;index" json:"module" binding:"required"`                      // 所属功能模块
+	Name        string `gorm:"type:varchar(50);not null;index;comment:配置名" json:"name" binding:"required"`                   // 配置名
+	Key         string `gorm:"type:varchar(100);uniqueIndex;not null;comment:配置项名称，即配置变量名，唯一" json:"key" binding:"required"` // 配置项名称，即配置变量名，唯一
+	Value       string `gorm:"type:text;comment:该配置保存值" json:"value" binding:"required"`                                     // 该配置保存值
+	Description string `gorm:"type:varchar(255);comment:配置项描述" json:"description"`                                           // 配置项描述
 }
 
 func (SysConfig) TableName() string {

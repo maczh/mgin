@@ -2,7 +2,7 @@ package request
 
 type CreateDictReq struct {
 	Type     string `json:"type" form:"type" binding:"required"`
-	ParentID int    `json:"parentId" form:"parentId"`
+	ParentId int    `json:"parentId" form:"parentId"`
 	Name     string `json:"name" form:"name" binding:"required"`
 	Key      string `json:"key" form:"key" binding:"required"`
 	Value    string `json:"value" form:"value" binding:"required"`
@@ -19,7 +19,7 @@ type GetDictReq struct {
 
 type ListDictReq struct {
 	Type     string `json:"type" form:"type"`
-	ParentID int    `json:"parentId" form:"parentId"`
+	ParentId int    `json:"parentId" form:"parentId"`
 	Name     string `json:"name" form:"name"`
 	Page     int    `json:"page" form:"page"`
 	PageSize int    `json:"pageSize" form:"pageSize"`

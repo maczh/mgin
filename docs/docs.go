@@ -1620,7 +1620,14 @@ const docTemplate = `{
                         "required": true
                     },
                     {
+                        "type": "boolean",
+                        "description": "按角色获取菜单",
+                        "name": "byRole",
+                        "in": "query"
+                    },
+                    {
                         "type": "integer",
+                        "description": "父级菜单id，0表示获取所有一级菜单",
                         "name": "parentId",
                         "in": "query"
                     }
@@ -3307,48 +3314,63 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "api_group": {
+                    "description": "接口分组(模块名称)",
                     "type": "string"
                 },
                 "api_path": {
+                    "description": "API路径(支持通配符)",
                     "type": "string"
                 },
                 "createAt": {
+                    "description": "创建日期",
                     "type": "string"
                 },
                 "createBy": {
+                    "description": "创建者",
                     "type": "string"
                 },
                 "delFlag": {
+                    "description": "删除标记",
                     "type": "integer"
                 },
                 "description": {
+                    "description": "接口描述",
                     "type": "string"
                 },
                 "enabled": {
+                    "description": "启用状态(1启用 0禁用)",
                     "type": "integer"
                 },
                 "id": {
+                    "description": "主键ID",
                     "type": "integer"
                 },
                 "method": {
+                    "description": "请求方法(GET|POST|PUT|DELETE...)",
                     "type": "string"
                 },
                 "name": {
+                    "description": "API接口名称",
                     "type": "string"
                 },
                 "need_auth": {
+                    "description": "是否需要JWT认证(1是 0否)",
                     "type": "integer"
                 },
                 "need_log": {
+                    "description": "是否需要记录日志",
                     "type": "integer"
                 },
                 "tenantId": {
+                    "description": "租户id",
                     "type": "integer"
                 },
                 "updateAt": {
+                    "description": "更新日期",
                     "type": "string"
                 },
                 "updateBy": {
+                    "description": "更新者",
                     "type": "string"
                 }
             }
@@ -3363,21 +3385,27 @@ const docTemplate = `{
             ],
             "properties": {
                 "description": {
+                    "description": "配置项描述",
                     "type": "string"
                 },
                 "id": {
+                    "description": "主键ID",
                     "type": "integer"
                 },
                 "key": {
+                    "description": "配置项名称，即配置变量名，唯一",
                     "type": "string"
                 },
                 "module": {
+                    "description": "所属功能模块",
                     "type": "string"
                 },
                 "name": {
+                    "description": "配置名",
                     "type": "string"
                 },
                 "value": {
+                    "description": "该配置保存值",
                     "type": "string"
                 }
             }
@@ -3386,57 +3414,74 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "ancestors": {
+                    "description": "祖级列表，以逗号分割",
                     "type": "string"
                 },
                 "children": {
+                    "description": "子部门列表",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/github_com_maczh_mgin_models_sys.SysDept"
                     }
                 },
                 "createAt": {
+                    "description": "创建日期",
                     "type": "string"
                 },
                 "createBy": {
+                    "description": "创建者",
                     "type": "string"
                 },
                 "delFlag": {
+                    "description": "删除标记",
                     "type": "integer"
                 },
                 "deptType": {
+                    "description": "组织类型(0:公司 1:部门)",
                     "type": "string"
                 },
                 "id": {
+                    "description": "主键ID",
                     "type": "integer"
                 },
                 "leader": {
+                    "description": "负责人",
                     "type": "string"
                 },
                 "mobile": {
+                    "description": "联系电话",
                     "type": "string"
                 },
                 "name": {
+                    "description": "部门名称",
                     "type": "string"
                 },
                 "parentId": {
+                    "description": "父部门id",
                     "type": "integer"
                 },
                 "parentName": {
+                    "description": "父部门名称",
                     "type": "string"
                 },
                 "sort": {
+                    "description": "显示顺序",
                     "type": "integer"
                 },
                 "status": {
+                    "description": "部门状态(1:正常 0:停用)",
                     "type": "integer"
                 },
                 "tenantId": {
+                    "description": "租户id",
                     "type": "integer"
                 },
                 "updateAt": {
+                    "description": "更新日期",
                     "type": "string"
                 },
                 "updateBy": {
+                    "description": "更新者",
                     "type": "string"
                 }
             }
@@ -3445,12 +3490,15 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "createAt": {
+                    "description": "创建日期",
                     "type": "string"
                 },
                 "createBy": {
+                    "description": "创建者",
                     "type": "string"
                 },
                 "delFlag": {
+                    "description": "删除标记",
                     "type": "integer"
                 },
                 "id": {
@@ -3462,7 +3510,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "name": {
-                    "description": "字典名称",
+                    "description": "字典中文名称",
                     "type": "string"
                 },
                 "parent_id": {
@@ -3478,6 +3526,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "tenantId": {
+                    "description": "租户id",
                     "type": "integer"
                 },
                 "type": {
@@ -3485,9 +3534,11 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "updateAt": {
+                    "description": "更新日期",
                     "type": "string"
                 },
                 "updateBy": {
+                    "description": "更新者",
                     "type": "string"
                 },
                 "value": {
@@ -3500,18 +3551,22 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "active_menu": {
+                    "description": "激活菜单的路径",
                     "type": "string"
                 },
                 "affix": {
+                    "description": "是否固定到标签页",
                     "type": "integer"
                 },
                 "always_show": {
+                    "description": "是否总是显示(即使只有一个子菜单)",
                     "type": "integer"
                 },
                 "breadcrumb": {
+                    "description": "是否显示面包屑",
                     "type": "integer"
                 },
-                "children;omitempty": {
+                "children": {
                     "description": "关联关系",
                     "type": "array",
                     "items": {
@@ -3519,33 +3574,46 @@ const docTemplate = `{
                     }
                 },
                 "component": {
+                    "description": "组件路径(views目录下的路径)",
                     "type": "string"
                 },
                 "createAt": {
+                    "description": "创建日期",
                     "type": "string"
                 },
                 "createBy": {
+                    "description": "创建者",
                     "type": "string"
                 },
                 "delFlag": {
+                    "description": "删除标记",
                     "type": "integer"
                 },
                 "hidden": {
+                    "description": "是否隐藏(0显示 1隐藏)",
                     "type": "integer"
                 },
                 "icon": {
+                    "description": "菜单图标(组件名称)",
                     "type": "string"
                 },
                 "id": {
+                    "description": "菜单ID",
                     "type": "integer"
                 },
                 "keep_alive": {
+                    "description": "是否缓存(0否 1是)",
+                    "type": "integer"
+                },
+                "menu_level": {
+                    "description": "菜单等级(1主菜单 2子菜单)",
                     "type": "integer"
                 },
                 "name": {
+                    "description": "路由名称",
                     "type": "string"
                 },
-                "parent;omitempty": {
+                "parent": {
                     "description": "自关联",
                     "allOf": [
                         {
@@ -3554,15 +3622,18 @@ const docTemplate = `{
                     ]
                 },
                 "parent_id": {
+                    "description": "父菜单ID(0表示根菜单)",
                     "type": "integer"
                 },
                 "path": {
+                    "description": "路由路径(需符合Vue Router规范)",
                     "type": "string"
                 },
                 "redirect": {
+                    "description": "重定向路径",
                     "type": "string"
                 },
-                "roles;omitempty": {
+                "roles": {
                     "description": "多对多关联",
                     "type": "array",
                     "items": {
@@ -3570,21 +3641,27 @@ const docTemplate = `{
                     }
                 },
                 "sort": {
+                    "description": "排序序号(越小越靠前)",
                     "type": "integer"
                 },
                 "status": {
+                    "description": "菜单状态(1正常 0停用)",
                     "type": "integer"
                 },
                 "tenantId": {
+                    "description": "租户id",
                     "type": "integer"
                 },
                 "title": {
+                    "description": "菜单标题(显示名称)",
                     "type": "string"
                 },
                 "updateAt": {
+                    "description": "更新日期",
                     "type": "string"
                 },
                 "updateBy": {
+                    "description": "更新者",
                     "type": "string"
                 }
             }
@@ -3593,42 +3670,55 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "createAt": {
+                    "description": "创建日期",
                     "type": "string"
                 },
                 "createBy": {
+                    "description": "创建者",
                     "type": "string"
                 },
                 "delFlag": {
+                    "description": "删除标记",
                     "type": "integer"
                 },
                 "dept_id": {
+                    "description": "所属部门ID",
                     "type": "integer"
                 },
                 "id": {
+                    "description": "主键ID",
                     "type": "integer"
                 },
                 "post_code": {
+                    "description": "岗位编码(全局唯一)",
                     "type": "string"
                 },
                 "post_name": {
+                    "description": "岗位名称(全局唯一)",
                     "type": "string"
                 },
                 "remark": {
+                    "description": "备注",
                     "type": "string"
                 },
                 "sort": {
+                    "description": "显示顺序",
                     "type": "integer"
                 },
                 "status": {
+                    "description": "状态(1:正常 0:停用)",
                     "type": "integer"
                 },
                 "tenantId": {
+                    "description": "租户id",
                     "type": "integer"
                 },
                 "updateAt": {
+                    "description": "更新日期",
                     "type": "string"
                 },
                 "updateBy": {
+                    "description": "更新者",
                     "type": "string"
                 }
             }
@@ -3636,57 +3726,49 @@ const docTemplate = `{
         "github_com_maczh_mgin_models_sys.SysRole": {
             "type": "object",
             "properties": {
-                "apis;omitempty": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/github_com_maczh_mgin_models_sys.SysApi"
-                    }
-                },
                 "createAt": {
+                    "description": "创建日期",
                     "type": "string"
                 },
                 "createBy": {
+                    "description": "创建者",
                     "type": "string"
                 },
                 "delFlag": {
+                    "description": "删除标记",
                     "type": "integer"
                 },
                 "description": {
+                    "description": "角色描述",
                     "type": "string"
                 },
                 "id": {
+                    "description": "角色ID",
                     "type": "integer"
                 },
                 "isEnable": {
+                    "description": "启用状态(1启用 0禁用)",
                     "type": "integer"
                 },
-                "menus;omitempty": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/github_com_maczh_mgin_models_sys.SysMenu"
-                    }
-                },
                 "roleIdent": {
+                    "description": "角色标识符(英文)",
                     "type": "string"
                 },
                 "roleName": {
+                    "description": "角色名称",
                     "type": "string"
                 },
                 "tenantId": {
+                    "description": "租户id",
                     "type": "integer"
                 },
                 "updateAt": {
+                    "description": "更新日期",
                     "type": "string"
                 },
                 "updateBy": {
+                    "description": "更新者",
                     "type": "string"
-                },
-                "users;omitempty": {
-                    "description": "关联关系",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/github_com_maczh_mgin_models_sys.SysUser"
-                    }
                 }
             }
         },
@@ -3694,60 +3776,79 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "avatar": {
+                    "description": "头像路径",
                     "type": "string"
                 },
                 "createAt": {
+                    "description": "创建日期",
                     "type": "string"
                 },
                 "createBy": {
+                    "description": "创建者",
                     "type": "string"
                 },
                 "delFlag": {
+                    "description": "删除标记",
                     "type": "integer"
                 },
                 "email": {
+                    "description": "用户邮箱(全局唯一)",
                     "type": "string"
                 },
                 "id": {
+                    "description": "主键ID",
                     "type": "integer"
                 },
                 "loginDate": {
+                    "description": "最后登陆时间",
                     "type": "string"
                 },
                 "loginIp": {
+                    "description": "最后登陆IP",
                     "type": "string"
                 },
                 "loginName": {
+                    "description": "登录账号(全局唯一)",
                     "type": "string"
                 },
                 "mobile": {
+                    "description": "手机号码(全局唯一)",
                     "type": "string"
                 },
                 "nickName": {
+                    "description": "用户昵称或姓名",
                     "type": "string"
                 },
                 "password": {
+                    "description": "密码",
                     "type": "string"
                 },
                 "remark": {
+                    "description": "备注",
                     "type": "string"
                 },
                 "sex": {
+                    "description": "用户性别(1:男 2:女 3:未知)",
                     "type": "integer"
                 },
                 "status": {
+                    "description": "状态(1:正常 2:停用)",
                     "type": "integer"
                 },
                 "tenantId": {
+                    "description": "租户id",
                     "type": "integer"
                 },
                 "updateAt": {
+                    "description": "更新日期",
                     "type": "string"
                 },
                 "updateBy": {
+                    "description": "更新者",
                     "type": "string"
                 },
                 "userType": {
+                    "description": "用户类型(根据业务自由定义)",
                     "type": "string"
                 }
             }
@@ -3756,18 +3857,23 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "departmentId": {
+                    "description": "所属部门ID",
                     "type": "integer"
                 },
                 "id": {
+                    "description": "主键ID",
                     "type": "integer"
                 },
                 "positionId": {
+                    "description": "所属岗位ID",
                     "type": "integer"
                 },
                 "roleId": {
+                    "description": "所属角色ID",
                     "type": "integer"
                 },
                 "userId": {
+                    "description": "用户ID",
                     "type": "integer"
                 }
             }
@@ -3907,6 +4013,7 @@ const docTemplate = `{
             "type": "object",
             "required": [
                 "component",
+                "menuLevel",
                 "name",
                 "path",
                 "title"
@@ -3934,6 +4041,10 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "keepAlive": {
+                    "type": "integer"
+                },
+                "menuLevel": {
+                    "description": "菜单等级(1主菜单 2子菜单)",
                     "type": "integer"
                 },
                 "name": {

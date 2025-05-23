@@ -32,7 +32,7 @@ func (s *sysDictService) Add(req request.CreateDictReq) (dict *sys.SysDict, err 
 	}
 	dict = &sys.SysDict{
 		Type:     req.Type,
-		ParentID: req.ParentID,
+		ParentId: req.ParentId,
 		Name:     req.Name,
 		Key:      req.Key,
 		Value:    req.Value,
@@ -89,8 +89,8 @@ func (s *sysDictService) Delete(id int64) error {
 // List 获取字典项列表
 func (s *sysDictService) List(req request.ListDictReq) ([]sys.SysDict, *models.ResultPage, error) {
 	var mysql = dao.SysDictDao.Where("del_flag = 0")
-	if req.ParentID > 0 {
-		mysql = dao.SysDictDao.Where("parent_id = ?", req.ParentID)
+	if req.ParentId > 0 {
+		mysql = dao.SysDictDao.Where("parent_id = ?", req.ParentId)
 	}
 	if req.Type != "" {
 		mysql = mysql.Where("type =?", req.Type)

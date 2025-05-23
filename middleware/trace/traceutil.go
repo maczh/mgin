@@ -12,9 +12,9 @@ import (
 
 func PutRequestId(c *gin.Context) {
 	headers := getHeaders(c)
-	requestId := headers["X-Request-Id"]
+	requestId := headers["X-Request-ID"]
 	if requestId == "" {
-		headers["X-Request-Id"] = getRandomHexString(16)
+		headers["X-Request-ID"] = getRandomHexString(16)
 	}
 	routineId := GetGoroutineID()
 	clientIp := c.ClientIP()
@@ -32,7 +32,7 @@ func PutRequestId(c *gin.Context) {
 }
 
 func GetRequestId() string {
-	return GetHeader("X-Request-Id")
+	return GetHeader("X-Request-ID")
 }
 
 func GetClientIp() string {

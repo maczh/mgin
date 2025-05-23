@@ -37,7 +37,7 @@ type ListSysUserReq struct {
 }
 
 type GetSysUserReq struct {
-	Id        uint64 `json:"id" form:"id"`
+	ID        uint64 `json:"id" form:"id"`
 	LoginName string `json:"loginName" form:"loginName"`
 	Email     string `json:"email" form:"email"`
 	Mobile    string `json:"mobile" form:"mobile"`
@@ -52,19 +52,19 @@ type GetCaptchaReq struct {
 }
 
 type VerifyCaptchaReq struct {
-	Id   string `json:"id" form:"id" binding:"required"`
+	ID   string `json:"id" form:"id" binding:"required"`
 	Code string `json:"code" form:"code" binding:"required"`
 }
 
 type DeleteByIdReq struct {
-	Id int64 `json:"id" form:"id" binding:"required"`
+	ID int64 `json:"id" form:"id" binding:"required"`
 }
 
 type GetByIdReq struct {
-	Id *int64 `json:"id" form:"id" binding:"required"`
+	ID *int64 `json:"id" form:"id" binding:"required"`
 }
 
 type ChangeStatusReq struct {
-	Id     int64 `json:"id" form:"id" binding:"required"`
+	ID     int64 `json:"id" form:"id" binding:"required"`
 	Status *int  `json:"status" form:"status" binding:"required"`
 }

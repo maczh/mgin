@@ -8,7 +8,14 @@ import (
 	"github.com/maczh/mgin/sys/service"
 )
 
-type sysMenuController struct{}
+type sysMenuController struct {
+	ctx *gin.Context
+}
+
+func (s *sysMenuController) WithContext(c *gin.Context) *sysMenuController {
+	s.ctx = c
+	return s
+}
 
 // Add 新增菜单
 // @Summary 新增菜单
@@ -95,7 +102,7 @@ func (s *sysMenuController) Delete(c *gin.Context) models.Result[any] {
 	if err := c.ShouldBindQuery(&req); err != nil {
 		return models.Error(500, "参数绑定失败:"+err.Error())
 	}
-	err := service.SysMenu.Delete(int64(uint(req.Id)))
+	err := service.SysMenu.Delete(int64(uint(req.ID)))
 	if err != nil {
 		return models.Error(500, err.Error())
 	}
@@ -141,7 +148,7 @@ func (s *sysMenuController) GetTree(c *gin.Context) models.Result[any] {
 	if err := c.ShouldBindQuery(&req); err != nil {
 		return models.Error(500, "参数绑定失败:"+err.Error())
 	}
-	menus, err := service.SysMenu.GetTree(req.ParentID)
+	menus, err := service.SysMenu.WithContext(c).GetTree(req)
 	if err != nil {
 		return models.Error(500, err.Error())
 	}

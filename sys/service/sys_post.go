@@ -52,8 +52,8 @@ func (s *sysPostService) Add(req request.CreatePostReq) (*sys.SysPost, error) {
 func (s *sysPostService) Get(req request.GetPostReq) (*sys.SysPost, error) {
 	var post *sys.SysPost
 	var err error
-	if req.Id > 0 {
-		post, err = dao.SysPostDao.One(sys.SysPost{Id: req.Id})
+	if req.ID > 0 {
+		post, err = dao.SysPostDao.One(sys.SysPost{ID: req.ID})
 	} else if req.PostCode != "" {
 		post, err = dao.SysPostDao.One(sys.SysPost{PostCode: req.PostCode})
 	} else if req.PostName != "" {
@@ -64,10 +64,10 @@ func (s *sysPostService) Get(req request.GetPostReq) (*sys.SysPost, error) {
 
 // Update 更新岗位信息
 func (s *sysPostService) Update(req *sys.SysPost) error {
-	if req.Id == 0 {
+	if req.ID == 0 {
 		return errors.New("岗位ID不能为空")
 	}
-	post, err := s.Get(request.GetPostReq{Id: req.Id})
+	post, err := s.Get(request.GetPostReq{ID: req.ID})
 	if err != nil {
 		logs.Error("获取岗位信息失败: {}", err.Error())
 		return err
@@ -96,7 +96,7 @@ func (s *sysPostService) Update(req *sys.SysPost) error {
 
 // Delete 删除岗位
 func (s *sysPostService) Delete(id uint) error {
-	return dao.SysPostDao.Delete(sys.SysPost{Id: int64(id)})
+	return dao.SysPostDao.Delete(sys.SysPost{ID: int64(id)})
 }
 
 // List 获取岗位列表

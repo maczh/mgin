@@ -64,5 +64,5 @@ func (s captchaService) GetCaptcha(req request.GetCaptchaReq) (string, string) {
 
 // 验证验证码
 func (s captchaService) VerifyCaptcha(req request.VerifyCaptchaReq) bool {
-	return base64Captcha.DefaultMemStore.Verify(req.Id, req.Code, true)
+	return base64Captcha.DefaultMemStore.Verify(req.ID, req.Code, true)
 }

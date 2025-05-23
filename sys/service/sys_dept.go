@@ -54,8 +54,8 @@ func (s *sysDeptService) Add(req request.CreateDeptReq) (*sys.SysDept, error) {
 func (s *sysDeptService) Get(req request.GetDeptReq) (*sys.SysDept, error) {
 	var dept *sys.SysDept
 	var err error
-	if req.Id > 0 {
-		dept, err = dao.SysDeptDao.One(sys.SysDept{Id: req.Id})
+	if req.ID > 0 {
+		dept, err = dao.SysDeptDao.One(sys.SysDept{ID: req.ID})
 	} else if req.Name != "" {
 		dept, err = dao.SysDeptDao.One(sys.SysDept{Name: req.Name})
 	}
@@ -64,12 +64,12 @@ func (s *sysDeptService) Get(req request.GetDeptReq) (*sys.SysDept, error) {
 
 // Update 更新部门信息
 func (s *sysDeptService) Update(req *sys.SysDept) error {
-	dept, err := s.Get(request.GetDeptReq{Id: req.Id})
+	dept, err := s.Get(request.GetDeptReq{ID: req.ID})
 	if err != nil {
 		return err
 	}
 	if dept == nil {
-		dept = &sys.SysDept{Id: req.Id}
+		dept = &sys.SysDept{ID: req.ID}
 	}
 	dept.ParentId = req.ParentId
 	dept.Ancestors = req.Ancestors
@@ -93,7 +93,7 @@ func (s *sysDeptService) Delete(id uint) error {
 	if count > 0 {
 		return errors.New("存在下级部门，无法删除")
 	}
-	dept, err := s.Get(request.GetDeptReq{Id: id})
+	dept, err := s.Get(request.GetDeptReq{ID: id})
 	if err != nil {
 		return err
 	}
@@ -124,7 +124,7 @@ func (s *sysDeptService) GetTree(id int64) ([]sys.SysDept, error) {
 	deptMap := make(map[uint]*sys.SysDept)
 	// 构建部门映射表
 	for i := range depts {
-		deptMap[depts[i].Id] = &depts[i]
+		deptMap[depts[i].ID] = &depts[i]
 	}
 
 	var rootDepts []sys.SysDept
@@ -133,7 +133,7 @@ func (s *sysDeptService) GetTree(id int64) ([]sys.SysDept, error) {
 		dept := &depts[i]
 		// 如果父部门 ID 为 0 或者指定的 id 等于当前部门 ID，则视为根部门
 		if id > 0 {
-			if int64(dept.Id) == id {
+			if int64(dept.ID) == id {
 				rootDepts = append(rootDepts, *buildTree(dept, deptMap))
 			} else {
 				continue
@@ -149,7 +149,7 @@ func (s *sysDeptService) GetTree(id int64) ([]sys.SysDept, error) {
 // buildTree 递归构建部门树
 func buildTree(dept *sys.SysDept, deptMap map[uint]*sys.SysDept) *sys.SysDept {
 	for _, childDept := range deptMap {
-		if childDept.ParentId == dept.Id {
+		if childDept.ParentId == dept.ID {
 			if dept.Children == nil {
 				dept.Children = make([]*sys.SysDept, 0)
 			}

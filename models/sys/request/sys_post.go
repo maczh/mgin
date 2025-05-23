@@ -7,7 +7,7 @@ type CreatePostReq struct {
 }
 
 type GetPostReq struct {
-	Id       int64  `json:"id" form:"id"`
+	ID       int64  `json:"id" form:"id"`
 	PostCode string `json:"post_code" form:"post_code"`
 	PostName string `json:"post_name" form:"post_name"`
 }

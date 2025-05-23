@@ -97,7 +97,7 @@ func (s *sysUserController) Update(c *gin.Context) models.Result[any] {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		return models.Error(500, "请求参数错误: "+err.Error())
 	}
-	if req.Id == 0 {
+	if req.ID == 0 {
 		return models.Error(500, "用户ID不能为空")
 	}
 	err := service.SysUser.WithContext(c).Update(&req)
@@ -123,7 +123,7 @@ func (s *sysUserController) Delete(c *gin.Context) models.Result[any] {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		return models.Error(500, "请求参数错误: "+err.Error())
 	}
-	err := service.SysUser.WithContext(c).Delete(req.Id)
+	err := service.SysUser.WithContext(c).Delete(req.ID)
 	if err != nil {
 		return models.Error(500, err.Error())
 	}
@@ -238,7 +238,7 @@ func (s *sysUserController) ChangeStatus(c *gin.Context) models.Result[any] {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		return models.Error(500, "请求参数错误: "+err.Error())
 	}
-	err := service.SysUser.WithContext(c).ChangeStatus(req.Id, uint8(*req.Status))
+	err := service.SysUser.WithContext(c).ChangeStatus(req.ID, uint8(*req.Status))
 	if err != nil {
 		return models.Error(500, err.Error())
 	}
