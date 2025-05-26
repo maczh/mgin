@@ -141,16 +141,16 @@ func initData(mysql *gorm.DB) {
 	apiList = append(apiList, &sys.SysApi{ID: 43, APIPath: config.Config.Sys.BaseUri + "/sys/post/del", Method: "POST", Name: "删除岗位", Description: "", APIGroup: "岗位模块", Enabled: 1, NeedLog: 1, NeedAuth: 1})
 	apiList = append(apiList, &sys.SysApi{ID: 44, APIPath: config.Config.Sys.BaseUri + "/sys/post/get", Method: "GET", Name: "获取岗位信息", Description: "", APIGroup: "岗位模块", Enabled: 1, NeedLog: 1, NeedAuth: 1})
 	apiList = append(apiList, &sys.SysApi{ID: 45, APIPath: config.Config.Sys.BaseUri + "/sys/post/list", Method: "GET", Name: "分页查询岗位", Description: "分页查询岗位", APIGroup: "岗位模块", Enabled: 1, NeedLog: 1, NeedAuth: 1})
-	apiList = append(apiList, &sys.SysApi{ID: 46, APIPath: config.Config.Sys.BaseUri + "/sys/menu/add", Method: "POST", Name: "新增菜单", Description: "管理员添加一个新菜单", APIGroup: "菜单模块", Enabled: 1, NeedLog: 1, NeedAuth: 1})
-	apiList = append(apiList, &sys.SysApi{ID: 47, APIPath: config.Config.Sys.BaseUri + "/sys/menu/update", Method: "POST", Name: "修改菜单信息", Description: "", APIGroup: "菜单模块", Enabled: 1, NeedLog: 1, NeedAuth: 1})
-	apiList = append(apiList, &sys.SysApi{ID: 48, APIPath: config.Config.Sys.BaseUri + "/sys/menu/del", Method: "POST", Name: "删除菜单", Description: "", APIGroup: "菜单模块", Enabled: 1, NeedLog: 1, NeedAuth: 1})
-	apiList = append(apiList, &sys.SysApi{ID: 49, APIPath: config.Config.Sys.BaseUri + "/sys/menu/get", Method: "GET", Name: "获取菜单信息", Description: "", APIGroup: "菜单模块", Enabled: 1, NeedLog: 1, NeedAuth: 1})
-	apiList = append(apiList, &sys.SysApi{ID: 50, APIPath: config.Config.Sys.BaseUri + "/sys/menu/tree", Method: "GET", Name: "获取菜单树", Description: "", APIGroup: "菜单模块", Enabled: 1, NeedLog: 1, NeedAuth: 1})
-	apiList = append(apiList, &sys.SysApi{ID: 51, APIPath: config.Config.Sys.BaseUri + "/sys/menu/list", Method: "GET", Name: "分页查询菜单", Description: "分页查询菜单", APIGroup: "菜单模块", Enabled: 1, NeedLog: 1, NeedAuth: 1})
+	apiList = append(apiList, &sys.SysApi{ID: 46, APIPath: config.Config.Sys.BaseUri + "/sys/res/add", Method: "POST", Name: "新增资源", Description: "管理员添加一个新资源", APIGroup: "资源模块", Enabled: 1, NeedLog: 1, NeedAuth: 1})
+	apiList = append(apiList, &sys.SysApi{ID: 47, APIPath: config.Config.Sys.BaseUri + "/sys/res/update", Method: "POST", Name: "修改资源信息", Description: "", APIGroup: "资源模块", Enabled: 1, NeedLog: 1, NeedAuth: 1})
+	apiList = append(apiList, &sys.SysApi{ID: 48, APIPath: config.Config.Sys.BaseUri + "/sys/res/del", Method: "POST", Name: "删除资源", Description: "", APIGroup: "资源模块", Enabled: 1, NeedLog: 1, NeedAuth: 1})
+	apiList = append(apiList, &sys.SysApi{ID: 49, APIPath: config.Config.Sys.BaseUri + "/sys/res/get", Method: "GET", Name: "获取资源信息", Description: "", APIGroup: "资源模块", Enabled: 1, NeedLog: 1, NeedAuth: 1})
+	apiList = append(apiList, &sys.SysApi{ID: 50, APIPath: config.Config.Sys.BaseUri + "/sys/res/tree", Method: "GET", Name: "获取资源树", Description: "", APIGroup: "资源模块", Enabled: 1, NeedLog: 1, NeedAuth: 1})
+	apiList = append(apiList, &sys.SysApi{ID: 51, APIPath: config.Config.Sys.BaseUri + "/sys/res/list", Method: "GET", Name: "分页查询资源", Description: "分页查询资源", APIGroup: "资源模块", Enabled: 1, NeedLog: 1, NeedAuth: 1})
 	apiList = append(apiList, &sys.SysApi{ID: 52, APIPath: config.Config.Sys.BaseUri + "/sys/role_api/bind", Method: "POST", Name: "绑定角色API接口权限", Description: "批量全量绑定", APIGroup: "权限模块", Enabled: 1, NeedLog: 1, NeedAuth: 1})
 	apiList = append(apiList, &sys.SysApi{ID: 53, APIPath: config.Config.Sys.BaseUri + "/sys/role_api/list", Method: "GET", Name: "获取角色API接口权限列表", Description: "", APIGroup: "权限模块", Enabled: 1, NeedLog: 1, NeedAuth: 1})
-	apiList = append(apiList, &sys.SysApi{ID: 54, APIPath: config.Config.Sys.BaseUri + "/sys/role_menu/bind", Method: "POST", Name: "绑定角色菜单权限", Description: "全量绑定角色菜单", APIGroup: "权限模块", Enabled: 1, NeedLog: 1, NeedAuth: 1})
-	apiList = append(apiList, &sys.SysApi{ID: 55, APIPath: config.Config.Sys.BaseUri + "/sys/role_menu/list", Method: "GET", Name: "获取角色菜单权限列表", Description: "", APIGroup: "权限模块", Enabled: 1, NeedLog: 1, NeedAuth: 1})
+	apiList = append(apiList, &sys.SysApi{ID: 54, APIPath: config.Config.Sys.BaseUri + "/sys/role_res/bind", Method: "POST", Name: "绑定角色资源权限", Description: "全量绑定角色资源", APIGroup: "权限模块", Enabled: 1, NeedLog: 1, NeedAuth: 1})
+	apiList = append(apiList, &sys.SysApi{ID: 55, APIPath: config.Config.Sys.BaseUri + "/sys/role_res/list", Method: "GET", Name: "获取角色资源权限列表", Description: "", APIGroup: "权限模块", Enabled: 1, NeedLog: 1, NeedAuth: 1})
 	apiList = append(apiList, &sys.SysApi{ID: 56, APIPath: config.Config.Sys.BaseUri + "/sys/api/group", Method: "GET", Name: "分组查询API接口", Description: "分组查询API", APIGroup: "API模块", Enabled: 1, NeedLog: 1, NeedAuth: 1})
 	apiList = append(apiList, &sys.SysApi{ID: 57, APIPath: config.Config.Sys.BaseUri + "/sys/config/add", Method: "POST", Name: "新增系统配置", Description: "管理员添加一个新系统配置", APIGroup: "系统配置模块", Enabled: 1, NeedLog: 1, NeedAuth: 1})
 	apiList = append(apiList, &sys.SysApi{ID: 58, APIPath: config.Config.Sys.BaseUri + "/sys/config/update", Method: "POST", Name: "修改系统配置信息", Description: "", APIGroup: "系统配置模块", Enabled: 1, NeedLog: 1, NeedAuth: 1})
@@ -351,7 +351,7 @@ func initData(mysql *gorm.DB) {
 		redis.Del(key)
 	}
 
-	//初始化菜单资源
+	//初始化资源资源
 	var sysMenuList = []sys.SysResource{
 		{ID: 1, Type: 1, MenuLevel: 0, Hidden: 0, ParentId: 0, Path: "dashboard", Name: "dashboard", Component: "view/dashboard/index.vue", Sort: 1, Title: "仪表盘", Icon: "odometer"},
 		{ID: 2, Type: 1, MenuLevel: 0, Hidden: 0, ParentId: 0, Path: "about", Name: "about", Component: "view/about/index.vue", Sort: 9, Title: "关于我们", Icon: "info-filled"},
@@ -362,21 +362,21 @@ func initData(mysql *gorm.DB) {
 		{ID: 7, Type: 1, MenuLevel: 0, Hidden: 0, ParentId: 0, Path: "https://www.gin-vue-admin.com", Name: "https://www.gin-vue-admin.com", Component: "/", Sort: 0, Title: "官方网站", Icon: "customer-gva"},
 		{ID: 8, Type: 1, MenuLevel: 0, Hidden: 0, ParentId: 0, Path: "state", Name: "state", Component: "view/system/state.vue", Sort: 8, Title: "服务器状态", Icon: "cloudy"},
 		{ID: 9, Type: 1, MenuLevel: 0, Hidden: 0, ParentId: 0, Path: "plugin", Name: "plugin", Component: "view/routerHolder.vue", Sort: 6, Title: "插件系统", Icon: "cherry"},
-		// superAdmin子菜单
+		// superAdmin子资源
 		{ID: 10, Type: 1, MenuLevel: 1, Hidden: 0, ParentId: 3, Path: "authority", Name: "authority", Component: "view/superAdmin/authority/authority.vue", Sort: 1, Title: "角色管理", Icon: "avatar"},
-		{ID: 11, Type: 1, MenuLevel: 1, Hidden: 0, ParentId: 3, Path: "menu", Name: "menu", Component: "view/superAdmin/menu/menu.vue", Sort: 2, Title: "菜单管理", Icon: "tickets", KeepAlive: 1},
+		{ID: 11, Type: 1, MenuLevel: 1, Hidden: 0, ParentId: 3, Path: "menu", Name: "menu", Component: "view/superAdmin/menu/menu.vue", Sort: 2, Title: "资源管理", Icon: "tickets", KeepAlive: 1},
 		{ID: 12, Type: 1, MenuLevel: 1, Hidden: 0, ParentId: 3, Path: "api", Name: "api", Component: "view/superAdmin/api/api.vue", Sort: 3, Title: "api管理", Icon: "platform", KeepAlive: 1},
 		{ID: 13, Type: 1, MenuLevel: 1, Hidden: 0, ParentId: 3, Path: "user", Name: "user", Component: "view/superAdmin/user/user.vue", Sort: 4, Title: "用户管理", Icon: "coordinate"},
 		{ID: 14, Type: 1, MenuLevel: 1, Hidden: 0, ParentId: 3, Path: "dictionary", Name: "dictionary", Component: "view/superAdmin/dictionary/sysDictionary.vue", Sort: 5, Title: "字典管理", Icon: "notebook"},
 		{ID: 15, Type: 1, MenuLevel: 1, Hidden: 0, ParentId: 3, Path: "operation", Name: "operation", Component: "view/superAdmin/operation/sysOperationRecord.vue", Sort: 6, Title: "操作历史", Icon: "pie-chart"},
 		{ID: 16, Type: 1, MenuLevel: 1, Hidden: 0, ParentId: 3, Path: "sysParams", Name: "sysParams", Component: "view/superAdmin/params/sysParams.vue", Sort: 7, Title: "参数管理", Icon: "compass"},
 
-		// example子菜单
+		// example子资源
 		{ID: 17, Type: 1, MenuLevel: 1, Hidden: 0, ParentId: 5, Path: "upload", Name: "upload", Component: "view/example/upload/upload.vue", Sort: 5, Title: "媒体库（上传下载）", Icon: "upload"},
 		{ID: 18, Type: 1, MenuLevel: 1, Hidden: 0, ParentId: 5, Path: "breakpoint", Name: "breakpoint", Component: "view/example/breakpoint/breakpoint.vue", Sort: 6, Title: "断点续传", Icon: "upload-filled"},
 		{ID: 19, Type: 1, MenuLevel: 1, Hidden: 0, ParentId: 5, Path: "customer", Name: "customer", Component: "view/example/customer/customer.vue", Sort: 7, Title: "客户列表（资源示例）", Icon: "avatar"},
 
-		// systemTools子菜单
+		// systemTools子资源
 		{ID: 20, Type: 1, MenuLevel: 1, Hidden: 0, ParentId: 6, Path: "autoCode", Name: "autoCode", Component: "view/systemTools/autoCode/index.vue", Sort: 1, Title: "代码生成器", Icon: "cpu", KeepAlive: 1},
 		{ID: 21, Type: 1, MenuLevel: 1, Hidden: 0, ParentId: 6, Path: "formCreate", Name: "formCreate", Component: "view/systemTools/formCreate/index.vue", Sort: 3, Title: "表单生成器", Icon: "magic-stick", KeepAlive: 1},
 		{ID: 22, Type: 1, MenuLevel: 1, Hidden: 0, ParentId: 6, Path: "system", Name: "system", Component: "view/systemTools/system/system.vue", Sort: 4, Title: "系统配置", Icon: "operation"},
@@ -394,25 +394,25 @@ func initData(mysql *gorm.DB) {
 		{ID: 33, Type: 1, MenuLevel: 1, Hidden: 0, ParentId: 9, Path: "plugin-email", Name: "plugin-email", Component: "plugin/email/view/index.vue", Sort: 4, Title: "邮件插件", Icon: "message"},
 		{ID: 34, Type: 1, MenuLevel: 1, Hidden: 0, ParentId: 9, Path: "anInfo", Name: "anInfo", Component: "plugin/announcement/view/info.vue", Sort: 5, Title: "公告管理[示例]", Icon: "scaleToOriginal"},
 	}
-	// 删除管理员角色菜单
+	// 删除管理员角色资源
 	SysRoleResourceDao.Where("role_id in (1,2,3) AND menu_id < ?", 35).Delete(new(sys.SysRoleResource))
-	// 重新插入初始菜单
+	// 重新插入初始资源
 	for _, menu := range sysMenuList {
 		err = SysResourceDao.Create(&menu)
 		if err != nil {
-			logs.Error("初始化菜单失败: {}", err.Error())
+			logs.Error("初始化资源失败: {}", err.Error())
 		}
-		// 重新插入角色菜单
+		// 重新插入角色资源
 		err = SysRoleResourceDao.Create(&sys.SysRoleResource{ResourceId: menu.ID, RoleId: 1})
 		if err != nil {
-			logs.Error("插入初始菜单角色失败: {}", err.Error())
+			logs.Error("插入初始资源角色失败: {}", err.Error())
 		}
 		err = SysRoleResourceDao.Create(&sys.SysRoleResource{ResourceId: menu.ID, RoleId: 2})
 		if err != nil {
-			logs.Error("插入初始菜单角色失败: {}", err.Error())
+			logs.Error("插入初始资源角色失败: {}", err.Error())
 		}
 	}
-	// 普通用户菜单初始化
+	// 普通用户资源初始化
 	userRoleMenus := []*sys.SysRoleResource{
 		{RoleId: 3, ResourceId: 1},
 		{RoleId: 3, ResourceId: 2},
@@ -430,7 +430,7 @@ func initData(mysql *gorm.DB) {
 	}
 	err = SysRoleResourceDao.MultiCreate(userRoleMenus)
 	if err != nil {
-		logs.Error("初始化普通用户菜单失败: {}", err.Error())
+		logs.Error("初始化普通用户资源失败: {}", err.Error())
 	}
 
 	// 初始化casbin

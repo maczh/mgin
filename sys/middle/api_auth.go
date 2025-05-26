@@ -35,7 +35,7 @@ func dbApiAuth(c *gin.Context) {
 		c.Next()
 		return
 	}
-	userId := claims.(jwt.MapClaims)["id"].(float64)
+	userId := claims.(jwt.MapClaims)["userId"].(float64)
 	hasPermission, err := service.SysRoleApi.HasApiPermission(int64(userId), c.Request.URL.Path)
 	if err != nil || !hasPermission {
 		c.AbortWithStatusJSON(403, models.Error(403, "无访问权限"))

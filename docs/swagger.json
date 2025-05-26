@@ -1,14 +1,7 @@
 {
     "swagger": "2.0",
     "info": {
-        "description": "MGin基础模块 API 文档。",
-        "title": "MGin基础模块API文档",
-        "contact": {},
-        "license": {
-            "name": "Apache 2.0",
-            "url": "http://www.apache.org/licenses/LICENSE-2.0.html"
-        },
-        "version": "1.0.0"
+        "contact": {}
     },
     "paths": {
         "/api/v1/login": {
@@ -1368,325 +1361,6 @@
                 }
             }
         },
-        "/api/v1/sys/menu/add": {
-            "post": {
-                "description": "新增一个系统菜单信息",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "系统菜单"
-                ],
-                "summary": "新增菜单",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "用户令牌",
-                        "name": "Authorization",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "description": "新增菜单请求体",
-                        "name": "menu",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/github_com_maczh_mgin_models_sys_request.CreateMenuReq"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "新增菜单成功，返回新增的菜单信息",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-github_com_maczh_mgin_models_sys_SysMenu"
-                        }
-                    },
-                    "500": {
-                        "description": "参数绑定失败或新增菜单失败",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/sys/menu/del": {
-            "post": {
-                "description": "根据菜单 ID 删除对应的菜单信息",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "系统菜单"
-                ],
-                "summary": "删除菜单",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "用户令牌",
-                        "name": "Authorization",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "integer",
-                        "name": "id",
-                        "in": "query",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "删除菜单成功",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
-                        }
-                    },
-                    "500": {
-                        "description": "参数绑定失败或删除菜单失败",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/sys/menu/get": {
-            "get": {
-                "description": "根据请求参数获取单个菜单的详细信息",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "系统菜单"
-                ],
-                "summary": "获取菜单信息",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "用户令牌",
-                        "name": "Authorization",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "integer",
-                        "name": "id",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "菜单标题",
-                        "name": "title",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "获取菜单信息成功，返回菜单详细信息",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-github_com_maczh_mgin_models_sys_SysMenu"
-                        }
-                    },
-                    "500": {
-                        "description": "参数绑定失败或获取菜单信息失败",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/sys/menu/list": {
-            "get": {
-                "description": "根据请求参数获取菜单列表，支持分页",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "系统菜单"
-                ],
-                "summary": "获取菜单列表",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "用户令牌",
-                        "name": "Authorization",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "组件路径",
-                        "name": "component",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "菜单名称",
-                        "name": "name",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "name": "pageSize",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "name": "parentId",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "菜单路径",
-                        "name": "path",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "name": "status",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "菜单标题",
-                        "name": "title",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "获取菜单列表成功，返回菜单列表和分页信息",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_maczh_mgin_models.ResultPage"
-                        }
-                    },
-                    "500": {
-                        "description": "参数绑定失败或获取菜单列表失败",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/sys/menu/tree": {
-            "get": {
-                "description": "根据父菜单 ID 获取菜单的树形结构信息",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "系统菜单"
-                ],
-                "summary": "获取菜单树",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "用户令牌",
-                        "name": "Authorization",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "boolean",
-                        "description": "按角色获取菜单",
-                        "name": "byRole",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "父级菜单id，0表示获取所有一级菜单",
-                        "name": "parentId",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "获取菜单树成功，返回菜单树形结构信息",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
-                        }
-                    },
-                    "500": {
-                        "description": "参数绑定失败或获取菜单树失败",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/sys/menu/update": {
-            "post": {
-                "description": "更新已存在的菜单信息",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "系统菜单"
-                ],
-                "summary": "更新菜单信息",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "用户令牌",
-                        "name": "Authorization",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "description": "更新后的菜单信息",
-                        "name": "menu",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/github_com_maczh_mgin_models_sys.SysMenu"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "更新菜单信息成功",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
-                        }
-                    },
-                    "500": {
-                        "description": "参数绑定失败或更新菜单信息失败",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
-                        }
-                    }
-                }
-            }
-        },
         "/api/v1/sys/post/add": {
             "post": {
                 "description": "新增一个岗位信息",
@@ -1924,6 +1598,325 @@
                     },
                     "500": {
                         "description": "参数绑定失败或更新岗位信息失败",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/sys/res/add": {
+            "post": {
+                "description": "新增一个系统资源信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "系统资源"
+                ],
+                "summary": "新增资源",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "用户令牌",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "新增资源请求体",
+                        "name": "menu",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_maczh_mgin_models_sys_request.CreateResourceReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "新增资源成功，返回新增的资源信息",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-github_com_maczh_mgin_models_sys_SysResource"
+                        }
+                    },
+                    "500": {
+                        "description": "参数绑定失败或新增资源失败",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/sys/res/del": {
+            "post": {
+                "description": "根据资源 ID 删除对应的资源信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "系统资源"
+                ],
+                "summary": "删除资源",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "用户令牌",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "name": "id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "删除资源成功",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
+                        }
+                    },
+                    "500": {
+                        "description": "参数绑定失败或删除资源失败",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/sys/res/get": {
+            "get": {
+                "description": "根据请求参数获取单个资源的详细信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "系统资源"
+                ],
+                "summary": "获取资源信息",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "用户令牌",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "name": "id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "资源标题",
+                        "name": "title",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取资源信息成功，返回资源详细信息",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-github_com_maczh_mgin_models_sys_SysResource"
+                        }
+                    },
+                    "500": {
+                        "description": "参数绑定失败或获取资源信息失败",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/sys/res/list": {
+            "get": {
+                "description": "根据请求参数获取资源列表，支持分页",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "系统资源"
+                ],
+                "summary": "获取资源列表",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "用户令牌",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "组件路径",
+                        "name": "component",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "资源名称",
+                        "name": "name",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "name": "pageSize",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "name": "parentId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "资源路径",
+                        "name": "path",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "资源标题",
+                        "name": "title",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取资源列表成功，返回资源列表和分页信息",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_maczh_mgin_models.ResultPage"
+                        }
+                    },
+                    "500": {
+                        "description": "参数绑定失败或获取资源列表失败",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/sys/res/tree": {
+            "get": {
+                "description": "根据父资源 ID 获取资源的树形结构信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "系统资源"
+                ],
+                "summary": "获取资源树",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "用户令牌",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "按角色获取资源",
+                        "name": "byRole",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "父级资源id，0表示获取所有一级资源",
+                        "name": "parentId",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取资源树成功，返回资源树形结构信息",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
+                        }
+                    },
+                    "500": {
+                        "description": "参数绑定失败或获取资源树失败",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/sys/res/update": {
+            "post": {
+                "description": "更新已存在的资源信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "系统资源"
+                ],
+                "summary": "更新资源信息",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "用户令牌",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "更新后的资源信息",
+                        "name": "menu",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_maczh_mgin_models_sys.SysResource"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "更新资源信息成功",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
+                        }
+                    },
+                    "500": {
+                        "description": "参数绑定失败或更新资源信息失败",
                         "schema": {
                             "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
                         }
@@ -2355,9 +2348,9 @@
                 }
             }
         },
-        "/api/v1/sys/role_menu/bind": {
+        "/api/v1/sys/role_res/bind": {
             "post": {
-                "description": "将指定角色与菜单进行绑定操作",
+                "description": "将指定角色与资源进行绑定操作",
                 "consumes": [
                     "application/json"
                 ],
@@ -2365,9 +2358,9 @@
                     "application/json"
                 ],
                 "tags": [
-                    "角色菜单管理"
+                    "角色资源管理"
                 ],
-                "summary": "绑定角色和菜单",
+                "summary": "绑定角色和资源",
                 "parameters": [
                     {
                         "type": "string",
@@ -2377,12 +2370,12 @@
                         "required": true
                     },
                     {
-                        "description": "角色菜单绑定请求参数",
+                        "description": "角色资源绑定请求参数",
                         "name": "bindReq",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_maczh_mgin_models_sys_request.BindRoleMenuReq"
+                            "$ref": "#/definitions/github_com_maczh_mgin_models_sys_request.BindRoleResourceReq"
                         }
                     }
                 ],
@@ -2402,9 +2395,9 @@
                 }
             }
         },
-        "/api/v1/sys/role_menu/list": {
+        "/api/v1/sys/role_res/list": {
             "get": {
-                "description": "根据请求参数获取指定角色关联的菜单列表",
+                "description": "根据请求参数获取指定角色关联的资源列表",
                 "consumes": [
                     "application/json"
                 ],
@@ -2412,9 +2405,9 @@
                     "application/json"
                 ],
                 "tags": [
-                    "角色菜单管理"
+                    "角色资源管理"
                 ],
-                "summary": "获取角色的菜单列表",
+                "summary": "获取角色的资源列表",
                 "parameters": [
                     {
                         "type": "string",
@@ -2432,13 +2425,13 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "获取成功，返回角色关联的菜单列表",
+                        "description": "获取成功，返回角色关联的资源列表",
                         "schema": {
                             "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
                         }
                     },
                     "500": {
-                        "description": "参数绑定失败或获取菜单列表失败",
+                        "description": "参数绑定失败或获取资源列表失败",
                         "schema": {
                             "$ref": "#/definitions/github_com_maczh_mgin_models.Result-any"
                         }
@@ -3230,11 +3223,11 @@
                 }
             }
         },
-        "github_com_maczh_mgin_models.Result-github_com_maczh_mgin_models_sys_SysMenu": {
+        "github_com_maczh_mgin_models.Result-github_com_maczh_mgin_models_sys_SysPost": {
             "type": "object",
             "properties": {
                 "data": {
-                    "$ref": "#/definitions/github_com_maczh_mgin_models_sys.SysMenu"
+                    "$ref": "#/definitions/github_com_maczh_mgin_models_sys.SysPost"
                 },
                 "msg": {
                     "type": "string"
@@ -3247,11 +3240,11 @@
                 }
             }
         },
-        "github_com_maczh_mgin_models.Result-github_com_maczh_mgin_models_sys_SysPost": {
+        "github_com_maczh_mgin_models.Result-github_com_maczh_mgin_models_sys_SysResource": {
             "type": "object",
             "properties": {
                 "data": {
-                    "$ref": "#/definitions/github_com_maczh_mgin_models_sys.SysPost"
+                    "$ref": "#/definitions/github_com_maczh_mgin_models_sys.SysResource"
                 },
                 "msg": {
                     "type": "string"
@@ -3539,10 +3532,67 @@
                 }
             }
         },
-        "github_com_maczh_mgin_models_sys.SysMenu": {
+        "github_com_maczh_mgin_models_sys.SysPost": {
             "type": "object",
             "properties": {
-                "active_menu": {
+                "createAt": {
+                    "description": "创建日期",
+                    "type": "string"
+                },
+                "createBy": {
+                    "description": "创建者",
+                    "type": "string"
+                },
+                "delFlag": {
+                    "description": "删除标记",
+                    "type": "integer"
+                },
+                "dept_id": {
+                    "description": "所属部门ID",
+                    "type": "integer"
+                },
+                "id": {
+                    "description": "主键ID",
+                    "type": "integer"
+                },
+                "post_code": {
+                    "description": "岗位编码(全局唯一)",
+                    "type": "string"
+                },
+                "post_name": {
+                    "description": "岗位名称(全局唯一)",
+                    "type": "string"
+                },
+                "remark": {
+                    "description": "备注",
+                    "type": "string"
+                },
+                "sort": {
+                    "description": "显示顺序",
+                    "type": "integer"
+                },
+                "status": {
+                    "description": "状态(1:正常 0:停用)",
+                    "type": "integer"
+                },
+                "tenantId": {
+                    "description": "租户id",
+                    "type": "integer"
+                },
+                "updateAt": {
+                    "description": "更新日期",
+                    "type": "string"
+                },
+                "updateBy": {
+                    "description": "更新者",
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_maczh_mgin_models_sys.SysResource": {
+            "type": "object",
+            "properties": {
+                "active_resource": {
                     "description": "激活菜单的路径",
                     "type": "string"
                 },
@@ -3554,6 +3604,10 @@
                     "description": "是否总是显示(即使只有一个子菜单)",
                     "type": "integer"
                 },
+                "api_id": {
+                    "description": "点击资源调用的后端API接口ID",
+                    "type": "integer"
+                },
                 "breadcrumb": {
                     "description": "是否显示面包屑",
                     "type": "integer"
@@ -3562,7 +3616,7 @@
                     "description": "关联关系",
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_maczh_mgin_models_sys.SysMenu"
+                        "$ref": "#/definitions/github_com_maczh_mgin_models_sys.SysResource"
                     }
                 },
                 "component": {
@@ -3609,7 +3663,7 @@
                     "description": "自关联",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/github_com_maczh_mgin_models_sys.SysMenu"
+                            "$ref": "#/definitions/github_com_maczh_mgin_models_sys.SysResource"
                         }
                     ]
                 },
@@ -3648,61 +3702,8 @@
                     "description": "菜单标题(显示名称)",
                     "type": "string"
                 },
-                "updateAt": {
-                    "description": "更新日期",
-                    "type": "string"
-                },
-                "updateBy": {
-                    "description": "更新者",
-                    "type": "string"
-                }
-            }
-        },
-        "github_com_maczh_mgin_models_sys.SysPost": {
-            "type": "object",
-            "properties": {
-                "createAt": {
-                    "description": "创建日期",
-                    "type": "string"
-                },
-                "createBy": {
-                    "description": "创建者",
-                    "type": "string"
-                },
-                "delFlag": {
-                    "description": "删除标记",
-                    "type": "integer"
-                },
-                "dept_id": {
-                    "description": "所属部门ID",
-                    "type": "integer"
-                },
-                "id": {
-                    "description": "主键ID",
-                    "type": "integer"
-                },
-                "post_code": {
-                    "description": "岗位编码(全局唯一)",
-                    "type": "string"
-                },
-                "post_name": {
-                    "description": "岗位名称(全局唯一)",
-                    "type": "string"
-                },
-                "remark": {
-                    "description": "备注",
-                    "type": "string"
-                },
-                "sort": {
-                    "description": "显示顺序",
-                    "type": "integer"
-                },
-                "status": {
-                    "description": "状态(1:正常 0:停用)",
-                    "type": "integer"
-                },
-                "tenantId": {
-                    "description": "租户id",
+                "type": {
+                    "description": "资源类型(1菜单 2按钮)",
                     "type": "integer"
                 },
                 "updateAt": {
@@ -3888,14 +3889,14 @@
                 }
             }
         },
-        "github_com_maczh_mgin_models_sys_request.BindRoleMenuReq": {
+        "github_com_maczh_mgin_models_sys_request.BindRoleResourceReq": {
             "type": "object",
             "required": [
-                "menuIds",
+                "resourceIds",
                 "roleId"
             ],
             "properties": {
-                "menuIds": {
+                "resourceIds": {
                     "type": "array",
                     "items": {
                         "type": "integer"
@@ -4001,7 +4002,26 @@
                 }
             }
         },
-        "github_com_maczh_mgin_models_sys_request.CreateMenuReq": {
+        "github_com_maczh_mgin_models_sys_request.CreatePostReq": {
+            "type": "object",
+            "required": [
+                "dept_id",
+                "post_code",
+                "post_name"
+            ],
+            "properties": {
+                "dept_id": {
+                    "type": "integer"
+                },
+                "post_code": {
+                    "type": "string"
+                },
+                "post_name": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_maczh_mgin_models_sys_request.CreateResourceReq": {
             "type": "object",
             "required": [
                 "component",
@@ -4011,13 +4031,17 @@
                 "title"
             ],
             "properties": {
-                "activeMenu": {
+                "activeResource": {
                     "type": "string"
                 },
                 "affix": {
                     "type": "integer"
                 },
                 "alwaysShow": {
+                    "type": "integer"
+                },
+                "apiId": {
+                    "description": "资源关联的apiId",
                     "type": "integer"
                 },
                 "breadcrumb": {
@@ -4036,7 +4060,7 @@
                     "type": "integer"
                 },
                 "menuLevel": {
-                    "description": "菜单等级(1主菜单 2子菜单)",
+                    "description": "资源等级(1主资源 2子资源)",
                     "type": "integer"
                 },
                 "name": {
@@ -4058,25 +4082,6 @@
                     "type": "integer"
                 },
                 "title": {
-                    "type": "string"
-                }
-            }
-        },
-        "github_com_maczh_mgin_models_sys_request.CreatePostReq": {
-            "type": "object",
-            "required": [
-                "dept_id",
-                "post_code",
-                "post_name"
-            ],
-            "properties": {
-                "dept_id": {
-                    "type": "integer"
-                },
-                "post_code": {
-                    "type": "string"
-                },
-                "post_name": {
                     "type": "string"
                 }
             }

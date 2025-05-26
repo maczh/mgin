@@ -87,17 +87,24 @@ func (s *casbinService) UpdateCasbinApi(oldPath, oldMethod, path, method string)
 // @description: 获取 casbin 列表
 // @param: RoleId uint
 // @return: pathMap []request.CasbinInfo
-func (s *casbinService) GetPolicyPathByRoleId(RoleId uint) (pathMap []CasbinInfo) {
+func (s *casbinService) GetPolicyPathByRoleId(RoleId uint) (pathMap []CasbinInfo, err error) {
 	enforcer := s.GetEnforcer()
 	roleId := strconv.Itoa(int(RoleId))
-	policies, _ := enforcer.GetFilteredPolicy(0, roleId)
-	for _, policy := range policies {
-		pathMap = append(pathMap, CasbinInfo{
-			Path:   policy[1],
-			Method: policy[2],
-		})
+	// 处理可能出现的错误
+	policies, err := enforcer.GetFilteredPolicy(0, roleId)
+	if err != nil {
+		return nil, err
 	}
-	return pathMap
+	for _, policy := range policies {
+		// 检查 policy 长度是否足够
+		if len(policy) >= 3 {
+			pathMap = append(pathMap, CasbinInfo{
+				Path:   policy[1],
+				Method: policy[2],
+			})
+		}
+	}
+	return pathMap, nil
 }
 
 // ClearCasbin
