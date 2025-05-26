@@ -21,13 +21,13 @@ func InitDB() {
 		&sys.SysUser{},
 		&sys.SysUserExt{},
 		&sys.SysRole{},
-		&sys.SysMenu{},
+		&sys.SysResource{},
 		&sys.SysApi{},
 		&sys.SysDept{},
 		&sys.SysDict{},
 		&sys.SysPost{},
 		&sys.SysRoleApi{},
-		&sys.SysRoleMenu{},
+		&sys.SysRoleResource{},
 		&sys.SysConfig{},
 	)
 	if err != nil {
@@ -352,83 +352,83 @@ func initData(mysql *gorm.DB) {
 	}
 
 	//初始化菜单资源
-	var sysMenuList = []sys.SysMenu{
-		{ID: 1, MenuLevel: 0, Hidden: 0, ParentId: 0, Path: "dashboard", Name: "dashboard", Component: "view/dashboard/index.vue", Sort: 1, Title: "仪表盘", Icon: "odometer"},
-		{ID: 2, MenuLevel: 0, Hidden: 0, ParentId: 0, Path: "about", Name: "about", Component: "view/about/index.vue", Sort: 9, Title: "关于我们", Icon: "info-filled"},
-		{ID: 3, MenuLevel: 0, Hidden: 0, ParentId: 0, Path: "admin", Name: "superAdmin", Component: "view/superAdmin/index.vue", Sort: 3, Title: "超级管理员", Icon: "user"},
-		{ID: 4, MenuLevel: 0, Hidden: 0, ParentId: 0, Path: "person", Name: "person", Component: "view/person/person.vue", Sort: 4, Title: "个人信息", Icon: "message"},
-		{ID: 5, MenuLevel: 0, Hidden: 0, ParentId: 0, Path: "example", Name: "example", Component: "view/example/index.vue", Sort: 7, Title: "示例文件", Icon: "management"},
-		{ID: 6, MenuLevel: 0, Hidden: 0, ParentId: 0, Path: "systemTools", Name: "systemTools", Component: "view/systemTools/index.vue", Sort: 5, Title: "系统工具", Icon: "tools"},
-		{ID: 7, MenuLevel: 0, Hidden: 0, ParentId: 0, Path: "https://www.gin-vue-admin.com", Name: "https://www.gin-vue-admin.com", Component: "/", Sort: 0, Title: "官方网站", Icon: "customer-gva"},
-		{ID: 8, MenuLevel: 0, Hidden: 0, ParentId: 0, Path: "state", Name: "state", Component: "view/system/state.vue", Sort: 8, Title: "服务器状态", Icon: "cloudy"},
-		{ID: 9, MenuLevel: 0, Hidden: 0, ParentId: 0, Path: "plugin", Name: "plugin", Component: "view/routerHolder.vue", Sort: 6, Title: "插件系统", Icon: "cherry"},
+	var sysMenuList = []sys.SysResource{
+		{ID: 1, Type: 1, MenuLevel: 0, Hidden: 0, ParentId: 0, Path: "dashboard", Name: "dashboard", Component: "view/dashboard/index.vue", Sort: 1, Title: "仪表盘", Icon: "odometer"},
+		{ID: 2, Type: 1, MenuLevel: 0, Hidden: 0, ParentId: 0, Path: "about", Name: "about", Component: "view/about/index.vue", Sort: 9, Title: "关于我们", Icon: "info-filled"},
+		{ID: 3, Type: 1, MenuLevel: 0, Hidden: 0, ParentId: 0, Path: "admin", Name: "superAdmin", Component: "view/superAdmin/index.vue", Sort: 3, Title: "超级管理员", Icon: "user"},
+		{ID: 4, Type: 1, MenuLevel: 0, Hidden: 0, ParentId: 0, Path: "person", Name: "person", Component: "view/person/person.vue", Sort: 4, Title: "个人信息", Icon: "message"},
+		{ID: 5, Type: 1, MenuLevel: 0, Hidden: 0, ParentId: 0, Path: "example", Name: "example", Component: "view/example/index.vue", Sort: 7, Title: "示例文件", Icon: "management"},
+		{ID: 6, Type: 1, MenuLevel: 0, Hidden: 0, ParentId: 0, Path: "systemTools", Name: "systemTools", Component: "view/systemTools/index.vue", Sort: 5, Title: "系统工具", Icon: "tools"},
+		{ID: 7, Type: 1, MenuLevel: 0, Hidden: 0, ParentId: 0, Path: "https://www.gin-vue-admin.com", Name: "https://www.gin-vue-admin.com", Component: "/", Sort: 0, Title: "官方网站", Icon: "customer-gva"},
+		{ID: 8, Type: 1, MenuLevel: 0, Hidden: 0, ParentId: 0, Path: "state", Name: "state", Component: "view/system/state.vue", Sort: 8, Title: "服务器状态", Icon: "cloudy"},
+		{ID: 9, Type: 1, MenuLevel: 0, Hidden: 0, ParentId: 0, Path: "plugin", Name: "plugin", Component: "view/routerHolder.vue", Sort: 6, Title: "插件系统", Icon: "cherry"},
 		// superAdmin子菜单
-		{ID: 10, MenuLevel: 1, Hidden: 0, ParentId: 3, Path: "authority", Name: "authority", Component: "view/superAdmin/authority/authority.vue", Sort: 1, Title: "角色管理", Icon: "avatar"},
-		{ID: 11, MenuLevel: 1, Hidden: 0, ParentId: 3, Path: "menu", Name: "menu", Component: "view/superAdmin/menu/menu.vue", Sort: 2, Title: "菜单管理", Icon: "tickets", KeepAlive: 1},
-		{ID: 12, MenuLevel: 1, Hidden: 0, ParentId: 3, Path: "api", Name: "api", Component: "view/superAdmin/api/api.vue", Sort: 3, Title: "api管理", Icon: "platform", KeepAlive: 1},
-		{ID: 13, MenuLevel: 1, Hidden: 0, ParentId: 3, Path: "user", Name: "user", Component: "view/superAdmin/user/user.vue", Sort: 4, Title: "用户管理", Icon: "coordinate"},
-		{ID: 14, MenuLevel: 1, Hidden: 0, ParentId: 3, Path: "dictionary", Name: "dictionary", Component: "view/superAdmin/dictionary/sysDictionary.vue", Sort: 5, Title: "字典管理", Icon: "notebook"},
-		{ID: 15, MenuLevel: 1, Hidden: 0, ParentId: 3, Path: "operation", Name: "operation", Component: "view/superAdmin/operation/sysOperationRecord.vue", Sort: 6, Title: "操作历史", Icon: "pie-chart"},
-		{ID: 16, MenuLevel: 1, Hidden: 0, ParentId: 3, Path: "sysParams", Name: "sysParams", Component: "view/superAdmin/params/sysParams.vue", Sort: 7, Title: "参数管理", Icon: "compass"},
+		{ID: 10, Type: 1, MenuLevel: 1, Hidden: 0, ParentId: 3, Path: "authority", Name: "authority", Component: "view/superAdmin/authority/authority.vue", Sort: 1, Title: "角色管理", Icon: "avatar"},
+		{ID: 11, Type: 1, MenuLevel: 1, Hidden: 0, ParentId: 3, Path: "menu", Name: "menu", Component: "view/superAdmin/menu/menu.vue", Sort: 2, Title: "菜单管理", Icon: "tickets", KeepAlive: 1},
+		{ID: 12, Type: 1, MenuLevel: 1, Hidden: 0, ParentId: 3, Path: "api", Name: "api", Component: "view/superAdmin/api/api.vue", Sort: 3, Title: "api管理", Icon: "platform", KeepAlive: 1},
+		{ID: 13, Type: 1, MenuLevel: 1, Hidden: 0, ParentId: 3, Path: "user", Name: "user", Component: "view/superAdmin/user/user.vue", Sort: 4, Title: "用户管理", Icon: "coordinate"},
+		{ID: 14, Type: 1, MenuLevel: 1, Hidden: 0, ParentId: 3, Path: "dictionary", Name: "dictionary", Component: "view/superAdmin/dictionary/sysDictionary.vue", Sort: 5, Title: "字典管理", Icon: "notebook"},
+		{ID: 15, Type: 1, MenuLevel: 1, Hidden: 0, ParentId: 3, Path: "operation", Name: "operation", Component: "view/superAdmin/operation/sysOperationRecord.vue", Sort: 6, Title: "操作历史", Icon: "pie-chart"},
+		{ID: 16, Type: 1, MenuLevel: 1, Hidden: 0, ParentId: 3, Path: "sysParams", Name: "sysParams", Component: "view/superAdmin/params/sysParams.vue", Sort: 7, Title: "参数管理", Icon: "compass"},
 
 		// example子菜单
-		{ID: 17, MenuLevel: 1, Hidden: 0, ParentId: 5, Path: "upload", Name: "upload", Component: "view/example/upload/upload.vue", Sort: 5, Title: "媒体库（上传下载）", Icon: "upload"},
-		{ID: 18, MenuLevel: 1, Hidden: 0, ParentId: 5, Path: "breakpoint", Name: "breakpoint", Component: "view/example/breakpoint/breakpoint.vue", Sort: 6, Title: "断点续传", Icon: "upload-filled"},
-		{ID: 19, MenuLevel: 1, Hidden: 0, ParentId: 5, Path: "customer", Name: "customer", Component: "view/example/customer/customer.vue", Sort: 7, Title: "客户列表（资源示例）", Icon: "avatar"},
+		{ID: 17, Type: 1, MenuLevel: 1, Hidden: 0, ParentId: 5, Path: "upload", Name: "upload", Component: "view/example/upload/upload.vue", Sort: 5, Title: "媒体库（上传下载）", Icon: "upload"},
+		{ID: 18, Type: 1, MenuLevel: 1, Hidden: 0, ParentId: 5, Path: "breakpoint", Name: "breakpoint", Component: "view/example/breakpoint/breakpoint.vue", Sort: 6, Title: "断点续传", Icon: "upload-filled"},
+		{ID: 19, Type: 1, MenuLevel: 1, Hidden: 0, ParentId: 5, Path: "customer", Name: "customer", Component: "view/example/customer/customer.vue", Sort: 7, Title: "客户列表（资源示例）", Icon: "avatar"},
 
 		// systemTools子菜单
-		{ID: 20, MenuLevel: 1, Hidden: 0, ParentId: 6, Path: "autoCode", Name: "autoCode", Component: "view/systemTools/autoCode/index.vue", Sort: 1, Title: "代码生成器", Icon: "cpu", KeepAlive: 1},
-		{ID: 21, MenuLevel: 1, Hidden: 0, ParentId: 6, Path: "formCreate", Name: "formCreate", Component: "view/systemTools/formCreate/index.vue", Sort: 3, Title: "表单生成器", Icon: "magic-stick", KeepAlive: 1},
-		{ID: 22, MenuLevel: 1, Hidden: 0, ParentId: 6, Path: "system", Name: "system", Component: "view/systemTools/system/system.vue", Sort: 4, Title: "系统配置", Icon: "operation"},
-		{ID: 23, MenuLevel: 1, Hidden: 0, ParentId: 6, Path: "autoCodeAdmin", Name: "autoCodeAdmin", Component: "view/systemTools/autoCodeAdmin/index.vue", Sort: 2, Title: "自动化代码管理", Icon: "magic-stick"},
-		{ID: 24, MenuLevel: 1, Hidden: 0, ParentId: 6, Path: "autoCodeEdit/:id", Name: "autoCodeEdit", Component: "view/systemTools/autoCode/index.vue", Sort: 0, Title: "自动化代码-${id}", Icon: "magic-stick"},
-		{ID: 25, MenuLevel: 1, Hidden: 0, ParentId: 6, Path: "autoPkg", Name: "autoPkg", Component: "view/systemTools/autoPkg/autoPkg.vue", Sort: 0, Title: "模板配置", Icon: "folder"},
-		{ID: 26, MenuLevel: 1, Hidden: 0, ParentId: 6, Path: "exportTemplate", Name: "exportTemplate", Component: "view/systemTools/exportTemplate/exportTemplate.vue", Sort: 5, Title: "导出模板", Icon: "reading"},
-		{ID: 27, MenuLevel: 1, Hidden: 0, ParentId: 6, Path: "picture", Name: "picture", Component: "view/systemTools/autoCode/picture.vue", Sort: 6, Title: "AI页面绘制", Icon: "picture-filled"},
-		{ID: 28, MenuLevel: 1, Hidden: 0, ParentId: 6, Path: "mcpTool", Name: "mcpTool", Component: "view/systemTools/autoCode/mcp.vue", Sort: 7, Title: "Mcp Tools模板", Icon: "magnet"},
-		{ID: 29, MenuLevel: 1, Hidden: 0, ParentId: 6, Path: "mcpTest", Name: "mcpTest", Component: "view/systemTools/autoCode/mcpTest.vue", Sort: 7, Title: "Mcp Tools测试", Icon: "partly-cloudy"},
+		{ID: 20, Type: 1, MenuLevel: 1, Hidden: 0, ParentId: 6, Path: "autoCode", Name: "autoCode", Component: "view/systemTools/autoCode/index.vue", Sort: 1, Title: "代码生成器", Icon: "cpu", KeepAlive: 1},
+		{ID: 21, Type: 1, MenuLevel: 1, Hidden: 0, ParentId: 6, Path: "formCreate", Name: "formCreate", Component: "view/systemTools/formCreate/index.vue", Sort: 3, Title: "表单生成器", Icon: "magic-stick", KeepAlive: 1},
+		{ID: 22, Type: 1, MenuLevel: 1, Hidden: 0, ParentId: 6, Path: "system", Name: "system", Component: "view/systemTools/system/system.vue", Sort: 4, Title: "系统配置", Icon: "operation"},
+		{ID: 23, Type: 1, MenuLevel: 1, Hidden: 0, ParentId: 6, Path: "autoCodeAdmin", Name: "autoCodeAdmin", Component: "view/systemTools/autoCodeAdmin/index.vue", Sort: 2, Title: "自动化代码管理", Icon: "magic-stick"},
+		{ID: 24, Type: 1, MenuLevel: 1, Hidden: 0, ParentId: 6, Path: "autoCodeEdit/:id", Name: "autoCodeEdit", Component: "view/systemTools/autoCode/index.vue", Sort: 0, Title: "自动化代码-${id}", Icon: "magic-stick"},
+		{ID: 25, Type: 1, MenuLevel: 1, Hidden: 0, ParentId: 6, Path: "autoPkg", Name: "autoPkg", Component: "view/systemTools/autoPkg/autoPkg.vue", Sort: 0, Title: "模板配置", Icon: "folder"},
+		{ID: 26, Type: 1, MenuLevel: 1, Hidden: 0, ParentId: 6, Path: "exportTemplate", Name: "exportTemplate", Component: "view/systemTools/exportTemplate/exportTemplate.vue", Sort: 5, Title: "导出模板", Icon: "reading"},
+		{ID: 27, Type: 1, MenuLevel: 1, Hidden: 0, ParentId: 6, Path: "picture", Name: "picture", Component: "view/systemTools/autoCode/picture.vue", Sort: 6, Title: "AI页面绘制", Icon: "picture-filled"},
+		{ID: 28, Type: 1, MenuLevel: 1, Hidden: 0, ParentId: 6, Path: "mcpTool", Name: "mcpTool", Component: "view/systemTools/autoCode/mcp.vue", Sort: 7, Title: "Mcp Tools模板", Icon: "magnet"},
+		{ID: 29, Type: 1, MenuLevel: 1, Hidden: 0, ParentId: 6, Path: "mcpTest", Name: "mcpTest", Component: "view/systemTools/autoCode/mcpTest.vue", Sort: 7, Title: "Mcp Tools测试", Icon: "partly-cloudy"},
 
-		{ID: 30, MenuLevel: 1, Hidden: 0, ParentId: 9, Path: "https://plugin.gin-vue-admin.com/", Name: "https://plugin.gin-vue-admin.com/", Component: "https://plugin.gin-vue-admin.com/", Sort: 0, Title: "插件市场", Icon: "shop"},
-		{ID: 31, MenuLevel: 1, Hidden: 0, ParentId: 9, Path: "installPlugin", Name: "installPlugin", Component: "view/systemTools/installPlugin/index.vue", Sort: 1, Title: "插件安装", Icon: "box"},
-		{ID: 32, MenuLevel: 1, Hidden: 0, ParentId: 9, Path: "pubPlug", Name: "pubPlug", Component: "view/systemTools/pubPlug/pubPlug.vue", Sort: 3, Title: "打包插件", Icon: "files"},
-		{ID: 33, MenuLevel: 1, Hidden: 0, ParentId: 9, Path: "plugin-email", Name: "plugin-email", Component: "plugin/email/view/index.vue", Sort: 4, Title: "邮件插件", Icon: "message"},
-		{ID: 34, MenuLevel: 1, Hidden: 0, ParentId: 9, Path: "anInfo", Name: "anInfo", Component: "plugin/announcement/view/info.vue", Sort: 5, Title: "公告管理[示例]", Icon: "scaleToOriginal"},
+		{ID: 30, Type: 1, MenuLevel: 1, Hidden: 0, ParentId: 9, Path: "https://plugin.gin-vue-admin.com/", Name: "https://plugin.gin-vue-admin.com/", Component: "https://plugin.gin-vue-admin.com/", Sort: 0, Title: "插件市场", Icon: "shop"},
+		{ID: 31, Type: 1, MenuLevel: 1, Hidden: 0, ParentId: 9, Path: "installPlugin", Name: "installPlugin", Component: "view/systemTools/installPlugin/index.vue", Sort: 1, Title: "插件安装", Icon: "box"},
+		{ID: 32, Type: 1, MenuLevel: 1, Hidden: 0, ParentId: 9, Path: "pubPlug", Name: "pubPlug", Component: "view/systemTools/pubPlug/pubPlug.vue", Sort: 3, Title: "打包插件", Icon: "files"},
+		{ID: 33, Type: 1, MenuLevel: 1, Hidden: 0, ParentId: 9, Path: "plugin-email", Name: "plugin-email", Component: "plugin/email/view/index.vue", Sort: 4, Title: "邮件插件", Icon: "message"},
+		{ID: 34, Type: 1, MenuLevel: 1, Hidden: 0, ParentId: 9, Path: "anInfo", Name: "anInfo", Component: "plugin/announcement/view/info.vue", Sort: 5, Title: "公告管理[示例]", Icon: "scaleToOriginal"},
 	}
 	// 删除管理员角色菜单
-	SysRoleMenuDao.Where("role_id in (1,2,3) AND menu_id < ?", 35).Delete(new(sys.SysRoleMenu))
+	SysRoleResourceDao.Where("role_id in (1,2,3) AND menu_id < ?", 35).Delete(new(sys.SysRoleResource))
 	// 重新插入初始菜单
 	for _, menu := range sysMenuList {
-		err = SysMenuDao.Create(&menu)
+		err = SysResourceDao.Create(&menu)
 		if err != nil {
 			logs.Error("初始化菜单失败: {}", err.Error())
 		}
 		// 重新插入角色菜单
-		err = SysRoleMenuDao.Create(&sys.SysRoleMenu{MenuId: menu.ID, RoleId: 1})
+		err = SysRoleResourceDao.Create(&sys.SysRoleResource{ResourceId: menu.ID, RoleId: 1})
 		if err != nil {
 			logs.Error("插入初始菜单角色失败: {}", err.Error())
 		}
-		err = SysRoleMenuDao.Create(&sys.SysRoleMenu{MenuId: menu.ID, RoleId: 2})
+		err = SysRoleResourceDao.Create(&sys.SysRoleResource{ResourceId: menu.ID, RoleId: 2})
 		if err != nil {
 			logs.Error("插入初始菜单角色失败: {}", err.Error())
 		}
 	}
 	// 普通用户菜单初始化
-	userRoleMenus := []*sys.SysRoleMenu{
-		{RoleId: 3, MenuId: 1},
-		{RoleId: 3, MenuId: 2},
-		{RoleId: 3, MenuId: 4},
-		{RoleId: 3, MenuId: 5},
-		{RoleId: 3, MenuId: 7},
-		{RoleId: 3, MenuId: 8},
-		{RoleId: 3, MenuId: 9},
-		{RoleId: 3, MenuId: 17},
-		{RoleId: 3, MenuId: 18},
-		{RoleId: 3, MenuId: 19},
-		{RoleId: 3, MenuId: 30},
-		{RoleId: 3, MenuId: 33},
-		{RoleId: 3, MenuId: 34},
+	userRoleMenus := []*sys.SysRoleResource{
+		{RoleId: 3, ResourceId: 1},
+		{RoleId: 3, ResourceId: 2},
+		{RoleId: 3, ResourceId: 4},
+		{RoleId: 3, ResourceId: 5},
+		{RoleId: 3, ResourceId: 7},
+		{RoleId: 3, ResourceId: 8},
+		{RoleId: 3, ResourceId: 9},
+		{RoleId: 3, ResourceId: 17},
+		{RoleId: 3, ResourceId: 18},
+		{RoleId: 3, ResourceId: 19},
+		{RoleId: 3, ResourceId: 30},
+		{RoleId: 3, ResourceId: 33},
+		{RoleId: 3, ResourceId: 34},
 	}
-	err = SysRoleMenuDao.MultiCreate(userRoleMenus)
+	err = SysRoleResourceDao.MultiCreate(userRoleMenus)
 	if err != nil {
 		logs.Error("初始化普通用户菜单失败: {}", err.Error())
 	}

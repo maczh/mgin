@@ -6,18 +6,18 @@ import (
 )
 
 var (
-	Captcha     = &captchaService{}
-	SysUser     = &sysUserService{}
-	SysApi      = &sysApiService{}
-	SysUserExt  = &sysUserExtService{}
-	SysDict     = &sysDictService{}
-	SysDept     = &sysDeptService{}
-	SysRole     = &sysRoleService{}
-	SysPost     = &sysPostService{}
-	SysMenu     = &sysMenuService{}
-	SysRoleApi  = &sysRoleApiService{}
-	SysRoleMenu = &sysRoleMenuService{}
-	SysConfig   = &sysConfigService{}
+	Captcha         = &captchaService{}
+	SysUser         = &sysUserService{}
+	SysApi          = &sysApiService{}
+	SysUserExt      = &sysUserExtService{}
+	SysDict         = &sysDictService{}
+	SysDept         = &sysDeptService{}
+	SysRole         = &sysRoleService{}
+	SysPost         = &sysPostService{}
+	SysResource     = &sysResourceService{}
+	SysRoleApi      = &sysRoleApiService{}
+	SysRoleResource = &sysRoleResourceService{}
+	SysConfig       = &sysConfigService{}
 )
 
 // 从*gin.Context 根据jwt提取用户昵称
