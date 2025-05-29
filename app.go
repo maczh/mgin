@@ -6,6 +6,7 @@ import (
 	"fmt"
 	nice "github.com/ekyoung/gin-nice-recovery"
 	"github.com/gin-gonic/gin"
+	"github.com/labstack/gommon/color"
 	"github.com/maczh/mgin/config"
 	_ "github.com/maczh/mgin/docs"
 	"github.com/maczh/mgin/errcode"
@@ -18,6 +19,7 @@ import (
 	"github.com/maczh/mgin/sys/dao"
 	"github.com/maczh/mgin/sys/middle"
 	"github.com/maczh/mgin/sys/route"
+	"github.com/scylladb/termtables"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 	"net/http"
@@ -154,15 +156,24 @@ func (app *App) Run() {
 		// 设置服务器的处理器为应用的路由
 		Handler: app.Router,
 	}
-
 	// 打印应用启动信息
-	logs.Info("|-----------------------------------|")
-	logs.Info("|      " + app.name + " " + app.version + "      |")
-	logs.Info("|-----------------------------------|")
-	logs.Info("|  Go Http Server Start Successful  |")
-	logs.Info("|    Port:" + config.Config.GetConfigString("go.application.port") + "     Pid:" + fmt.Sprintf("%d", os.Getpid()) + "        |")
-	logs.Info("|-----------------------------------|")
-	logs.Info("")
+	table := termtables.CreateTable()
+	table.Style.Width = 100
+	table.Style.Alignment = termtables.AlignCenter
+	table.Style.PaddingLeft = 5
+	table.Style.PaddingRight = 5
+	table.AddHeaders(fmt.Sprintf("%s    %s", app.name, app.version))
+	table.AddRow("MGin Server Start Successful")
+	table.AddRow(fmt.Sprintf("Port: %d    Pid: %d", config.Config.App.Port, os.Getpid()))
+	color.Println(color.Green(table.Render()))
+	// 打印应用启动信息
+	//logs.Info("|-----------------------------------|")
+	//logs.Info("|      " + app.name + " " + app.version + "      |")
+	//logs.Info("|-----------------------------------|")
+	//logs.Info("|  Go Http Server Start Successful  |")
+	//logs.Info("|    Port:" + config.Config.GetConfigString("go.application.port") + "     Pid:" + fmt.Sprintf("%d", os.Getpid()) + "        |")
+	//logs.Info("|-----------------------------------|")
+	//logs.Info("")
 
 	// 如果配置文件中设置的 HTTP 端口大于 0，则启动 HTTP 服务器
 	if config.Config.App.Port > 0 {

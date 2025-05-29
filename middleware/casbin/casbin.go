@@ -8,6 +8,7 @@ import (
 	"github.com/maczh/mgin/config"
 	"github.com/maczh/mgin/models"
 	"net/http"
+	"strings"
 )
 
 // CasbinHandler 拦截器
@@ -25,6 +26,10 @@ func CasbinHandler() gin.HandlerFunc {
 				c.Next()
 				return
 			}
+		}
+		if strings.Contains(c.Request.URL.Path, "/docs/") || strings.Contains(c.Request.URL.Path, "/swagger/") || strings.Contains(c.Request.URL.Path, config.Config.Sys.Swagger.Uri) {
+			c.Next()
+			return
 		}
 		claims, exists := c.Get("claims")
 		if !exists {

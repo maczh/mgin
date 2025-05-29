@@ -101,7 +101,7 @@ func RequestLogger() gin.HandlerFunc {
 		var result any
 
 		// 日志格式
-		if strings.Contains(c.Request.RequestURI, "/docs") || c.Request.RequestURI == "/" {
+		if strings.Contains(c.Request.URL.Path, "/docs/") || strings.Contains(c.Request.URL.Path, "/swagger/") || strings.Contains(c.Request.URL.Path, config.Config.Sys.Swagger.Uri) || c.Request.URL.Path == "/" {
 			return
 		}
 

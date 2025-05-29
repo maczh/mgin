@@ -16,21 +16,25 @@ require (
 	github.com/gin-gonic/gin v1.9.0
 	github.com/go-errors/errors v1.0.1
 	github.com/go-redis/redis/v7 v7.4.1
+	github.com/go-session/session v3.1.2+incompatible
 	github.com/gofrs/uuid v4.1.0+incompatible
 	github.com/hashicorp/consul/api v1.13.0
 	github.com/henrylee2cn/mahonia v0.0.0-20150715080413-be6deb105fbc
 	github.com/huandu/go-clone v1.4.1
 	github.com/json-iterator/go v1.1.12
 	github.com/knadh/koanf v1.4.3
+	github.com/labstack/gommon v0.4.2
 	github.com/levigross/grequests v0.0.0-20190908174114-253788527a1a
 	github.com/maczh/mgo v1.0.3
-	github.com/mattn/go-isatty v0.0.17
+	github.com/mattn/go-isatty v0.0.20
+	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/mojocn/base64Captcha v1.3.8
 	github.com/nacos-group/nacos-sdk-go v1.1.4
 	github.com/olivere/elastic v6.2.37+incompatible
 	github.com/pkg/sftp v1.13.5
 	github.com/sadlil/gologger v0.0.0-20180131031757-2507bf651df8
+	github.com/scylladb/termtables v0.0.0-20191203121021-c4c0b6d42ff4
 	github.com/shiena/ansicolor v0.0.0-20200904210342-c7312218db18
 	github.com/swaggo/files v1.0.1
 	github.com/swaggo/gin-swagger v1.6.0
@@ -51,6 +55,7 @@ require (
 	github.com/aliyun/alibaba-cloud-sdk-go v1.61.18 // indirect
 	github.com/araddon/gou v0.0.0-20211019181548-e7d08105776c // indirect
 	github.com/armon/go-metrics v0.0.0-20180917152333-f0300d1749da // indirect
+	github.com/aymerick/douceur v0.2.0 // indirect
 	github.com/bitly/go-hostpool v0.1.0 // indirect
 	github.com/bmatcuk/doublestar/v4 v4.6.1 // indirect
 	github.com/bmizerany/assert v0.0.0-20160611221934-b7ed37b82869 // indirect
@@ -88,6 +93,7 @@ require (
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/go-querystring v1.0.0 // indirect
 	github.com/google/uuid v1.3.0 // indirect
+	github.com/gorilla/css v1.0.1 // indirect
 	github.com/hashicorp/errwrap v1.0.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.1 // indirect
 	github.com/hashicorp/go-hclog v0.12.0 // indirect
@@ -116,7 +122,8 @@ require (
 	github.com/leodido/go-urn v1.2.1 // indirect
 	github.com/mailru/easyjson v0.9.0 // indirect
 	github.com/mattbaird/elastigo v0.0.0-20170123220020-2fe47fd29e4b // indirect
-	github.com/mattn/go-colorable v0.1.6 // indirect
+	github.com/mattn/go-colorable v0.1.13 // indirect
+	github.com/mattn/go-runewidth v0.0.10 // indirect
 	github.com/mattn/go-sqlite3 v1.14.17 // indirect
 	github.com/microsoft/go-mssqldb v1.6.0 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
@@ -133,6 +140,7 @@ require (
 	github.com/plar/go-adaptive-radix-tree v1.0.4 // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230126093431-47fa9a501578 // indirect
+	github.com/rivo/uniseg v0.1.0 // indirect
 	github.com/sirupsen/logrus v1.8.1 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.2.9 // indirect
