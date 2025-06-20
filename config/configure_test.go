@@ -50,3 +50,16 @@ func TestConfig_GetConfigData_Etcd(t *testing.T) {
 	ymlData := cfg.GetConfigData("etcd")
 	fmt.Println(string(ymlData))
 }
+
+func TestConfig_GetConfigData_Polaris(t *testing.T) {
+	cfg := &config{
+		Cnf:       nil,
+		App:       app{Project: "oss", Name: "user", Port: 8080},
+		Config:    appConfig{Server: "http://127.0.0.1:8090", Env: "test", Type: "polaris"},
+		Log:       appLog{},
+		Logger:    appLogger{},
+		Discovery: discovery{},
+	}
+	ymlData := cfg.GetConfigData("polaris")
+	fmt.Println(string(ymlData))
+}

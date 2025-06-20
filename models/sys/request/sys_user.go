@@ -1,18 +1,20 @@
 package request
 
 type RegisterReq struct {
-	LoginName string `json:"loginName" form:"loginName" binding:"required"`
-	Password  string `json:"password" form:"password" binding:"required"`
-	Email     string `json:"email" form:"email"`
-	Mobile    string `json:"mobile" form:"mobile"`
-	NickName  string `json:"nickName" form:"nickName"`
-	Sex       uint8  `json:"sex" form:"sex"`
-	Avatar    string `json:"avatar" form:"avatar"`
+	LoginName string            `json:"loginName" form:"loginName" binding:"required"`
+	Password  string            `json:"password" form:"password" binding:"required"`
+	Email     string            `json:"email" form:"email"`
+	Mobile    string            `json:"mobile" form:"mobile"`
+	NickName  string            `json:"nickName" form:"nickName"`
+	Sex       uint8             `json:"sex" form:"sex"`
+	Avatar    string            `json:"avatar" form:"avatar"`
+	Captcha   *VerifyCaptchaReq `json:"captcha" form:"captcha" binding:"required"`
 }
 
 type LoginReq struct {
-	LoginName string `json:"loginName" form:"loginName" binding:"required"` // 可以是用户名或邮箱或手机号，自动识别
-	Password  string `json:"password" form:"password" binding:"required"`
+	LoginName string            `json:"loginName" form:"loginName" binding:"required"` // 可以是用户名或邮箱或手机号，自动识别
+	Password  string            `json:"password" form:"password" binding:"required"`
+	Captcha   *VerifyCaptchaReq `json:"captcha" form:"captcha" binding:"required"`
 }
 
 type ChangePasswordReq struct {

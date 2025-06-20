@@ -236,6 +236,8 @@ func (c *config) GetConfigUrl(prefix string) string {
 	switch c.Config.Type {
 	case "nacos":
 		configUrl = configUrl + "nacos/v1/cs/configs?group=" + c.App.Project + "&dataId=" + prefix + "-" + c.Config.Env + ".yml"
+	case "polaris":
+		configUrl = configUrl + "/config/v1/GetConfigFile?namespace=default&group=" + c.App.Project + "&fileName=" + prefix + "-" + c.Config.Env + ".yml"
 	case "consul":
 		configUrl = fmt.Sprintf("%s/v1/kv/%s/%s-%s.yml?dc=dc1&raw=true", configUrl, c.App.Project, prefix, c.Config.Env)
 	case "springconfig":
@@ -268,6 +270,23 @@ func (c *config) GetConfigData(prefix string) []byte {
 			return nil
 		}
 		return resp.Kvs[0].Value
+	case "polaris":
+		resp, err := grequests.Get(c.GetConfigUrl(prefix), nil)
+		if err != nil {
+			fmt.Println(err.Error())
+			return nil
+		}
+		res := polaris_config_resp{}
+		err = resp.JSON(&res)
+		if err != nil {
+			fmt.Println(err.Error())
+			return nil
+		}
+		if res.Code != 200000 {
+			fmt.Println(res.Info)
+			return nil
+		}
+		return []byte(res.ConfigFile.Content)
 	case "file":
 		data, err := ioutil.ReadFile(c.GetConfigUrl(prefix))
 		if err != nil {
@@ -281,4 +300,22 @@ func (c *config) GetConfigData(prefix string) []byte {
 		}
 		return resp.Bytes()
 	}
+}
+
+type polaris_config_resp struct {
+	Code       int    `json:"code"`
+	Info       string `json:"info"`
+	ConfigFile struct {
+		Namespace   string        `json:"namespace"`
+		Group       string        `json:"group"`
+		FileName    string        `json:"fileName"`
+		Content     string        `json:"content"`
+		Version     string        `json:"version"`
+		Md5         string        `json:"md5"`
+		Tags        []interface{} `json:"tags"`
+		Encrypted   bool          `json:"encrypted"`
+		PublicKey   interface{}   `json:"publicKey"`
+		Name        interface{}   `json:"name"`
+		ReleaseTime interface{}   `json:"release_time"`
+	} `json:"configFile"`
 }

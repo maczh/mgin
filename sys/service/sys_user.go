@@ -37,6 +37,12 @@ func (s *sysUserService) Register(req request.RegisterReq) (*sys.SysUser, error)
 		Sex:       req.Sex,
 		Avatar:    req.Avatar,
 	}
+	//检查验证码
+	if req.Captcha != nil {
+		if !Captcha.VerifyCaptcha(*req.Captcha) {
+			return nil, errors.New("验证码错误")
+		}
+	}
 	//检查用户名是否已存在
 	if dao.SysUserDao.Exists(sys.SysUser{LoginName: req.LoginName}) {
 		return nil, errors.New("用户名已存在")
@@ -84,6 +90,12 @@ func (s *sysUserService) Register(req request.RegisterReq) (*sys.SysUser, error)
 
 // Login 用户登录
 func (s *sysUserService) Login(req request.LoginReq) (string, error) {
+	//检查验证码
+	if req.Captcha != nil {
+		if !Captcha.VerifyCaptcha(*req.Captcha) {
+			return "", errors.New("验证码错误")
+		}
+	}
 	redis, err := db.Redis.GetConnection()
 	if err != nil {
 		logs.Error("Redis连接失败: {}", err.Error())

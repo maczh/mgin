@@ -25,6 +25,9 @@ func (s *sysUserController) Register(c *gin.Context) models.Result[any] {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		return models.Error(500, "请求参数错误: "+err.Error())
 	}
+	if req.Captcha == nil {
+		return models.Error(500, "验证码不能为空")
+	}
 	user, err := service.SysUser.WithContext(c).Register(req)
 	if err != nil {
 		return models.Error(500, err.Error())
@@ -46,6 +49,9 @@ func (s *sysUserController) Login(c *gin.Context) models.Result[any] {
 	var req request.LoginReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		return models.Error(500, "请求参数错误: "+err.Error())
+	}
+	if req.Captcha == nil {
+		return models.Error(500, "验证码不能为空")
 	}
 	token, err := service.SysUser.WithContext(c).Login(req)
 	if err != nil {

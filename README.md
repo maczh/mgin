@@ -141,10 +141,11 @@ go:
     callType: json                     #微服务调用参数模式 x-form,json,restful 三种模式可选
   config:                               #统一配置服务器相关
     server: http://192.168.1.5:8848/    #配置服务器地址
-    server_type: nacos                  #配置服务器类型 nacos,consul,springconfig,etcd,file; 
+    server_type: nacos                  #配置服务器类型 nacos,consul,springconfig,etcd,polaris,file; 
                                         #nacos地址 http://{go.config.server}/nacos/v1/cs/configs?group={go.application.project}&&dataId={go.config.prefix.nacos}-{go.config.env}.yml
                                         #etcd key /config/{go.application.project}/{go.config.prefix.etcd}-{go.config.env}.yml
                                         #consul key /{go.application.project}/{go.config.prefix.consul}-{go.config.env}.yml
+                                        #polaris key /config/v1/GetConfigFile?namespace=default&group={go.application.project}&fileName={go.config.prefix.consul}-{go.config.env}.yml
     env: test                           #配置环境 一般常用test/prod/dev等，跟相应配置文件匹配
     used: nacos,mysql,mongodb,redis,kafka     #当前应用启用的配置
     prefix:                             #配置文件名前缀定义
@@ -314,6 +315,21 @@ go:
     lan: true   #以内网地址注册，否则以公网地址注册
     lanNet: 192.168.3.    #网段前缀
 ```
+
++ polaris配置范例 polaris-test.yml
+```yaml
+go:
+  polaris:
+    server: xxx.xxx.xxx   #polaris服务IP
+    port: 8090            #polaris api端口
+    namespace: default    #命名空间
+    group: OpenApi    #根据项目不同配置不同分组
+    weight: 1
+    lan: true   #以内网地址注册，否则以公网地址注册
+    lanNet: 192.168.3.    #网段前缀
+```
+
+
 + Elasticsearch配置范例 elasticsearch-test.yml
 ```yaml
 go:
