@@ -323,7 +323,7 @@ go:
     server: xxx.xxx.xxx   #polaris服务IP
     port: 8090            #polaris api端口
     namespace: default    #命名空间
-    group: OpenApi    #根据项目不同配置不同分组
+    token: xxxxxxxxxxxx    #polaris token
     weight: 1
     lan: true   #以内网地址注册，否则以公网地址注册
     lanNet: 192.168.3.    #网段前缀
