@@ -68,6 +68,7 @@ go:
 - Consul
 - SpringCloud Config
 - Etcd
+- Polaris
 - File 本地文件
 
 ### 支持的服务发现与注册中心
@@ -75,6 +76,7 @@ go:
 - Nacos
 - Consul
 - Etcd
+- Polaris
 
 ### 内置支持自动连接的数据库
 
