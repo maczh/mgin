@@ -148,6 +148,8 @@ go:
                                         #etcd key /config/{go.application.project}/{go.config.prefix.etcd}-{go.config.env}.yml
                                         #consul key /{go.application.project}/{go.config.prefix.consul}-{go.config.env}.yml
                                         #polaris key /config/v1/GetConfigFile?namespace=default&group={go.application.project}&fileName={go.config.prefix.consul}-{go.config.env}.yml
+    token:                             #配置服务器访问token,polaris需要配置
+    path: conf                      #当本地文件配置时，对应配置文件路径,默认是当前运行路径
     env: test                           #配置环境 一般常用test/prod/dev等，跟相应配置文件匹配
     used: nacos,mysql,mongodb,redis,kafka     #当前应用启用的配置
     prefix:                             #配置文件名前缀定义
