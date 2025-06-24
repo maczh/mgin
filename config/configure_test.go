@@ -55,11 +55,11 @@ func TestConfig_GetConfigData_Polaris(t *testing.T) {
 	cfg := &config{
 		Cnf:       nil,
 		App:       app{Project: "oss", Name: "user", Port: 8080},
-		Config:    appConfig{Server: "http://127.0.0.1:8090", Env: "test", Type: "polaris"},
+		Config:    appConfig{Server: "http://127.0.0.1:8090", Env: "test", Type: "polaris", Token: "7aqoGj/aaK631nUUIa54+vao+kVzwAJNb+2w7chkklJjLG/VkdnyvVKojbZycf4OtZZCLGSlqYj9oghc9XM="},
 		Log:       appLog{},
 		Logger:    appLogger{},
 		Discovery: discovery{},
 	}
-	ymlData := cfg.GetConfigData("polaris")
+	ymlData := cfg.GetConfigData("mysql")
 	fmt.Println(string(ymlData))
 }

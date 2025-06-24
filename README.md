@@ -151,7 +151,7 @@ go:
     env: test                           #配置环境 一般常用test/prod/dev等，跟相应配置文件匹配
     used: nacos,mysql,mongodb,redis,kafka     #当前应用启用的配置
     prefix:                             #配置文件名前缀定义
-      mysql: mysql                      #mysql对应的配置文件名前缀，如当前配置中对应的配置文件名为 mysql-test.yml
+      mysql: mysql                      #mysql对应的配置文件名前缀，如当前配置中对应的配置文件名为 mysql-test.yml，也可以是mysql@v2代表mysql的v2版本，仅用于polaris支持版本号配置
       mongodb: mongodb
       redis: redis
       nacos: nacos
