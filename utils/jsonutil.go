@@ -20,6 +20,20 @@ func ToJSON(o any) string {
 	}
 }
 
+func ToJSONPretty(o any) string {
+	j, err := json.Marshal(o)
+	if err != nil {
+		return "{}"
+	} else {
+		js := string(j)
+		js = strings.Replace(js, "\\u003c", "<", -1)
+		js = strings.Replace(js, "\\u003e", ">", -1)
+		js = strings.Replace(js, "\\u0026", "&", -1)
+		js = JSONPretty(js, "", "  ")
+		return js
+	}
+}
+
 func FromJSON(j string, o any) *any {
 	err := json.Unmarshal([]byte(j), &o)
 	if err != nil {

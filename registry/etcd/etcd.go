@@ -2,16 +2,16 @@ package etcd
 
 import (
 	"context"
-	"crypto/md5"
 	"fmt"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/knadh/koanf"
 	"github.com/knadh/koanf/parsers/yaml"
 	"github.com/knadh/koanf/providers/rawbytes"
+	"github.com/maczh/mgin/cache"
 	"github.com/maczh/mgin/config"
+	"github.com/maczh/mgin/utils"
 	"github.com/sadlil/gologger"
 	clientv3 "go.etcd.io/etcd/client/v3"
-	"io"
 	"math/rand"
 	"net"
 	"strings"
@@ -22,11 +22,13 @@ type EtcdClient struct {
 	client     *clientv3.Client
 	cluster    string
 	group      string
+	prefix     string
 	lan        bool
 	lanNetwork string
 	conf       *koanf.Koanf
 	confUrl    string
 	confData   []byte
+	instanceId string
 }
 
 var logger = gologger.GetLogger()
@@ -68,9 +70,10 @@ func (c *EtcdClient) Register(etcdConfigData []byte) {
 		c.lanNetwork = c.conf.String("go.etcd.lanNet")
 		ipstr := c.conf.String("go.etcd.server")
 		portstr := c.conf.String("go.etcd.port")
+		c.prefix = c.conf.String("go.etcd.prefix")
 		c.group = c.conf.String("go.etcd.group")
 		if c.group == "" {
-			c.group = "DEFAULT_GROUP"
+			c.group = config.Config.App.Project
 		}
 		c.cluster = c.conf.String("go.etcd.clusterName")
 		if c.cluster == "" {
@@ -104,13 +107,15 @@ func (c *EtcdClient) Register(etcdConfigData []byte) {
 		//if config.Config.App.Debug {
 		//	metadata["debug"] = "true"
 		//}
-		key := fmt.Sprintf("/service/%s/%s/%s/%s", c.cluster, c.group, config.Config.App.Name, getInstanceId(ip, port))
+		c.instanceId = utils.NewUUIDString()
+		key := fmt.Sprintf("%s/%s/%s/%s", c.prefix, c.group, config.Config.App.Name, c.instanceId)
 		logger.Debug("etcd服务的key: " + key + "，值：" + apiUrl)
 		resp, regerr := c.client.Put(context.Background(), key, apiUrl)
 		if regerr != nil {
 			logger.Error("Etcd注册服务失败:" + regerr.Error())
 			return
 		}
+		cache.OnMemCache("etcd_service").Set("instance_id", c.instanceId, 5*time.Second)
 		logger.Debug("etcd服务注册结果: " + toJSON(resp))
 	}
 }
@@ -122,7 +127,7 @@ func (c *EtcdClient) GetServiceURL(servicename string, groupName ...string) (str
 	currentGroup := groupName[0]
 	logger.Debug(fmt.Sprintf("groupName=%s, etcdClient=%s", toJSON(groupName), toJSON(c)))
 	for _, group := range groupName {
-		prefix := fmt.Sprintf("/service/%s/%s/%s/", c.cluster, group, servicename)
+		prefix := fmt.Sprintf("%s/%s/%s/", c.prefix, group, servicename)
 		logger.Debug("查询前缀: " + prefix)
 		resp, err := c.client.Get(context.Background(), prefix, clientv3.WithPrefix())
 		if err != nil {
@@ -135,6 +140,8 @@ func (c *EtcdClient) GetServiceURL(servicename string, groupName ...string) (str
 		currentGroup = group
 		r := rand.New(rand.NewSource(time.Now().UnixNano()))
 		kv := resp.Kvs[r.Intn(len(resp.Kvs))]
+		//将当前服务实例对应的instanceId保存到缓存当中
+		cache.OnMemCache("etcd_service").Set(fmt.Sprintf("etcd_%s_%s", servicename, string(kv.Value)), string(kv.Key)[len(prefix):], 5*time.Second)
 		return string(kv.Value), currentGroup
 	}
 	return "", currentGroup
@@ -151,7 +158,7 @@ func (c *EtcdClient) DeRegister() {
 		port = uint64(config.Config.App.PortSSL)
 	}
 	fmt.Printf("注销服务: ip=%s, port=%d\n", ip, port)
-	key := fmt.Sprintf("/registry/%s/%s/%s/%s", c.cluster, c.group, config.Config.App.Name, getInstanceId(ip, port))
+	key := fmt.Sprintf("%s/%s/%s/%s", c.prefix, c.group, config.Config.App.Name, c.instanceId)
 	fmt.Println(key)
 	resp, err := c.client.Delete(context.Background(), key)
 	if err != nil {
@@ -207,11 +214,4 @@ func toJSON(o any) string {
 		js = strings.Replace(js, "\\u0026", "&", -1)
 		return js
 	}
-}
-
-func getInstanceId(ip string, port uint64) string {
-	h := md5.New()
-	_, _ = io.WriteString(h, fmt.Sprintf("http://%s:%d", ip, port))
-	md := fmt.Sprintf("%x", h.Sum(nil))[:4]
-	return md
 }

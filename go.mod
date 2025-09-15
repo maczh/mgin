@@ -25,7 +25,7 @@ require (
 	github.com/knadh/koanf v1.4.3
 	github.com/labstack/gommon v0.4.2
 	github.com/levigross/grequests v0.0.0-20190908174114-253788527a1a
-	github.com/maczh/mgo v1.0.3
+	github.com/maczh/mgo v1.0.4
 	github.com/mattn/go-isatty v0.0.20
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/mitchellh/mapstructure v1.5.0
