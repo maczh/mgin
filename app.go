@@ -8,7 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/labstack/gommon/color"
 	"github.com/maczh/mgin/config"
-	//_ "github.com/maczh/mgin/docs"
+	_ "github.com/maczh/mgin/docs"
 	"github.com/maczh/mgin/errcode"
 	"github.com/maczh/mgin/i18n"
 	"github.com/maczh/mgin/logs"
