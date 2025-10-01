@@ -31,7 +31,7 @@ type mongo[E any] struct {
 
 func getTag() string {
 	if db.Mongo.IsMultiDB() {
-		return trace.GetHeader(config.Config.Log.DbName)
+		return config.Config.Log.DbName
 	} else {
 		return "0"
 	}
@@ -162,7 +162,7 @@ func handleAccessChannel() {
 		json.Unmarshal([]byte(accessLog), &postLog)
 		dbName := ""
 		if config.Config.Log.DbName != "" {
-			dbName = postLog.RequestHeader[config.Config.Log.DbName]
+			dbName = config.Config.Log.DbName
 		}
 		//是否写入到kafka
 		if config.Config.Log.Kafka.Use {
