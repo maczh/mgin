@@ -158,7 +158,7 @@ func IsChineseNameStringEx(s string) (string, bool) {
 	return string(list), true
 }
 
-//判断是否是18或15位身份证
+// 判断是否是18或15位身份证
 func IsIdCard(cardNo string) bool {
 	//18位身份证 ^(\d{17})([0-9]|X)$
 	if m, _ := regexp.MatchString(`(^\d{15}$)|(^\d{18}$)|(^\d{17}(\d|X|x)$)`, cardNo); !m {

@@ -43,7 +43,7 @@ func IsChinese(str string) bool {
 	//return isChinese.MatchString(str)
 }
 
-//全角转半角
+// 全角转半角
 func DBCtoSBC(s string) string {
 	retstr := ""
 	for _, i := range s {

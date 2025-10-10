@@ -116,7 +116,7 @@ func GetDate() string {
 	return time.Now().In(cstZone).Format("2006-01-02")
 }
 
-//判断时间是当年的第几周
+// 判断时间是当年的第几周
 func WeekByDate(t time.Time) int {
 	yearDay := t.YearDay()
 	yearFirstDay := t.AddDate(0, 0, -yearDay+1)

@@ -93,12 +93,12 @@ func Call(service, uri string, op *Options) (string, error) {
 		})
 	case CONTENT_TYPE_FILE:
 		delete(headers, "Content-Type")
-		resp, err = grequests.Post(url, &grequests.RequestOptions{
+		resp, err = grequests.Post(url, grequests.FromRequestOptions(&grequests.RequestOptions{
 			Data:    utils.AnyToMap(op.Data),
 			Params:  utils.AnyToMap(op.Query),
 			Headers: headers,
 			Files:   op.Files,
-		})
+		}))
 	}
 	if err != nil {
 		logs.Error("微服务{}请求错误:{}", service, err.Error())

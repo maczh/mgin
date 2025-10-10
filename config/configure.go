@@ -282,11 +282,11 @@ func (c *config) GetConfigData(prefix string) []byte {
 		}
 		return resp.Kvs[0].Value
 	case "polaris":
-		resp, err := grequests.Get(c.GetConfigUrl(prefix), &grequests.RequestOptions{
+		resp, err := grequests.Get(c.GetConfigUrl(prefix), grequests.FromRequestOptions(&grequests.RequestOptions{
 			Headers: map[string]string{
 				"X-Polaris-Token": c.Config.Token,
 			},
-		})
+		}))
 		if err != nil {
 			fmt.Println(err.Error())
 			return nil

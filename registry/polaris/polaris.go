@@ -67,12 +67,12 @@ func (c *PolarisClient) Register(registryConfigData []byte) {
 				Namespace: c.namespace,
 			},
 		}
-		resp, err := grequests.Post(serviceUrl, &grequests.RequestOptions{
+		resp, err := grequests.Post(serviceUrl, grequests.FromRequestOptions(&grequests.RequestOptions{
 			Headers: map[string]string{
 				"X-Polaris-Token": c.token,
 			},
 			JSON: createSerfviceReq,
-		})
+		}))
 		if err != nil {
 			logger.Error("Polaris 服务创建失败:" + err.Error())
 			return
@@ -104,12 +104,12 @@ func (c *PolarisClient) Register(registryConfigData []byte) {
 			registerReq[0].Metadata["ssl"] = "true"
 		}
 		logger.Debug("注册实例请求参数: " + toJSON(registerReq))
-		resp, err = grequests.Post(instanceUrl, &grequests.RequestOptions{
+		resp, err = grequests.Post(instanceUrl, grequests.FromRequestOptions(&grequests.RequestOptions{
 			Headers: map[string]string{
 				"X-Polaris-Token": c.token,
 			},
 			JSON: registerReq,
-		})
+		}))
 		if err != nil {
 			logger.Error("Polaris 服务实例注册失败:" + err.Error())
 			return
@@ -140,12 +140,12 @@ func (c *PolarisClient) GetServiceURL(servicename string, namespaces ...string) 
 			"service":   servicename,
 			"namespace": namespace,
 		}
-		resp, err := grequests.Get(fmt.Sprintf("%s/naming/v1/instances", c.apiBaseUrl), &grequests.RequestOptions{
+		resp, err := grequests.Get(fmt.Sprintf("%s/naming/v1/instances", c.apiBaseUrl), grequests.FromRequestOptions(&grequests.RequestOptions{
 			Headers: map[string]string{
 				"X-Polaris-Token": c.token,
 			},
 			Params: query,
-		})
+		}))
 		var res QueryInstanceResponse
 		err = resp.JSON(&res)
 		if err != nil {
@@ -193,19 +193,19 @@ func (c *PolarisClient) DeRegister() {
 		}
 		query.Port = port
 	}
-	_, err := grequests.Post(fmt.Sprintf("%s/naming/v1/instances/delete", c.apiBaseUrl), &grequests.RequestOptions{
+	_, err := grequests.Post(fmt.Sprintf("%s/naming/v1/instances/delete", c.apiBaseUrl), grequests.FromRequestOptions(&grequests.RequestOptions{
 		Headers: map[string]string{
 			"X-Polaris-Token": c.token,
 		},
 		JSON: []DeregisterInstanceRequest{query},
-	})
+	}))
 	if err != nil {
 		logger.Error("Polaris 服务实例注销失败:" + err.Error())
 		return
 	}
 	cache.OnGetCache("polaris").Delete("serviceId")
 	//查询服务是否存在其他实例
-	resp, err := grequests.Get(fmt.Sprintf("%s/naming/v1/instances", c.apiBaseUrl), &grequests.RequestOptions{
+	resp, err := grequests.Get(fmt.Sprintf("%s/naming/v1/instances", c.apiBaseUrl), grequests.FromRequestOptions(&grequests.RequestOptions{
 		Headers: map[string]string{
 			"X-Polaris-Token": c.token,
 		},
@@ -213,7 +213,7 @@ func (c *PolarisClient) DeRegister() {
 			"service":   config.Config.App.Name,
 			"namespace": c.namespace,
 		},
-	})
+	}))
 	var res QueryInstanceResponse
 	err = resp.JSON(&res)
 	if err != nil {
@@ -229,7 +229,7 @@ func (c *PolarisClient) DeRegister() {
 		return
 	}
 	//注销服务
-	resp, err = grequests.Post(fmt.Sprintf("%s/naming/v1/services/delete", c.apiBaseUrl), &grequests.RequestOptions{
+	resp, err = grequests.Post(fmt.Sprintf("%s/naming/v1/services/delete", c.apiBaseUrl), grequests.FromRequestOptions(&grequests.RequestOptions{
 		Headers: map[string]string{
 			"X-Polaris-Token": c.token,
 		},
@@ -239,7 +239,7 @@ func (c *PolarisClient) DeRegister() {
 				"namespace": c.namespace,
 			},
 		},
-	})
+	}))
 	if err != nil {
 		logger.Error("Polaris 服务注销失败:" + err.Error())
 		return

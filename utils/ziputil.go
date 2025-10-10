@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-//ZIP压缩多个文件，带批量修改压缩包里的文件名功能
+// ZIP压缩多个文件，带批量修改压缩包里的文件名功能
 func ZipFiles(filename string, files []string, srcpath string, aliasnames []string) error {
 	os.Remove(filename)
 	newZipFile, err := os.Create(filename)

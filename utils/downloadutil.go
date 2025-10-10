@@ -8,7 +8,7 @@ import (
 )
 
 func DownloadFile(fileUrl, localPath string) (string, error) {
-	resp, err := grequests.Get(fileUrl, &grequests.RequestOptions{})
+	resp, err := grequests.Get(fileUrl)
 	if err != nil {
 		logs.Error("文件{}下载错误:{}", fileUrl, err.Error())
 		return "", errors.New("文件下载错误:" + err.Error())

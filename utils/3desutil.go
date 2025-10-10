@@ -76,7 +76,7 @@ func TripleDESDecrypt(data string, key string, pcks5padding bool) string {
 	}
 }
 
-//Des encryption
+// Des encryption
 func encryptDesEcb(origData, key []byte) ([]byte, error) {
 	if len(origData) < 1 || len(key) < 1 {
 		return nil, errors.New("wrong data or key")
@@ -99,7 +99,7 @@ func encryptDesEcb(origData, key []byte) ([]byte, error) {
 	return out, nil
 }
 
-//Des decryption
+// Des decryption
 func decryptDesEcb(crypted, key []byte) ([]byte, error) {
 	if len(crypted) < 1 || len(key) < 1 {
 		return nil, errors.New("wrong data or key")
@@ -124,7 +124,7 @@ func decryptDesEcb(crypted, key []byte) ([]byte, error) {
 	return out, nil
 }
 
-//[golang ECB 3DES Encrypt]
+// [golang ECB 3DES Encrypt]
 func TripleEcbDesEncrypt(origData, key []byte) ([]byte, error) {
 	tkey := make([]byte, 24, 24)
 	copy(tkey, key)
@@ -154,7 +154,7 @@ func TripleEcbDesEncrypt(origData, key []byte) ([]byte, error) {
 	return out, nil
 }
 
-//[golang ECB 3DES Decrypt]
+// [golang ECB 3DES Decrypt]
 func TripleEcbDesDecrypt(crypted, key []byte) ([]byte, error) {
 	tkey := make([]byte, 24, 24)
 	copy(tkey, key)

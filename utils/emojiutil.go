@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-//表情解码
+// 表情解码
 func UnicodeEmojiDecode(s string) string {
 	//emoji表情的数据表达式
 	re := regexp.MustCompile("\\[[\\\\u0-9a-zA-Z]+\\]")
@@ -23,7 +23,7 @@ func UnicodeEmojiDecode(s string) string {
 	return s
 }
 
-//表情转换
+// 表情转换
 func UnicodeEmojiCode(s string) string {
 	ret := ""
 	rs := []rune(s)

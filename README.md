@@ -3,9 +3,13 @@
 MGin微服务框架，用于快速创建基于MGin微服务框架的RESTful微服务程序
 
 ## SDK使用说明
+
 - [SDK使用说明](sdk_document.md)
+
 ## Get Start
-  - 简单案例
+
+- 简单案例
+
 ```go
 package main
 
@@ -20,7 +24,8 @@ func main() {
 
 
 ```
-  - 创建一个yml配置文件，即可运行
+
+- 创建一个yml配置文件，即可运行
 
 ## MGin框架功能
 
@@ -29,6 +34,7 @@ func main() {
 - Gin
 
 ### 内置基础系统管理框架后端组件
+
 - 开启方式  (v1.20.3之后版本)
 
 ```yaml
@@ -47,20 +53,21 @@ go:
   jwt:
     secret: 1234567890abcdef            #jwt密钥    
 ```
+
 - 内置模块
-  - 用户管理 sys_user
-  - 角色管理 sys_role
-  - 部门管理 sys_dept
-  - 岗位管理 sys_post
-  - API接口管理 sys_api
-  - 菜单管理 sys_menu for Vue前端
-  - 字典管理 sys_dict
-  - 系统配置管理 sys_config
-  - 接口权限管理 sys_role_api
-  - 菜单权限管理 sys_role_menu
-  - JWT token认证
-  - Casbin接口权限控制
-  - 角色接口表模式接口权限控制
+    - 用户管理 sys_user
+    - 角色管理 sys_role
+    - 部门管理 sys_dept
+    - 岗位管理 sys_post
+    - API接口管理 sys_api
+    - 菜单管理 sys_menu for Vue前端
+    - 字典管理 sys_dict
+    - 系统配置管理 sys_config
+    - 接口权限管理 sys_role_api
+    - 菜单权限管理 sys_role_menu
+    - JWT token认证
+    - Casbin接口权限控制
+    - 角色接口表模式接口权限控制
 
 ### 支持统一的配置中心
 
@@ -118,6 +125,7 @@ mgin.MGin.Use("rabbitmq", mgrabbit.Rabbit.Init, mgrabbit.Rabbit.Close, nil)
 - restful
 
 ## 安装
+
 ```shell script
 go get -u github.com/maczh/mgin
 ```
@@ -127,6 +135,7 @@ go get -u github.com/maczh/mgin
 ### 本地配置文件
 
 + 默认文件名为`模块名.yml`，可自定义名称，配置内容如下
+
 ```yaml
 go:
   application:
@@ -175,7 +184,9 @@ go:
       use: true           #接口日志是否发送到kafka
       topic: myapp        #kafka消息主题,支持多个topic，以逗号分隔
 ```
+
 + mysql配置范例 mysql-test.yml
+
 ```yaml
 go:
   data:
@@ -187,7 +198,9 @@ go:
       timeout: 30   #空闲连接超时，秒，默认60秒
       life: 5       #连接生命周期，分钟，默认60分钟
 ```
+
 + mysql多库连接配置范例 mysql-multidb-test.yml
+
 ```yaml
 go:
   data:
@@ -204,8 +217,8 @@ go:
       life: 5       #连接生命周期，分钟，默认60分钟
 ```
 
-
 + mongodb配置范例 mongodb-test.yml
+
 ```yaml
 go:
   data:
@@ -218,6 +231,7 @@ go:
 ```
 
 + mongodb多库连接配置范例 mongodb-multidb-test.yml
+
 ```yaml
 go:
   data:
@@ -235,8 +249,8 @@ go:
       max: 20       #最大连接数
 ```
 
-
 + redis配置范例 redis-test.yml,支持集群模式与哨兵模式
+
 ```yaml
 go:
   data:
@@ -256,6 +270,7 @@ go:
 ```
 
 + redis多库连接配置范例 redis-multidb-test.yml,支持集群模式与哨兵模式
+
 ```yaml
 go:
   data:
@@ -282,6 +297,7 @@ go:
 ```
 
 + nacos配置范例 nacos-test.yml
+
 ```yaml
 go:
   nacos:
@@ -295,6 +311,7 @@ go:
 ```
 
 + etcd配置范例 etcd-test.yml
+
 ```yaml
 go:
   etcd:
@@ -308,6 +325,7 @@ go:
 ```
 
 + consul配置范例 consul-test.yml
+
 ```yaml
 go:
   consul:
@@ -321,6 +339,7 @@ go:
 ```
 
 + polaris配置范例 polaris-test.yml
+
 ```yaml
 go:
   polaris:
@@ -333,8 +352,8 @@ go:
     lanNet: 192.168.3.    #网段前缀
 ```
 
-
 + Elasticsearch配置范例 elasticsearch-test.yml
+
 ```yaml
 go:
   elasticsearch:
@@ -344,6 +363,7 @@ go:
 ```
 
 + Kafka连接配置范例 Kafka-test.yml
+
 ```yaml
 go:
   data:
@@ -356,6 +376,7 @@ go:
 ```
 
 #### kafka发送消息
+
 ```go
     db.Kafka.Send("my_topic", "测试消息")
 ```
@@ -363,6 +384,7 @@ go:
 #### kafka侦听主题消息并处理
 
 - 定义消息处理函数
+
 ```go
 func handleMsg(msg string) error {
 	logs.Debug("收到Kafka消息:{}",msg)
@@ -372,6 +394,7 @@ func handleMsg(msg string) error {
 ```
 
 - 在main.go中添加侦听代码
+
 ```go
 	//侦听kafka消息，说明，一个topic对应一个groupId
 	err := db.Kafka.MessageListener("my_group_id","my_topic",handleMsg)
@@ -386,10 +409,12 @@ func handleMsg(msg string) error {
 * 客户端参见 examples/mgin-client项目
 
 ### 版本更新
-- v1.20.3  内置系统管理模块，仅需yml配置开启，自动建表，自带swagger文档
-- v1.20.1  新增App对象，极大简化创建一个新MGin应用
+
+- v1.20.3 内置系统管理模块，仅需yml配置开启，自动建表，自带swagger文档
+- v1.20.1 新增App对象，极大简化创建一个新MGin应用
 - v1.19.42 持久化缓存改成bitcask，并且与内存缓存通过接口标准化处理
-- v1.19.38 新增支持断线重连的Redis.PSubscribe(dbName string, handler func(msg *redis.Message), channels ...string)函数,Kafka消费者增加断线重连功能
+- v1.19.38 新增支持断线重连的Redis.PSubscribe(dbName string, handler func(msg *redis.Message), channels ...string)
+  函数,Kafka消费者增加断线重连功能
 - v1.19.36 redis支持cluster集群、哨兵模式集群与单机模式
 - v1.19.35 x-lang部分从POST改成GET，支持当前nacos注册分组
 - v1.19.21 dao层查询单条无记录时不返回error,返回数据为nil
