@@ -77,7 +77,15 @@ func (m *MysqlClient) Init(mysqlConfigData []byte) {
 				}
 			}
 		} else {
-			m.mysql, _ = gorm.Open(mysql.Open(m.conf.String("go.data.mysql")), &gorm.Config{})
+			m.mysql, err = gorm.Open(mysql.Open(m.conf.String("go.data.mysql")), &gorm.Config{})
+			if err != nil {
+				logger.Error("mysql connection error:" + err.Error())
+				return
+			}
+		}
+		if m.mysql == nil {
+			logger.Error("mysql connection error")
+			return
 		}
 		if m.conf.Bool("go.data.mysql_debug") {
 			if m.multi {
