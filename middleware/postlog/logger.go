@@ -2,15 +2,18 @@ package postlog
 
 import (
 	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"fmt"
+	"io"
+	"io/ioutil"
+	"strings"
+	"time"
+
 	"github.com/maczh/mgin/config"
 	"github.com/maczh/mgin/db"
 	"github.com/maczh/mgin/db/dao"
 	"github.com/maczh/mgin/models"
-	"io/ioutil"
-	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/maczh/mgin/logs"
@@ -97,7 +100,19 @@ func RequestLogger() gin.HandlerFunc {
 		c.Next()
 
 		responseBody := bodyLogWriter.body.String()
-
+		//如果gzip压缩，需要解压缩
+		if strings.Contains(bodyLogWriter.Header().Get("Content-Encoding"), "gzip") {
+			r, err := gzip.NewReader(bytes.NewBufferString(responseBody))
+			if err != nil {
+				logs.Error("gzip.NewReader error:", err.Error())
+			}
+			defer r.Close()
+			rBody, err := io.ReadAll(r)
+			if err != nil {
+				logs.Error("io.ReadAll error:", err.Error())
+			}
+			responseBody = string(rBody)
+		}
 		var result any
 
 		// 日志格式
@@ -141,11 +156,12 @@ func RequestLogger() gin.HandlerFunc {
 		postLog.RequestBody = reqBody
 		postLog.ResponseTime = endTime.Format("2006-01-02 15:04:05")
 		postLog.ResponseMap = result
+		//postLog.ResponseStr = responseBody
 		postLog.TTL = int(endTime.UnixNano()/1e6 - startTime.UnixNano()/1e6)
 
 		accessLog := "|" + c.Request.Method + "|" + postLog.Uri + "|" + c.ClientIP() + "|" + endTime.Format("2006-01-02 15:04:05.012") + "|" + fmt.Sprintf("%vms", endTime.UnixNano()/1e6-startTime.UnixNano()/1e6)
 		logs.Debug(accessLog)
-		logs.Debug("接口返回:{}", result)
+		logs.Debug("接口返回:{}", responseBody)
 
 		if config.Config.Log.RequestTableName != "" || config.Config.Log.Kafka.Use {
 			accessChannel <- utils.ToJSON(postLog)
