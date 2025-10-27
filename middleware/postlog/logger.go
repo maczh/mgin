@@ -138,7 +138,7 @@ func RequestLogger() gin.HandlerFunc {
 		postLog := new(models.PostLog)
 		//postLog.ID = bson.NewObjectId()
 		postLog.Time = startTime.Format("2006-01-02 15:04:05")
-		postLog.Uri = c.Request.RequestURI
+		postLog.Uri = c.Request.URL.Path
 		postLog.Method = c.Request.Method
 		postLog.AppName = config.Config.App.Name
 		postLog.RequestId = trace.GetRequestId()
