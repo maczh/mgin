@@ -3,6 +3,11 @@ package etcd
 import (
 	"context"
 	"fmt"
+	"math/rand"
+	"net"
+	"strings"
+	"time"
+
 	jsoniter "github.com/json-iterator/go"
 	"github.com/knadh/koanf"
 	"github.com/knadh/koanf/parsers/yaml"
@@ -12,10 +17,6 @@ import (
 	"github.com/maczh/mgin/utils"
 	"github.com/sadlil/gologger"
 	clientv3 "go.etcd.io/etcd/client/v3"
-	"math/rand"
-	"net"
-	"strings"
-	"time"
 )
 
 type EtcdClient struct {
@@ -107,16 +108,35 @@ func (c *EtcdClient) Register(etcdConfigData []byte) {
 		//if config.Config.App.Debug {
 		//	metadata["debug"] = "true"
 		//}
+		prefix := fmt.Sprintf("%s/%s/%s/", c.prefix, c.group, config.Config.App.Name)
+		resp, err := c.client.Get(context.Background(), prefix, clientv3.WithPrefix())
+		if err != nil {
+			logger.Error("Etcd获取服务失败:" + err.Error())
+			return
+		}
+		instanceIds := make([]string, 0)
+		if len(resp.Kvs) > 0 {
+			for _, kv := range resp.Kvs {
+				if string(kv.Value) == apiUrl {
+					instanceIds = append(instanceIds, string(kv.Key)[len(prefix):])
+				}
+			}
+		}
+		if len(instanceIds) > 0 {
+			for _, instanceId := range instanceIds {
+				c.client.Delete(context.Background(), prefix+instanceId)
+			}
+		}
 		c.instanceId = utils.NewUUIDString()
 		key := fmt.Sprintf("%s/%s/%s/%s", c.prefix, c.group, config.Config.App.Name, c.instanceId)
 		logger.Debug("etcd服务的key: " + key + "，值：" + apiUrl)
-		resp, regerr := c.client.Put(context.Background(), key, apiUrl)
+		res, regerr := c.client.Put(context.Background(), key, apiUrl)
 		if regerr != nil {
 			logger.Error("Etcd注册服务失败:" + regerr.Error())
 			return
 		}
-		cache.OnMemCache("etcd_service").Set("instance_id", c.instanceId, 5*time.Second)
-		logger.Debug("etcd服务注册结果: " + toJSON(resp))
+		//cache.OnMemCache("etcd_service").Set("instance_id", c.instanceId, 5*time.Second)
+		logger.Debug("etcd服务注册结果: " + toJSON(res))
 	}
 }
 
@@ -148,16 +168,16 @@ func (c *EtcdClient) GetServiceURL(servicename string, groupName ...string) (str
 }
 
 func (c *EtcdClient) DeRegister() {
-	localip, _ := localIPv4s(c.lan, c.lanNetwork)
-	ip := localip[0]
-	if config.Config.App.IpAddr != "" {
-		ip = config.Config.App.IpAddr
-	}
-	port := uint64(config.Config.App.Port)
-	if port == 0 || config.Config.App.PortSSL != 0 {
-		port = uint64(config.Config.App.PortSSL)
-	}
-	fmt.Printf("注销服务: ip=%s, port=%d\n", ip, port)
+	//localip, _ := localIPv4s(c.lan, c.lanNetwork)
+	//ip := localip[0]
+	//if config.Config.App.IpAddr != "" {
+	//	ip = config.Config.App.IpAddr
+	//}
+	//port := uint64(config.Config.App.Port)
+	//if port == 0 || config.Config.App.PortSSL != 0 {
+	//	port = uint64(config.Config.App.PortSSL)
+	//}
+	fmt.Printf("注销服务: instanceId=%s", c.instanceId)
 	key := fmt.Sprintf("%s/%s/%s/%s", c.prefix, c.group, config.Config.App.Name, c.instanceId)
 	fmt.Println(key)
 	resp, err := c.client.Delete(context.Background(), key)
