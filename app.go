@@ -107,7 +107,8 @@ func (app *App) baseRouter() {
 	//设置接口日志
 	app.Router.Use(postlog.RequestLogger())
 	//添加跨域处理
-	app.Router.Use(cors.Cors())
+	allowedHeaders := config.Config.GetConfigString("go.cors.headers")
+	app.Router.Use(cors.Cors(strings.Split(allowedHeaders, ",")...))
 	//添加国际化支持
 	if app.i18n {
 		app.Router.Use(xlang.RequestLanguage())
