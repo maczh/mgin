@@ -6,7 +6,6 @@ import (
 	"github.com/maczh/mgin/registry/etcd"
 	"github.com/maczh/mgin/registry/nacos"
 	"github.com/maczh/mgin/registry/polaris"
-	"github.com/nacos-group/nacos-sdk-go/vo"
 )
 
 var Registry RegistryClient
@@ -21,15 +20,17 @@ func NewRegistry() RegistryClient {
 	var client RegistryClient
 	switch config.Config.Discovery.Registry {
 	case "nacos":
-		client = &nacos.NacosClient{
-			Subscribes: make(map[string]*vo.SubscribeParam),
-		}
+		client = &nacos.NacosClient{}
+		break
 	case "etcd":
 		client = &etcd.EtcdClient{}
+		break
 	case "consul":
 		client = &consul.ConsulClient{}
+		break
 	case "polaris":
 		client = &polaris.PolarisClient{}
+		break
 	}
 	return client
 }

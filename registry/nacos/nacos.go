@@ -1,70 +1,73 @@
 package nacos
 
 import (
-	jsoniter "github.com/json-iterator/go"
-	"github.com/maczh/mgin/cache"
-	"github.com/maczh/mgin/config"
-	"github.com/sadlil/gologger"
+	"fmt"
+	"math/rand"
 	"net"
-	"os"
-	"path/filepath"
+	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
+
+	jsoniter "github.com/json-iterator/go"
+	"github.com/levigross/grequests"
+	"github.com/maczh/mgin/config"
+	"github.com/sadlil/gologger"
 
 	"github.com/knadh/koanf"
 	"github.com/knadh/koanf/parsers/yaml"
 	"github.com/knadh/koanf/providers/rawbytes"
-	"github.com/nacos-group/nacos-sdk-go/clients"
-	"github.com/nacos-group/nacos-sdk-go/clients/naming_client"
-	"github.com/nacos-group/nacos-sdk-go/common/constant"
-	"github.com/nacos-group/nacos-sdk-go/model"
-	"github.com/nacos-group/nacos-sdk-go/vo"
 )
 
 type NacosClient struct {
-	client     naming_client.INamingClient
-	cluster    string
+	nsurl      string
 	group      string
+	cluster    string
 	lan        bool
 	lanNetwork string
 	conf       *koanf.Koanf
 	confUrl    string
 	confData   []byte
-	Subscribes map[string]*vo.SubscribeParam
+	ver        string
+	param      map[string]string
+	worker     *nacosHeartbeatWorker
 }
 
 var logger = gologger.GetLogger()
 
-func (n *NacosClient) GetNacosClient() naming_client.INamingClient {
-	return n.client
+type nacosHeartbeatWorker struct {
+	ticker *time.Ticker
+	quit   chan struct{}
+	wg     *sync.WaitGroup
+}
+
+func (w *nacosHeartbeatWorker) Start(nc *NacosClient) {
+	defer w.wg.Done()
+	w.ticker = time.NewTicker(5 * time.Second)
+	defer w.ticker.Stop()
+	w.quit = make(chan struct{})
+	for {
+		select {
+		case <-w.quit:
+			return
+		case <-w.ticker.C:
+			_, err := grequests.DoRegularRequest(http.MethodPut, nc.nsurl, &grequests.RequestOptions{
+				Params: nc.param,
+			})
+			if err != nil {
+				logger.Error("Nacos心跳失败:" + err.Error())
+			}
+		}
+	}
 }
 
 func (n *NacosClient) Register(nacosConfigData []byte) {
 	if nacosConfigData != nil {
 		n.confData = nacosConfigData
 	}
-	//if n.confUrl == "" {
-	//	logger.Error("Nacos配置Url为空")
-	//	return
-	//}
 	if n.conf == nil {
-		//var confData []byte
 		var err error
-		//if strings.HasPrefix(n.confUrl, "http://") {
-		//	resp, err := grequests.Get(n.confUrl, nil)
-		//	if err != nil {
-		//		logger.Error("Nacos注册中心配置下载失败! " + err.Error())
-		//		return
-		//	}
-		//	confData = []byte(resp.String())
-		//} else {
-		//	confData, err = ioutil.ReadFile(n.confUrl)
-		//	if err != nil {
-		//		logger.Error(fmt.Sprintf("Nacos注册中心本地配置文件%s读取失败:%s", n.confUrl, err.Error()))
-		//		return
-		//	}
-		//}
 		n.conf = koanf.New(".")
 		err = n.conf.Load(rawbytes.Provider(n.confData), yaml.Parser())
 		if err != nil {
@@ -72,53 +75,19 @@ func (n *NacosClient) Register(nacosConfigData []byte) {
 			n.conf = nil
 			return
 		}
-		path, _ := filepath.Abs(filepath.Dir(os.Args[0]))
-		path += "/cache"
-		_, err = os.Stat(path)
-		if err != nil && os.IsNotExist(err) {
-			os.Mkdir(path, 0777)
-			path += "/naming"
-			os.Mkdir(path, 0777)
-		}
+
 		n.lan = n.conf.Bool("go.nacos.lan")
 		n.lanNetwork = n.conf.String("go.nacos.lanNet")
-		serverConfigs := []constant.ServerConfig{}
 		ipstr := n.conf.String("go.nacos.server")
 		portstr := n.conf.String("go.nacos.port")
+		n.ver = n.conf.String("go.nacos.apiversion")
+		if n.ver == "" {
+			n.ver = "v1"
+		}
+		n.nsurl = fmt.Sprintf("http://%s:%s/nacos/%s/ns/instance", ipstr, portstr, n.ver)
 		n.group = n.conf.String("go.nacos.group")
 		if n.group == "" {
 			n.group = "DEFAULT_GROUP"
-		}
-		ips := strings.Split(ipstr, ",")
-		ports := strings.Split(portstr, ",")
-		for i, ip := range ips {
-			port, _ := strconv.Atoi(ports[i])
-			serverConfig := constant.ServerConfig{
-				IpAddr:      ip,
-				Port:        uint64(port),
-				ContextPath: "/nacos",
-			}
-			serverConfigs = append(serverConfigs, serverConfig)
-		}
-		logger.Debug("Nacos服务器配置: " + toJSON(serverConfigs))
-		clientConfig := constant.ClientConfig{
-			UpdateCacheWhenEmpty: true,
-			LogLevel:             "error",
-		}
-		if n.conf.Exists("go.nacos.clientConfig.logLevel") {
-			clientConfig.LogLevel = n.conf.String("go.nacos.clientConfig.logLevel")
-		}
-		if n.conf.Exists("go.nacos.clientConfig.updateCacheWhenEmpty") {
-			clientConfig.UpdateCacheWhenEmpty = n.conf.Bool("go.nacos.client.updateCacheWhenEmpty")
-		}
-		logger.Debug("Nacos客户端配置: " + toJSON(clientConfig))
-		n.client, err = clients.CreateNamingClient(map[string]any{
-			"serverConfigs": serverConfigs,
-			"clientConfig":  clientConfig,
-		})
-		if err != nil {
-			logger.Error("Nacos服务连接失败:" + err.Error())
-			return
 		}
 		localip, _ := localIPv4s(n.lan, n.lanNetwork)
 		ip := localip[0]
@@ -126,116 +95,130 @@ func (n *NacosClient) Register(nacosConfigData []byte) {
 			ip = config.Config.App.IpAddr
 		}
 		n.cluster = n.conf.String("go.nacos.clusterName")
+		if n.cluster == "" {
+			n.cluster = "DEFAULT"
+		}
 		port := uint64(config.Config.App.Port)
 		metadata := make(map[string]string)
 		if port == 0 || config.Config.App.PortSSL != 0 {
 			port = uint64(config.Config.App.PortSSL)
 			metadata["ssl"] = "true"
 		}
-		if config.Config.App.Debug {
-			metadata["debug"] = "true"
+		n.param = map[string]string{
+			"ip":          ip,
+			"port":        fmt.Sprintf("%d", port),
+			"weight":      "1",
+			"cluster":     n.cluster,
+			"groupName":   n.group,
+			"serviceName": config.Config.App.Name,
+			"meta":        toJSON(metadata),
 		}
-		success, regerr := n.client.RegisterInstance(vo.RegisterInstanceParam{
-			Ip:          ip,
-			Port:        port,
-			ServiceName: config.Config.App.Name,
-			Weight:      1,
-			ClusterName: n.cluster,
-			Enable:      true,
-			Healthy:     true,
-			Ephemeral:   true,
-			Metadata:    metadata,
-			GroupName:   n.group,
+		resp, err := grequests.DoRegularRequest(http.MethodPost, n.nsurl, &grequests.RequestOptions{
+			Params: n.param,
 		})
-		if !success {
-			logger.Error("Nacos注册服务失败:" + regerr.Error())
+		if err != nil {
+			logger.Error("Nacos注册服务失败:" + err.Error())
 			return
 		}
-		subsParam := &vo.SubscribeParam{
-			ServiceName: config.Config.App.Name,
-			Clusters:    []string{n.cluster},
-			GroupName:   n.group,
-			SubscribeCallback: func(services []model.SubscribeService, err error) {
-				logger.Debug("callback return services:" + toJSON(services))
-			},
+		if resp.StatusCode != 200 {
+			logger.Error("Nacos注册服务失败:" + resp.String())
+			return
 		}
-		err = n.client.Subscribe(subsParam)
-		if err != nil {
-			logger.Error("Nacos服务订阅失败:" + err.Error())
+		// 启动心跳线程
+		n.worker = &nacosHeartbeatWorker{
+			wg: &sync.WaitGroup{},
 		}
-		n.Subscribes[config.Config.App.Name] = subsParam
+		n.worker.wg.Add(1)
+		go n.worker.Start(n)
+		logger.Info("Nacos注册服务成功:" + ip + ":" + strconv.Itoa(int(port)))
 	}
 
 }
 
 func (n *NacosClient) GetServiceURL(servicename string, groupName ...string) (string, string) {
-	var instances []model.Instance
+	var instance InstanceResp
 	var err error
-	serviceGroup := n.group
-	if len(groupName) > 0 && groupName[0] != "" {
-		serviceGroup = groupName[0]
+	query := map[string]string{
+		"serviceName": servicename,
 	}
-	instances, err = n.client.SelectAllInstances(vo.SelectAllInstancesParam{
-		ServiceName: servicename,
-		Clusters:    []string{n.cluster},
-		GroupName:   serviceGroup,
-	})
-	if err != nil || len(instances) == 0 {
-		serviceGroup = "DEFAULT_GROUP"
-		instances, err = n.client.SelectAllInstances(vo.SelectAllInstancesParam{
-			ServiceName: servicename,
-			Clusters:    []string{n.cluster},
-			GroupName:   serviceGroup,
+	var resp *grequests.Response
+	if len(groupName) > 0 {
+		for _, g := range groupName {
+			query["groupName"] = g
+			resp, err = grequests.DoRegularRequest(http.MethodGet, n.nsurl+"/list", &grequests.RequestOptions{
+				Params: query,
+			})
+			if err != nil {
+				logger.Error("获取Nacos服务" + servicename + "失败:" + err.Error())
+				continue
+			}
+			if resp.StatusCode != 200 {
+				logger.Error("获取Nacos服务" + servicename + "失败:" + resp.String())
+				continue
+			}
+			err = json.Unmarshal(resp.Bytes(), &instance)
+			if err != nil {
+				logger.Error("解析Nacos服务" + servicename + "失败:" + err.Error())
+				continue
+			}
+			if len(instance.Hosts) == 0 {
+				continue
+			}
+			r := rand.New(rand.NewSource(time.Now().UnixNano()))
+			idx := r.Intn(len(instance.Hosts))
+			protocol := "http://"
+			if instance.Hosts[idx].Metadata != nil && instance.Hosts[idx].Metadata["ssl"] == "true" {
+				protocol = "https://"
+			}
+			url := protocol + instance.Hosts[idx].IP + ":" + strconv.Itoa(instance.Hosts[idx].Port)
+			logger.Debug("Nacos获取" + servicename + "服务成功:" + url)
+			return url, g
+
+		}
+	} else {
+		resp, err = grequests.DoRegularRequest(http.MethodGet, n.nsurl+"/list", &grequests.RequestOptions{
+			Params: query,
 		})
 		if err != nil {
 			logger.Error("获取Nacos服务" + servicename + "失败:" + err.Error())
 			return "", ""
 		}
-	}
-	url := ""
-	urls := make([]string, 0)
-	for _, instance := range instances {
-		if instance.Metadata != nil && instance.Metadata["debug"] == "true" {
-			continue
+		if resp.StatusCode != 200 {
+			logger.Error("获取Nacos服务" + servicename + "失败:" + resp.String())
+			return "", ""
 		}
-		if !instance.Healthy {
-			continue
+		err = json.Unmarshal(resp.Bytes(), &instance)
+		if err != nil {
+			logger.Error("解析Nacos服务" + servicename + "失败:" + err.Error())
+			return "", ""
 		}
-		url = "http://" + instance.Ip + ":" + strconv.Itoa(int(instance.Port))
-		if instance.Metadata != nil && instance.Metadata["ssl"] == "true" {
-			url = "https://" + instance.Ip + ":" + strconv.Itoa(int(instance.Port))
+		if len(instance.Hosts) == 0 {
+			return "", ""
 		}
-		urls = append(urls, url)
+		r := rand.New(rand.NewSource(time.Now().UnixNano()))
+		idx := r.Intn(len(instance.Hosts))
+		protocol := "http://"
+		if instance.Hosts[idx].Metadata != nil && instance.Hosts[idx].Metadata["ssl"] == "true" {
+			protocol = "https://"
+		}
+		url := protocol + instance.Hosts[idx].IP + ":" + strconv.Itoa(instance.Hosts[idx].Port)
 		logger.Debug("Nacos获取" + servicename + "服务成功:" + url)
+		strs := strings.Split(instance.Hosts[idx].ServiceName, "@@")
+		return url, strs[0]
 	}
-	cache.OnGetCache("nacos").Add(servicename, strings.Join(urls, ","), 5*time.Minute)
-	return url, serviceGroup
+	return "", ""
 }
 
 func (n *NacosClient) DeRegister() {
-	for _, subs := range n.Subscribes {
-		err := n.client.Unsubscribe(subs)
-		if err != nil {
-			logger.Error("Nacos服务" + subs.ServiceName + "退订失败:" + err.Error())
-		}
-	}
-	ips, _ := localIPv4s(n.lan, n.lanNetwork)
-	ip := ips[0]
-	if config.Config.Exists("go.application.ip") {
-		ip = config.Config.App.IpAddr
-	}
-	success, regerr := n.client.DeregisterInstance(vo.DeregisterInstanceParam{
-		Ip:          ip,
-		Port:        uint64(config.Config.App.Port),
-		ServiceName: config.Config.App.Name,
-		Cluster:     n.cluster,
-		Ephemeral:   true,
+	_, err := grequests.DoRegularRequest(http.MethodDelete, n.nsurl, &grequests.RequestOptions{
+		Params: n.param,
 	})
-	if !success {
-		logger.Error("Nacos取消注册服务失败:" + regerr.Error())
-		return
+	if err != nil {
+		logger.Error("Nacos注销服务失败:" + err.Error())
 	}
-
+	n.worker.quit <- struct{}{}
+	n.worker.wg.Wait()
+	logger.Info("Nacos注销服务成功")
 }
 
 func localIPv4s(lan bool, lanNetwork string) ([]string, error) {
@@ -284,4 +267,32 @@ func toJSON(o any) string {
 		js = strings.Replace(js, "\\u0026", "&", -1)
 		return js
 	}
+}
+
+type InstanceResp struct {
+	Name        string `json:"name"`
+	Clusters    string `json:"clusters"`
+	CacheMillis int    `json:"cacheMillis"`
+	Hosts       []struct {
+		Service     string            `json:"service"`
+		IP          string            `json:"ip"`
+		Port        int               `json:"port"`
+		ClusterName string            `json:"clusterName"`
+		Weight      int               `json:"weight"`
+		Healthy     bool              `json:"healthy"`
+		InstanceID  string            `json:"instanceId"`
+		Metadata    map[string]string `json:"metadata"`
+		Marked      bool              `json:"marked"`
+		Enabled     bool              `json:"enabled"`
+		ServiceName string            `json:"serviceName"`
+		Ephemeral   bool              `json:"ephemeral"`
+	} `json:"hosts"`
+	LastRefTime                 int64             `json:"lastRefTime"`
+	Checksum                    string            `json:"checksum"`
+	UseSpecifiedURL             bool              `json:"useSpecifiedURL"`
+	Env                         string            `json:"env"`
+	ProtectThreshold            interface{}       `json:"protectThreshold"`
+	ReachLocalSiteCallThreshold interface{}       `json:"reachLocalSiteCallThreshold"`
+	Dom                         string            `json:"dom"`
+	Metadata                    map[string]string `json:"metadata"`
 }
