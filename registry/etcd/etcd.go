@@ -71,10 +71,12 @@ func (c *EtcdClient) Register(etcdConfigData []byte) {
 		c.lanNetwork = c.conf.String("go.etcd.lanNet")
 		ipstr := c.conf.String("go.etcd.server")
 		portstr := c.conf.String("go.etcd.port")
-		c.prefix = c.conf.String("go.etcd.prefix")
 		c.group = c.conf.String("go.etcd.group")
 		if c.group == "" {
 			c.group = config.Config.App.Project
+			if c.group == "" {
+				c.group = "DEFAULT_GROUP"
+			}
 		}
 		c.cluster = c.conf.String("go.etcd.clusterName")
 		if c.cluster == "" {
@@ -108,7 +110,7 @@ func (c *EtcdClient) Register(etcdConfigData []byte) {
 		//if config.Config.App.Debug {
 		//	metadata["debug"] = "true"
 		//}
-		prefix := fmt.Sprintf("%s/%s/%s/", c.prefix, c.group, config.Config.App.Name)
+		prefix := fmt.Sprintf("services/%s/%s/%s/", c.cluster, c.group, config.Config.App.Name)
 		resp, err := c.client.Get(context.Background(), prefix, clientv3.WithPrefix())
 		if err != nil {
 			logger.Error("Etcd获取服务失败:" + err.Error())
@@ -128,7 +130,7 @@ func (c *EtcdClient) Register(etcdConfigData []byte) {
 			}
 		}
 		c.instanceId = utils.NewUUIDString()
-		key := fmt.Sprintf("%s/%s/%s/%s", c.prefix, c.group, config.Config.App.Name, c.instanceId)
+		key := fmt.Sprintf("services/%s/%s/%s/%s", c.cluster, c.group, config.Config.App.Name, c.instanceId)
 		logger.Debug("etcd服务的key: " + key + "，值：" + apiUrl)
 		res, regerr := c.client.Put(context.Background(), key, apiUrl)
 		if regerr != nil {
@@ -147,7 +149,7 @@ func (c *EtcdClient) GetServiceURL(servicename string, groupName ...string) (str
 	currentGroup := groupName[0]
 	logger.Debug(fmt.Sprintf("groupName=%s, etcdClient=%s", toJSON(groupName), toJSON(c)))
 	for _, group := range groupName {
-		prefix := fmt.Sprintf("%s/%s/%s/", c.prefix, group, servicename)
+		prefix := fmt.Sprintf("services/%s/%s/%s/", c.cluster, group, servicename)
 		logger.Debug("查询前缀: " + prefix)
 		resp, err := c.client.Get(context.Background(), prefix, clientv3.WithPrefix())
 		if err != nil {
@@ -178,7 +180,7 @@ func (c *EtcdClient) DeRegister() {
 	//	port = uint64(config.Config.App.PortSSL)
 	//}
 	fmt.Printf("注销服务: instanceId=%s", c.instanceId)
-	key := fmt.Sprintf("%s/%s/%s/%s", c.prefix, c.group, config.Config.App.Name, c.instanceId)
+	key := fmt.Sprintf("services/%s/%s/%s/%s", c.cluster, c.group, config.Config.App.Name, c.instanceId)
 	fmt.Println(key)
 	resp, err := c.client.Delete(context.Background(), key)
 	if err != nil {
