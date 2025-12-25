@@ -4,8 +4,9 @@ import (
 	"errors"
 	"github.com/maczh/mgin/db"
 	"github.com/maczh/mgin/models"
-	"gopkg.in/mgo.v2"
-	"gopkg.in/mgo.v2/bson"
+	"github.com/maczh/mgo"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"math"
 )
 
@@ -64,7 +65,7 @@ func (m MgoDao[E]) Delete(query bson.M) error {
 }
 
 // Updates mongo动态更新数据
-func (m MgoDao[E]) Updates(id bson.ObjectId, doc E) error {
+func (m MgoDao[E]) Updates(id primitive.ObjectID, doc E) error {
 	if m.CollectionName == "" {
 		return errors.New("CollectionName未定义")
 	}
