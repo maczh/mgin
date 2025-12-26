@@ -54,6 +54,9 @@ func (m *MySQLDao[E]) Where(query interface{}, args ...interface{}) *gorm.DB {
 		conn = conn.WithContext(*m.ctx)
 	}
 	var e E
+	if query == nil {
+		return conn.Model(e)
+	}
 	return conn.Model(e).Where(query, args...)
 }
 
