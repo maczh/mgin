@@ -21,6 +21,7 @@ import (
 
 type EtcdClient struct {
 	client     *clientv3.Client
+	leaseID clientv3.LeaseID
 	cluster    string
 	group      string
 	prefix     string
@@ -127,16 +128,28 @@ func (c *EtcdClient) Register(etcdConfigData []byte) {
 				c.client.Delete(context.Background(), prefix+instanceId)
 			}
 		}
+		respGrant, err := c.client.Grant(context.Background(), 10000)
+		if err != nil {
+			logger.Error("Etcd注册服务失败:" + err.Error())
+			return 
+		}
+		c.leaseID = respGrant.ID
 		c.instanceId = utils.NewUUIDString()
 		key := fmt.Sprintf("%s/%s/%s/%s", c.prefix, c.group, config.Config.App.Name, c.instanceId)
 		logger.Debug("etcd服务的key: " + key + "，值：" + apiUrl)
-		res, regerr := c.client.Put(context.Background(), key, apiUrl)
+		res, regerr := c.client.Put(context.Background(), key, apiUrl, clientv3.WithLease(c.leaseID))
 		if regerr != nil {
 			logger.Error("Etcd注册服务失败:" + regerr.Error())
 			return
 		}
 		//cache.OnMemCache("etcd_service").Set("instance_id", c.instanceId, 5*time.Second)
 		logger.Debug("etcd服务注册结果: " + toJSON(res))
+		go func ()  {
+			_, err := c.client.KeepAlive(context.Background(), c.leaseID)
+			if err != nil {
+				logger.Error("Etcd服务心跳失败:" + err.Error())
+			}
+		}()
 	}
 }
 
