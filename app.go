@@ -4,11 +4,11 @@ import (
 	"context"
 	"flag"
 	"fmt"
+
 	nice "github.com/ekyoung/gin-nice-recovery"
 	"github.com/gin-gonic/gin"
 	"github.com/labstack/gommon/color"
 	"github.com/maczh/mgin/config"
-	_ "github.com/maczh/mgin/docs"
 	"github.com/maczh/mgin/errcode"
 	"github.com/maczh/mgin/i18n"
 	"github.com/maczh/mgin/logs"
@@ -16,12 +16,8 @@ import (
 	"github.com/maczh/mgin/middleware/postlog"
 	"github.com/maczh/mgin/middleware/trace"
 	"github.com/maczh/mgin/middleware/xlang"
-	"github.com/maczh/mgin/sys/dao"
-	"github.com/maczh/mgin/sys/middle"
-	"github.com/maczh/mgin/sys/route"
 	"github.com/scylladb/termtables"
-	swaggerFiles "github.com/swaggo/files"
-	ginSwagger "github.com/swaggo/gin-swagger"
+
 	"net/http"
 	"os"
 	"os/signal"
@@ -122,19 +118,6 @@ func (app *App) baseRouter() {
 		c.JSON(http.StatusOK, i18n.Error(errcode.URI_NOT_FOUND, errcode.UrlNotFound))
 	})
 
-	// 启动内置系统
-	if config.Config.Sys.Enabled {
-		if config.Config.Sys.Initdb {
-			dao.InitDB()
-		}
-		app.Router.Use(middle.JwtAuthorize())
-		app.Router.Use(middle.ApiAuth())
-		app.Router = route.SysRouter(config.Config.Sys.BaseUri, app.Router)
-		//打开Swagger
-		if config.Config.Sys.Swagger.Enabled {
-			app.Router.GET(config.Config.Sys.BaseUri+config.Config.Sys.Swagger.Uri+"/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
-		}
-	}
 
 }
 
