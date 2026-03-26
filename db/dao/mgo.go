@@ -2,11 +2,13 @@ package dao
 
 import (
 	"errors"
+	"math"
+
 	"github.com/maczh/mgin/db"
 	"github.com/maczh/mgin/models"
-	"gopkg.in/mgo.v2"
-	"gopkg.in/mgo.v2/bson"
-	"math"
+	"github.com/maczh/mgo"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 // MgoDao 注意使用前必须先将CollectionName赋值
@@ -64,7 +66,7 @@ func (m MgoDao[E]) Delete(query bson.M) error {
 }
 
 // Updates mongo动态更新数据
-func (m MgoDao[E]) Updates(id bson.ObjectId, doc E) error {
+func (m MgoDao[E]) Updates(id primitive.ObjectID, doc E) error {
 	if m.CollectionName == "" {
 		return errors.New("CollectionName未定义")
 	}
@@ -77,7 +79,7 @@ func (m MgoDao[E]) Updates(id bson.ObjectId, doc E) error {
 		return errors.New("数据库连接失败")
 	}
 	defer db.Mongo.ReturnConnection(conn)
-	err = conn.C(m.CollectionName).UpdateId(id, doc)
+	err = conn.C(m.CollectionName).Update(bson.M{"_id": id}, bson.M{"$set": doc})
 	if err != nil {
 		logger.Error("数据库更新失败: " + err.Error())
 		return errors.New("数据库更新失败")
