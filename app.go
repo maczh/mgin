@@ -78,7 +78,11 @@ func NewApp(configFile, appName, version string, xlang bool) *App {
 
 	//GIN的模式，生产环境可以设置成release
 	// 设置 Gin 框架的运行模式为调试模式
-	gin.SetMode("debug")
+	ginMode := "release"
+	if config.Config.App.Debug {
+		ginMode = "debug"
+	}
+	gin.SetMode(ginMode)
 
 	// 国际化错误代码初始化
 	// 如果启用了国际化支持，则初始化国际化模块

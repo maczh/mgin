@@ -1,9 +1,12 @@
 package utils
 
 import (
-	"github.com/mitchellh/mapstructure"
+	"fmt"
+	"reflect"
 	"sort"
 	"strings"
+
+	"github.com/mitchellh/mapstructure"
 )
 
 // map转换
@@ -117,4 +120,67 @@ func MapGet(input interface{}, fieldName string) interface{} {
 		}
 	}
 	return result
+}
+
+func Struct2StringMap(input any) (map[string]string, error) {
+	result := make(map[string]string)
+	inputVal := reflect.ValueOf(input)
+	inputType := inputVal.Type()
+
+	if inputVal.Kind() == reflect.Ptr {
+		if inputVal.IsNil() {
+			return result, nil
+		}
+		inputVal = inputVal.Elem()
+		inputType = inputVal.Type()
+	}
+
+	if inputVal.Kind() != reflect.Struct {
+		return nil, fmt.Errorf("input must be a struct or pointer to struct")
+	}
+
+	for i := 0; i < inputVal.NumField(); i++ {
+		field := inputType.Field(i)
+		value := inputVal.Field(i)
+
+		// 获取字段名，优先使用json tag
+		key := field.Name
+		if jsonTag := field.Tag.Get("json"); jsonTag != "" {
+			// 处理json tag，去除选项如omitempty
+			if commaIdx := strings.Index(jsonTag, ","); commaIdx != -1 {
+				key = jsonTag[:commaIdx]
+			} else {
+				key = jsonTag
+			}
+		}
+
+		result[key] = valueToString(value)
+	}
+
+	return result, nil
+}
+
+// valueToString 将反射值转换为字符串
+func valueToString(value reflect.Value) string {
+	switch value.Kind() {
+	case reflect.String:
+		return value.String()
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return fmt.Sprintf("%d", value.Int())
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		return fmt.Sprintf("%d", value.Uint())
+	case reflect.Float32, reflect.Float64:
+		return fmt.Sprintf("%f", value.Float())
+	case reflect.Bool:
+		return fmt.Sprintf("%t", value.Bool())
+	case reflect.Ptr:
+		if value.IsNil() {
+			return ""
+		}
+		return valueToString(value.Elem())
+	case reflect.Array, reflect.Slice, reflect.Map, reflect.Struct:
+		return ToJSON(value.Interface())
+	default:
+		return ToJSON(value.Interface())
+	}
 }
