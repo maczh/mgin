@@ -3,11 +3,12 @@ package logs
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/maczh/mgin/config"
-	"github.com/maczh/mgin/middleware/trace"
 	"reflect"
 	"strconv"
 	"strings"
+
+	"github.com/maczh/mgin/config"
+	"github.com/maczh/mgin/middleware/trace"
 )
 
 type Logger struct {
@@ -22,7 +23,7 @@ type LogInstance struct {
 }
 
 var logger GoLogger
-var logLevel = "debug"
+var logLevel = "error"
 
 func initConfig() {
 	l := config.Config.Logger.Out
@@ -35,6 +36,9 @@ func initConfig() {
 	level := config.Config.Logger.Level
 	if level != "" {
 		logLevel = level
+	}
+	if config.Config.App.Debug {
+		logLevel = "debug"
 	}
 }
 

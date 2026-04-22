@@ -78,9 +78,9 @@ func NewApp(configFile, appName, version string, xlang bool) *App {
 
 	//GIN的模式，生产环境可以设置成release
 	// 设置 Gin 框架的运行模式为调试模式
-	ginMode := "release"
+	ginMode := gin.ReleaseMode
 	if config.Config.App.Debug {
-		ginMode = "debug"
+		ginMode = gin.DebugMode
 	}
 	gin.SetMode(ginMode)
 
