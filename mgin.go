@@ -1,12 +1,13 @@
 package mgin
 
 import (
+	"strings"
+
 	"github.com/maczh/mgin/config"
 	"github.com/maczh/mgin/db"
 	"github.com/maczh/mgin/logs"
 	"github.com/maczh/mgin/registry"
 	"github.com/sadlil/gologger"
-	"strings"
 )
 
 type mgin struct {
@@ -83,6 +84,11 @@ func Init(configFile string) {
 		db.Redis.Init(config.Config.GetConfigData(config.Config.Config.Prefix.Redis))
 		logger.Info("连接Redis成功")
 	}
+	if strings.Contains(configs, "clickhouse") {
+		logger.Info("正在连接ClickHouse")
+		db.Clickhouse.Init(config.Config.GetConfigData(config.Config.Config.Prefix.Clickhouse))
+		logger.Info("连接ClickHouse成功")
+	}
 	if strings.Contains(configs, "elasticsearch") {
 		logger.Info("正在连接ElasticSearch")
 		db.ElasticSearch.Init(config.Config.GetConfigData(config.Config.Config.Prefix.Elasticsearch))
@@ -136,6 +142,13 @@ func (m *mgin) checkAll() {
 			logs.Error("Redis check failed： {}", err.Error())
 		}
 	}
+	if strings.Contains(configs, "clickhouse") {
+		logger.Info("正在检查ClickHouse")
+		err = db.Clickhouse.Check()
+		if err != nil {
+			logs.Error("ClickHouse check failed： {}", err.Error())
+		}
+	}
 	if strings.Contains(configs, "elasticsearch") {
 		logger.Info("正在检查ElasticSearch")
 		err = db.ElasticSearch.Check()
@@ -181,6 +194,10 @@ func (m *mgin) SafeExit() {
 	if strings.Contains(configs, "redis") {
 		logger.Info("正在关闭Redis连接")
 		db.Redis.Close()
+	}
+	if strings.Contains(configs, "clickhouse") {
+		logger.Info("正在关闭ClickHouse连接")
+		db.Clickhouse.Close()
 	}
 	if strings.Contains(configs, "elasticsearch") {
 		logger.Info("正在关闭ElasticSearch连接")

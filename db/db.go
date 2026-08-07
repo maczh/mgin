@@ -1,6 +1,7 @@
 package db
 
 import (
+	"github.com/maczh/mgin/db/clickhouse"
 	"github.com/maczh/mgin/db/es"
 	"github.com/maczh/mgin/db/kafka"
 	"github.com/maczh/mgin/db/mongo"
@@ -15,3 +16,4 @@ var Redis = &redis.RedisClient{}
 var ElasticSearch = &es.ElasticSearch{}
 var Kafka = &kafka.Kafka{}
 var Sqlite = &sqlite.Sqlite{}
+var Clickhouse = &clickhouse.ClickhouseClient{}

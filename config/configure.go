@@ -3,16 +3,17 @@ package config
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
+	"os"
+	"path/filepath"
+	"strings"
+
 	"github.com/knadh/koanf"
 	"github.com/knadh/koanf/parsers/yaml"
 	"github.com/knadh/koanf/providers/file"
 	"github.com/levigross/grequests"
 	"github.com/sadlil/gologger"
 	clientv3 "go.etcd.io/etcd/client/v3"
-	"io/ioutil"
-	"os"
-	"path/filepath"
-	"strings"
 )
 
 type config struct {
@@ -50,6 +51,7 @@ type appConfig struct {
 		Mysql         string `json:"mysql" bson:"mysql"`
 		Mongodb       string `json:"mongodb" bson:"mongodb"`
 		Redis         string `json:"redis" bson:"redis"`
+		Clickhouse    string `json:"clickhouse" bson:"clickhouse"`
 		Nacos         string `json:"nacos" bson:"nacos"`
 		Elasticsearch string `json:"elasticsearch" bson:"elasticsearch"`
 		Kafka         string `json:"kafka" bson:"kafka"`
@@ -137,6 +139,7 @@ func (c *config) Init(cf string) {
 	c.Config.Env = c.Cnf.String("go.config.env")
 	c.Config.Used = c.Cnf.String("go.config.used")
 	c.Config.Prefix.Mysql = c.Cnf.String("go.config.prefix.mysql")
+	c.Config.Prefix.Clickhouse = c.Cnf.String("go.config.prefix.clickhouse")
 	c.Config.Prefix.Mongodb = c.Cnf.String("go.config.prefix.mongodb")
 	c.Config.Prefix.Redis = c.Cnf.String("go.config.prefix.redis")
 	c.Config.Prefix.Elasticsearch = c.Cnf.String("go.config.prefix.elasticsearch")
