@@ -47,11 +47,19 @@ type App struct {
 //   - *App: 新创建的 App 实例指针。
 func NewApp(configFile, appName, version string, xlang bool) *App {
 	// 检查配置文件路径是否为空，如果为空则尝试从命令行参数获取
+	var getVersion bool
+	// 仅在用户显式传入 -v 时才打印版本号并返回；默认值必须为 false
+	flag.BoolVar(&getVersion, "v", false, "显示版本号")
 	if configFile == "" {
 		// 定义一个命令行参数 -f，默认值为当前可执行文件同名的 yml 文件，用于指定配置文件名
 		flag.StringVar(&configFile, "f", strings.TrimSuffix(os.Args[0], ".exe")+".yml", "yml配置文件名")
 		// 解析命令行参数
-		flag.Parse()
+	}
+	flag.Parse()
+	// 如果启用了版本号显示，则打印版本号并退出程序
+	if getVersion {
+		fmt.Printf("%s, 版本号: %s\n", appName, version)
+		return nil
 	}
 	// 获取当前可执行文件所在的绝对路径
 	path, _ := filepath.Abs(filepath.Dir(os.Args[0]))
@@ -121,7 +129,6 @@ func (app *App) baseRouter() {
 	app.Router.NoRoute(func(c *gin.Context) {
 		c.JSON(http.StatusOK, i18n.Error(errcode.URI_NOT_FOUND, errcode.UrlNotFound))
 	})
-
 
 }
 
@@ -213,4 +220,8 @@ func (app *App) Run() {
 
 func recoveryHandler(c *gin.Context, err interface{}) {
 	c.JSON(http.StatusOK, i18n.Error(errcode.SYSTEM_ERROR, errcode.SystemError))
+}
+
+func (app *App) GetVersion() string {
+	return app.version
 }
