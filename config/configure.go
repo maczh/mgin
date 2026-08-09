@@ -312,7 +312,7 @@ func (c *config) GetConfigData(prefix string) []byte {
 		}
 		return data
 	default:
-		resp, err := grequests.Get(c.GetConfigUrl(prefix), nil)
+		resp, err := grequests.DoRegularRequest("GET", c.GetConfigUrl(prefix), nil)
 		if err != nil {
 			return nil
 		}
