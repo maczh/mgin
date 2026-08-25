@@ -3,19 +3,27 @@ package dao
 import (
 	"context"
 	"errors"
+	"fmt"
+	"math"
+	"reflect"
+	"regexp"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/maczh/mgin/cache"
 	"github.com/maczh/mgin/db"
 	"github.com/maczh/mgin/models"
 	"github.com/sadlil/gologger"
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
-	"math"
-	"strings"
 )
 
 type MySQLDao[E schema.Tabler] struct {
-	debug bool
-	ctx   *context.Context
-	Tag   func() string
+	debug            bool
+	ctx              *context.Context
+	Tag              func() string
+	CacheKeyPatterns map[string]bool
 }
 
 type QueryOption struct {
@@ -34,6 +42,19 @@ func (m *MySQLDao[E]) Debug() *MySQLDao[E] {
 
 func (m *MySQLDao[E]) WithContext(ctx *context.Context) *MySQLDao[E] {
 	m.ctx = ctx
+	return m
+}
+
+func (m *MySQLDao[E]) WithCacheKey(cacheKeyPattern string) *MySQLDao[E] {
+	if m.CacheKeyPatterns == nil {
+		m.CacheKeyPatterns = make(map[string]bool)
+	}
+	m.CacheKeyPatterns[cacheKeyPattern] = true
+	if m.ctx == nil {
+		ctx := context.Background()
+		m.ctx = &ctx
+	}
+	*m.ctx = context.WithValue(*m.ctx, "cacheKeyPattern", cacheKeyPattern)
 	return m
 }
 
@@ -78,6 +99,7 @@ func (receiver *MySQLDao[E]) Create(entity *E) error {
 		logger.Error("数据库插入失败: " + err.Error())
 		return errors.New("数据库插入失败")
 	}
+	receiver.ClearCache(*entity)
 	return nil
 }
 
@@ -101,6 +123,9 @@ func (receiver *MySQLDao[E]) MultiCreate(entities []*E) error {
 	if err != nil {
 		logger.Error("数据库插入失败: " + err.Error())
 		return errors.New("数据库插入失败")
+	}
+	for _, entity := range entities {
+		receiver.ClearCache(*entity)
 	}
 	return nil
 }
@@ -127,6 +152,7 @@ func (receiver *MySQLDao[E]) Delete(entity E) error {
 		logger.Error("数据库删除失败: " + err.Error())
 		return errors.New("数据库删除失败")
 	}
+	receiver.ClearCache(entity)
 	return nil
 }
 
@@ -151,6 +177,7 @@ func (receiver *MySQLDao[E]) Updates(entity *E) error {
 		logger.Error("数据库更新失败: " + err.Error())
 		return errors.New("数据库更新失败")
 	}
+	receiver.ClearCache(*entity)
 	return nil
 }
 
@@ -175,13 +202,184 @@ func (receiver *MySQLDao[E]) Save(entity *E) error {
 		logger.Error("数据库保存失败: " + err.Error())
 		return errors.New("数据库保存失败")
 	}
+	receiver.ClearCache(*entity)
 	return nil
+}
+
+func (m *MySQLDao[E]) genCacheKey(entity E) string {
+	if m.ctx == nil {
+		return ""
+	}
+	ctx := *m.ctx
+	cacheKeyPattern := ctx.Value("cacheKeyPattern")
+	if cacheKeyPattern == nil {
+		return ""
+	}
+	pattern := cacheKeyPattern.(string)
+	return m.getCacheKey(pattern, entity)
+}
+func (m *MySQLDao[E]) getCacheKey(pattern string, entity E) string {
+	placeholderRegex := regexp.MustCompile(`\{([a-zA-Z0-9_]+)\}`)
+	matches := placeholderRegex.FindAllStringSubmatch(pattern, -1)
+	if len(matches) == 0 {
+		return ""
+	}
+
+	val := reflect.ValueOf(entity)
+	typ := reflect.TypeOf(entity)
+
+	if typ.Kind() == reflect.Ptr {
+		if val.IsNil() {
+			return ""
+		}
+		val = val.Elem()
+		typ = typ.Elem()
+	}
+
+	result := pattern
+	allValid := true
+
+	for _, match := range matches {
+		if len(match) < 2 {
+			continue
+		}
+		fieldName := match[1]
+		fieldValue, found := m.getFieldValue(val, typ, fieldName)
+		if !found {
+			allValid = false
+			break
+		}
+		result = strings.ReplaceAll(result, "{"+fieldName+"}", fieldValue)
+	}
+
+	if !allValid {
+		return ""
+	}
+
+	return result
+}
+
+func (m *MySQLDao[E]) getFieldValue(val reflect.Value, typ reflect.Type, fieldName string) (string, bool) {
+	for i := 0; i < typ.NumField(); i++ {
+		field := typ.Field(i)
+		fieldVal := val.Field(i)
+
+		if field.Name == fieldName {
+			if fieldVal.IsZero() {
+				return "", false
+			}
+			return convertValueToString(fieldVal), true
+		}
+
+		if jsonTag := field.Tag.Get("json"); jsonTag != "" {
+			tagName := strings.Split(jsonTag, ",")[0]
+			if tagName == fieldName {
+				if fieldVal.IsZero() {
+					return "", false
+				}
+				return convertValueToString(fieldVal), true
+			}
+		}
+
+		if gormTag := field.Tag.Get("gorm"); gormTag != "" {
+			parts := strings.Split(gormTag, ";")
+			for _, p := range parts {
+				if strings.HasPrefix(p, "column:") {
+					colName := strings.TrimPrefix(p, "column:")
+					if colName == fieldName {
+						if fieldVal.IsZero() {
+							return "", false
+						}
+						return convertValueToString(fieldVal), true
+					}
+				}
+			}
+		}
+	}
+	return "", false
+}
+
+func convertValueToString(v reflect.Value) string {
+	switch v.Kind() {
+	case reflect.String:
+		return v.String()
+
+	case reflect.Bool:
+		return strconv.FormatBool(v.Bool())
+
+	case reflect.Int:
+		return strconv.FormatInt(v.Int(), 10)
+	case reflect.Int8:
+		return strconv.FormatInt(v.Int(), 10)
+	case reflect.Int16:
+		return strconv.FormatInt(v.Int(), 10)
+	case reflect.Int32:
+		return strconv.FormatInt(v.Int(), 10)
+	case reflect.Int64:
+		return strconv.FormatInt(v.Int(), 10)
+
+	case reflect.Uint:
+		return strconv.FormatUint(v.Uint(), 10)
+	case reflect.Uint8:
+		return strconv.FormatUint(v.Uint(), 10)
+	case reflect.Uint16:
+		return strconv.FormatUint(v.Uint(), 10)
+	case reflect.Uint32:
+		return strconv.FormatUint(v.Uint(), 10)
+	case reflect.Uint64:
+		return strconv.FormatUint(v.Uint(), 10)
+
+	case reflect.Float32:
+		return strconv.FormatFloat(v.Float(), 'f', -1, 32)
+	case reflect.Float64:
+		return strconv.FormatFloat(v.Float(), 'f', -1, 64)
+
+	case reflect.Ptr:
+		if v.IsNil() {
+			return ""
+		}
+		return convertValueToString(v.Elem())
+
+	case reflect.Interface:
+		if v.IsNil() {
+			return ""
+		}
+		return convertValueToString(v.Elem())
+
+	default:
+		iface := v.Interface()
+		switch t := iface.(type) {
+		case time.Time:
+			return t.Format(time.RFC3339Nano)
+		case fmt.Stringer:
+			return t.String()
+		default:
+			return fmt.Sprintf("%v", iface)
+		}
+	}
+}
+
+func (m *MySQLDao[E]) ClearCache(entity E) {
+	for cacheKeypattern, _ := range m.CacheKeyPatterns {
+		cacheKey := m.getCacheKey(cacheKeypattern, entity)
+		if strings.Contains(cacheKey, "{") {
+			continue
+		}
+		cache.OnMemCache(entity.TableName()).Delete(cacheKey)
+		cache.OnMemCache(entity.TableName()).Delete("list:" + cacheKey)
+	}
 }
 
 // All mysql动态查询数据
 func (receiver *MySQLDao[E]) All(entity E, opts ...QueryOption) ([]E, error) {
 	if receiver.Tag == nil {
 		receiver.Tag = notag
+	}
+	cacheKey := "list:" + receiver.genCacheKey(entity)
+	if cacheKey != "" {
+		if result, ok := cache.OnMemCache(entity.TableName()).Get(cacheKey); ok && result != nil {
+			return result.([]E), nil
+		}
 	}
 	conn, err := db.Mysql.GetConnection(receiver.Tag())
 	if err != nil {
@@ -213,6 +411,9 @@ func (receiver *MySQLDao[E]) All(entity E, opts ...QueryOption) ([]E, error) {
 		logger.Error("数据库查询失败: " + err.Error())
 		return nil, errors.New("数据库查询失败")
 	}
+	if cacheKey != "" {
+		cache.OnMemCache(entity.TableName()).Set(cacheKey, result, time.Hour)
+	}
 	return result, nil
 }
 
@@ -220,6 +421,13 @@ func (receiver *MySQLDao[E]) All(entity E, opts ...QueryOption) ([]E, error) {
 func (receiver *MySQLDao[E]) One(entity E) (*E, error) {
 	if receiver.Tag == nil {
 		receiver.Tag = notag
+	}
+	cacheKey := receiver.genCacheKey(entity)
+	if cacheKey != "" {
+		if result, ok := cache.OnMemCache(entity.TableName()).Get(cacheKey); ok && result != nil {
+			res := result.(E)
+			return &res, nil
+		}
 	}
 	conn, err := db.Mysql.GetConnection(receiver.Tag())
 	if err != nil {
@@ -241,6 +449,9 @@ func (receiver *MySQLDao[E]) One(entity E) (*E, error) {
 		logger.Error("数据库查询失败: " + err.Error())
 		return nil, errors.New("数据库查询失败")
 	}
+	if cacheKey != "" {
+		cache.OnMemCache(entity.TableName()).Set(cacheKey, result, time.Hour)
+	}
 	return &result, nil
 }
 
@@ -248,6 +459,12 @@ func (receiver *MySQLDao[E]) One(entity E) (*E, error) {
 func (receiver *MySQLDao[E]) Exists(entity E) bool {
 	if receiver.Tag == nil {
 		receiver.Tag = notag
+	}
+	cacheKey := receiver.genCacheKey(entity)
+	if cacheKey != "" {
+		if _, ok := cache.OnMemCache(entity.TableName()).Get(cacheKey); ok {
+			return ok
+		}
 	}
 	conn, err := db.Mysql.GetConnection(receiver.Tag())
 	if err != nil {
