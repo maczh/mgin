@@ -24,6 +24,8 @@ type RedisClient struct {
 	conns    []string
 }
 
+var Redis = &RedisClient{}
+
 var logger = gologger.GetLogger()
 
 func (r *RedisClient) Init(redisConfigData []byte) {

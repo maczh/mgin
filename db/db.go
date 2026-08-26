@@ -12,7 +12,7 @@ import (
 
 var Mysql = &mysql.MysqlClient{}
 var Mongo = &mongo.Mongodb{}
-var Redis = &redis.RedisClient{}
+var Redis = redis.Redis
 var ElasticSearch = &es.ElasticSearch{}
 var Kafka = &kafka.Kafka{}
 var Sqlite = &sqlite.Sqlite{}

@@ -1,6 +1,6 @@
 module github.com/maczh/mgin
 
-go 1.23.0
+go 1.24
 
 toolchain go1.24.0
 
@@ -15,6 +15,7 @@ require (
 	github.com/emirpasic/gods v1.18.1
 	github.com/gin-gonic/gin v1.11.0
 	github.com/go-errors/errors v1.0.1
+	github.com/go-gorm/caches/v4 v4.0.5
 	github.com/go-redis/redis/v7 v7.4.1
 	github.com/go-session/session v3.1.2+incompatible
 	github.com/gofrs/uuid v4.1.0+incompatible

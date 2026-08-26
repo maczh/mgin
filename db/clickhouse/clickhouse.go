@@ -5,9 +5,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-gorm/caches/v4"
 	"github.com/knadh/koanf"
 	"github.com/knadh/koanf/parsers/yaml"
 	"github.com/knadh/koanf/providers/rawbytes"
+	"github.com/maczh/mgin/config"
+	"github.com/maczh/mgin/db/mysql"
+	"github.com/maczh/mgin/db/redis"
 	"github.com/sadlil/gologger"
 	"gorm.io/driver/clickhouse"
 	"gorm.io/gorm"
@@ -212,4 +216,46 @@ func (m *ClickhouseClient) IsMultiDB() bool {
 
 func (m *ClickhouseClient) ListConnNames() []string {
 	return m.conns
+}
+
+func (m *ClickhouseClient) UseCache() bool {
+	if !m.conf.Bool("go.data.clickhouse_cache") {
+		return false
+	}
+	if !strings.Contains(config.Config.Config.Used, "redis") {
+		logger.Error("ClickHouse cache use memory cache")
+		cachesPlugin := &caches.Caches{
+			Conf: &caches.Config{
+				Easer: true,
+			},
+		}
+		if m.multi {
+			for k, _ := range m.dbs {
+				m.dbs[k].Use(cachesPlugin)
+			}
+		} else {
+			m.db.Use(cachesPlugin)
+		}
+		return true
+	}
+	rds, err := redis.Redis.GetConnection()
+	if err != nil {
+		logger.Error("MySQL init Redis Cache connection error: " + err.Error())
+		return false
+	}
+	cachesPlugin := &caches.Caches{
+		Conf: &caches.Config{
+			Cacher: &mysql.RedisCacher{
+				Rdb: rds,
+			},
+		},
+	}
+	if m.multi {
+		for k, _ := range m.dbs {
+			m.dbs[k].Use(cachesPlugin)
+		}
+	} else {
+		m.db.Use(cachesPlugin)
+	}
+	return true
 }
