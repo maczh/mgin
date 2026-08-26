@@ -69,6 +69,11 @@ func Init(configFile string) {
 		db.Mysql.Init(config.Config.GetConfigData(config.Config.Config.Prefix.Mysql))
 		logger.Info("连接MySQL成功")
 	}
+	if strings.Contains(configs, "postgres") {
+		logger.Info("正在连接PostgreSQL")
+		db.Pg.Init(config.Config.GetConfigData(config.Config.Config.Prefix.Postgres))
+		logger.Info("连接PostgreSQL成功")
+	}
 	if strings.Contains(configs, "sqlite") {
 		logger.Info("正在连接SQLite")
 		db.Sqlite.Init(config.Config.Config.Prefix.Sqlite)
@@ -128,6 +133,13 @@ func (m *mgin) checkAll() {
 			logs.Error("MySQL check failed： {}", err.Error())
 		}
 	}
+	if strings.Contains(configs, "postgres") {
+		logger.Info("正在检查PostgreSQL")
+		err = db.Pg.Check()
+		if err != nil {
+			logs.Error("PostgreSQL check failed： {}", err.Error())
+		}
+	}
 	if strings.Contains(configs, "mongodb") {
 		logger.Info("正在检查MongoDB")
 		err = db.Mongo.Check()
@@ -182,6 +194,10 @@ func (m *mgin) SafeExit() {
 	if strings.Contains(configs, "mysql") {
 		logger.Info("正在关闭MySQL连接")
 		db.Mysql.Close()
+	}
+	if strings.Contains(configs, "postgres") {
+		logger.Info("正在关闭PostgreSQL连接")
+		db.Pg.Close()
 	}
 	if strings.Contains(configs, "sqlite") {
 		logger.Info("正在关闭SQLite连接")

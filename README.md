@@ -302,6 +302,42 @@ go:
       timeout: 300  #连接超时，秒，默认60秒
 ```
 
++ PostgreSQL配置范例 postgresql-test.yml
+
+```yaml
+go:
+  data:
+    postgres:
+      dsn: "host=localhost user=test password=test_pwd123 dbname=testdb port=5432 sslmode=disable TimeZone=Asia/Shanghai"
+      debug: true   #打开调试模式
+      cache: true   #打开缓存模式
+      pool:     #连接池设置,若无此项则使用单一长连接
+        max: 200      #实际最大连接数
+        total: 1000   #最大并发数,不填默认为最大连接数5倍
+        timeout: 30   #空闲连接超时，秒，默认60秒
+        life: 5       #连接生命周期，分钟，默认60分钟
+```
++ PostgreSQL多库连接配置范例 postgresql-multidb-test.yml
+
+```yaml
+go:
+  data:
+    postgres:
+      multidb: true
+      dbNames: test1,test2
+      test1:
+        dsn: "host=host1 user=test1 password=test_pwd123 dbname=testdb port=5432 sslmode=disable TimeZone=Asia/Shanghai"
+      test2:
+        dsn: "host=host2 user=test2 password=test_pwd123 dbname=testdb port=5432 sslmode=disable TimeZone=Asia/Shanghai"
+      debug: true   #打开调试模式
+      cache: true   #打开缓存模式
+      pool:     #连接池设置,若无此项则使用单一长连接
+        max: 200      #实际最大连接数
+        total: 1000   #最大并发数,不填默认为最大连接数5倍
+        timeout: 30   #空闲连接超时，秒，默认60秒
+        life: 5       #连接生命周期，分钟，默认60分钟
+```
+
 + nacos配置范例 nacos-test.yml
 
 ```yaml

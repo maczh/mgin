@@ -49,6 +49,7 @@ type appConfig struct {
 	Used   string `json:"used" bson:"used"`
 	Prefix struct {
 		Mysql         string `json:"mysql" bson:"mysql"`
+		Postgres      string `json:"postgres" bson:"postgres"`
 		Mongodb       string `json:"mongodb" bson:"mongodb"`
 		Redis         string `json:"redis" bson:"redis"`
 		Clickhouse    string `json:"clickhouse" bson:"clickhouse"`
