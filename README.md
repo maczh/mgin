@@ -192,11 +192,16 @@ go:
   data:
     mysql: user:pwd@tcp(xxx.xxx.xxx.xxx:3306)/dbname?charset=utf8&parseTime=True&loc=Local
     mysql_debug: true   #打开调试模式
+    mysql_cache: true   #打开缓存模式
     mysql_pool:     #连接池设置,若无此项则使用单一长连接
       max: 200      #实际最大连接数
       total: 1000   #最大并发数,不填默认为最大连接数5倍
       timeout: 30   #空闲连接超时，秒，默认60秒
       life: 5       #连接生命周期，分钟，默认60分钟
+```
++ 如何启用缓存
+```go
+    db.MySql.UseCache() //启用缓存
 ```
 
 + mysql多库连接配置范例 mysql-multidb-test.yml
@@ -210,6 +215,7 @@ go:
       test1: user1:pwd1@tcp(xxx.xxx.xxx.xxx:3306)/dbname1?charset=utf8&parseTime=True&loc=Local
       test2: user2:pwd2@tcp(xxx.xxx.xxx.xxx:3306)/dbname2?charset=utf8&parseTime=True&loc=Local
     mysql_debug: true   #打开调试模式
+    mysql_cache: true   #打开缓存模式
     mysql_pool:     #连接池设置,若无此项则使用单一长连接
       max: 200      #实际最大连接数
       total: 1000   #最大并发数,不填默认为最大连接数5倍
