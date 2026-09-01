@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/go-gorm/caches/v4"
 	"github.com/maczh/mgin/config"
@@ -74,7 +75,8 @@ func (m *Sqlite) UseCache() bool {
 	cachesPlugin := &caches.Caches{
 		Conf: &caches.Config{
 			Cacher: &mysql.RedisCacher{
-				Rdb: rds,
+				Rdb:        rds,
+				Expiration: 5 * time.Minute,
 			},
 		},
 	}

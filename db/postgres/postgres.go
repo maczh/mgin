@@ -215,7 +215,7 @@ func (p *PostgresClient) ListConnNames() []string {
 }
 
 func (p *PostgresClient) UseCache() bool {
-	if !p.conf.Bool("go.data.postgres.cache") {
+	if !p.conf.Bool("go.data.postgres.cache.enabled") {
 		return false
 	}
 	if !strings.Contains(config.Config.Config.Used, "redis") {
@@ -239,10 +239,15 @@ func (p *PostgresClient) UseCache() bool {
 		logger.Error("PostgreSQL init Redis Cache connection error: " + err.Error())
 		return false
 	}
+	exp := 5 * time.Minute
+	if p.conf.Duration("go.data.postgres.cache.expired") > 0 {
+		exp = p.conf.Duration("go.data.postgres.cache.expired") * time.Second
+	}
 	cachesPlugin := &caches.Caches{
 		Conf: &caches.Config{
 			Cacher: &mysql.RedisCacher{
-				Rdb: rds,
+				Rdb:        rds,
+				Expiration: exp,
 			},
 		},
 	}

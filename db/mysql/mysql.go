@@ -263,10 +263,15 @@ func (m *MysqlClient) UseCache() bool {
 		logger.Error("MySQL init Redis Cache connection error: " + err.Error())
 		return false
 	}
+	exp := 5 * time.Minute
+	if m.conf.Duration("go.data.mysql_cache_expired") > 0 {
+		exp = m.conf.Duration("go.data.mysql_cache_expired") * time.Second
+	}
 	cachesPlugin := &caches.Caches{
 		Conf: &caches.Config{
 			Cacher: &RedisCacher{
-				Rdb: rds,
+				Rdb:        rds,
+				Expiration: exp,
 			},
 		},
 	}

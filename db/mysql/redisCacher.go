@@ -11,7 +11,8 @@ import (
 
 // 1. 定义你的 Redis Cacher 结构体
 type RedisCacher struct {
-	Rdb redis.UniversalClient
+	Rdb        redis.UniversalClient
+	Expiration time.Duration
 }
 
 // 2. 实现 Get 方法
@@ -38,7 +39,7 @@ func (c *RedisCacher) Store(ctx context.Context, key string, val *caches.Query[a
 		return err
 	}
 
-	c.Rdb.Set(key, res, 1*time.Hour) // Set proper cache time
+	c.Rdb.Set(key, res, c.Expiration) // Set proper cache time
 	return nil
 }
 
