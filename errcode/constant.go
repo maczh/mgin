@@ -12,4 +12,8 @@ const (
 	TOKEN_ERROR            = 1008
 	AUTHENTICATION_FAILURE = 1009
 	SERVICE_UNAVAILABLE    = 1010
+	PARAM_ERROR            = 1014 //参数校验错误
+	TOO_MANY_REQUESTS      = 1011 //触发限流
+	JOB_ERROR              = 1012 //定时任务执行异常
+	STORAGE_ERROR          = 1013 //对象存储操作异常
 )

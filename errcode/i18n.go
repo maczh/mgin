@@ -14,4 +14,7 @@ const (
 	ServiceUnavailable = "服务不存在"
 	Success            = "success"
 	DbQueryErr         = "数据库查询失败"
+	TooManyRequests    = "请求过于频繁，请稍后再试"
+	JobError           = "定时任务执行失败"
+	StorageError       = "对象存储操作失败"
 )

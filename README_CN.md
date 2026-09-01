@@ -109,6 +109,10 @@
    - 20.7 [其他改进（jh 分支）](#207-其他改进jh-分支)
    - 20.8 [已知问题与注意事项](#208-已知问题与注意事项)
    - 20.9 [升级 / 迁移建议](#209-升级--迁移建议)
+21. [新增：单例限流中间件（ratelimit）](#21-新增单例限流中间件ratelimit)
+22. [新增：定时任务管理器（job）](#22-新增定时任务管理器job)
+23. [新增：S3 对象存储插件（storage/s3）](#23-新增s3-对象存储插件storages3)
+24. [新增能力汇总（jh 分支）](#24-新增能力汇总jh-分支)
 
 ---
 
@@ -1622,3 +1626,284 @@ A：设 `go.application.debug=false`（或删掉），框架自动用 `gin.Relea
 - 从 `master-1.25` 迁移到 `jh`：若原项目依赖内置 `sys` 模块（用户/权限/验证码）或 Swagger，**不可直接切换**——需自行补齐管理后台，或保留 `master-1.25`。其余 Web/配置/注册/缓存/DAO 用法基本兼容。
 - 使用二级缓存：在 `mgin.Init` 后调用对应 `UseCache()`；确保 `go.config.used` 包含 `redis`（以启用 Redis 缓存层，否则为进程内缓存）。
 - 启用 PostgreSQL/ClickHouse：在 `go.config.used` 中加入 `postgres` / `clickhouse`，并配置对应 `<prefix>-<env>.yml`。
+
+---
+
+## 21. 新增：单例限流中间件（ratelimit）
+
+`jh` 分支内置了一个**配置驱动、单例管理**的限流中间件 `middleware/ratelimit`，支持多种算法与多维度限流，适用于保护接口不被突发流量打垮。
+
+### 21.1 特性
+
+- **多算法可选**：令牌桶（token_bucket）、滑动日志窗口（sliding_window）、最大并发数（concurrency）。
+- **多维度限流**：全局（global）、按 IP（ip）、按路径（path）、按 IP+路径（ip_path）、按请求头（header）。
+- **规则化**：每条规则可独立指定算法、维度、阈值、限流响应码与提示文案。
+- **白名单**：支持按 IP / 前缀路径放行，不受限流约束。
+- **空闲回收**：长时间不命中的限流器会被后台 GC 协程回收，避免按 IP/路径限流导致内存无限增长。
+- **编程式限流**：除 HTTP 中间件外，还提供 `Allow(key, rule)` 供非 HTTP 场景（如消费队列、定时任务）复用同一套限流逻辑。
+
+### 21.2 配置（application.yml）
+
+在 `go.config.used` 中加入 `ratelimit`，并在 `go.ratelimit` 节点下配置：
+
+```yaml
+go:
+  config:
+    used: "...,ratelimit"
+    prefix:
+      ratelimit: "go.ratelimit"
+  ratelimit:
+    enabled: true
+    # 空闲限流器回收间隔（秒），默认 600
+    idleTimeout: 600
+    # 全局白名单开关（满足任一白名单即放行）
+    whitelist:
+      - "/health"
+      - "/actuator"
+    whiteIps:
+      - "127.0.0.1"
+    # 规则列表，按声明顺序匹配，命中即生效
+    rules:
+      - name: "全局令牌桶"
+        algorithm: "token_bucket"     # token_bucket | sliding_window | concurrency
+        dimension: "global"           # global | ip | path | ip_path | header
+        rate: 100                     # 令牌桶：每秒补充令牌数；滑动窗口：窗口内允许次数
+        burst: 20                     # 令牌桶：突发容量（仅 token_bucket）
+        window: 1                     # 滑动窗口：窗口大小（秒，仅 sliding_window）
+        httpStatus: 429              # 触发限流时的 HTTP 状态码
+        code: 1011                    # 触发限流时的业务错误码
+        message: "请求过于频繁，请稍后再试"
+      - name: "登录接口按 IP 限流"
+        path: "/api/login/*"          # 支持精确匹配、前缀"/*"、Gin 路由模板
+        methods: ["POST"]
+        algorithm: "sliding_window"
+        dimension: "ip"
+        rate: 5                       # 每个 IP 在 60 秒内最多 5 次
+        window: 60
+        httpStatus: 429
+        code: 1011
+        message: "登录尝试过于频繁"
+      - name: "上传并发限制"
+        path: "/api/upload"
+        algorithm: "concurrency"
+        dimension: "global"
+        maxConcurrent: 10             # 同时最多 10 个上传在进行
+```
+
+### 21.3 使用方式
+
+```go
+import "github.com/maczh/mgin/middleware/ratelimit"
+
+// 方式一：读取 yml 配置（go.ratelimit.enabled 为 true 时生效）
+app.Router.Use(ratelimit.RateLimit())
+
+// 方式二：纯代码指定规则（不走配置文件）
+app.Router.Use(ratelimit.RateLimitWith(ratelimit.Rule{
+    Name:      "全局并发",
+    Algorithm: ratelimit.AlgoConcurrency,
+    Dimension: ratelimit.DimGlobal,
+    MaxConcurrent: 50,
+}))
+```
+
+触发限流时，中间件会写入 `X-RateLimit-Limit` / `X-RateLimit-Remaining` / `X-RateLimit-Retry-After` 响应头，并返回配置的 `httpStatus` 与 `code/message`。
+
+非 HTTP 场景编程式限流：
+
+```go
+ok, release := ratelimit.Allow("my-key", ratelimit.Rule{
+    Algorithm: ratelimit.AlgoTokenBucket,
+    Rate:      10,
+    Burst:     5,
+})
+if !ok {
+    return errors.New("限流")
+}
+defer release()
+// ... 受保护的业务逻辑
+```
+
+---
+
+## 22. 新增：定时任务管理器（job）
+
+`jh` 分支内置了一个**类 xxl-job** 的定时任务管理器 `job`，任务配置与执行日志持久化在当前 GORM 数据库中（按 **MySQL → PostgreSQL → SQLite** 优先级自动选择连接），纯单机调度。
+
+### 22.1 启用
+
+在 `go.config.used` 中加入 `job`。调度器在 `mgin.Init` 阶段自动启动（前提是 `go.job.enabled: true`）；所有执行器需在此之前通过 `job.Register` 注册：
+
+```yaml
+go:
+  config:
+    used: "mysql,job"
+  job:
+    enabled: true
+    dbName: ""          # 多库模式指定库名；单库留空
+    initdb: true        # 是否自动建表（默认 true）
+    tablePrefix: "mgin_"# 表名前缀（默认 mgin_）
+    scanInterval: 1     # 调度扫描间隔（秒）
+    refreshInterval: 30 # 从数据库同步任务配置的间隔（秒）
+    logRetainDays: 30   # 执行日志保留天数，0 不清理
+    maxConcurrent: 50   # 全局最大并发执行数
+    maxSerialQueue: 10  # serial 策略最大排队数
+    timezone: "Asia/Shanghai"  # 调度时区
+```
+
+建表：`mgin_job_info`（任务配置）、`mgin_job_log`（执行日志）。
+
+### 22.2 注册执行器
+
+执行器即一个 `func(*job.Context) error`，通过 `job.Register(name, handler)` 注册，`name` 需与数据库 `handler_name` 字段一致：
+
+```go
+import "github.com/maczh/mgin/job"
+
+func init() {
+    job.Register("syncUserJob", func(ctx *job.Context) error {
+        ctx.Log("开始同步用户, 参数=%s", ctx.Param)
+        if err := userService.Sync(ctx.Ctx()); err != nil {
+            return err // 返回 error 触发重试
+        }
+        return nil
+    })
+}
+```
+
+`job.Context` 提供：`Ctx()`（标准库 context，支持超时取消）、`Log(format, ...)`（写入执行日志明细）、`ParamMap()`（解析 `a=1&b=2` 参数）、`Done()` / `Err()`（感知取消）。
+
+### 22.3 调度类型与策略
+
+| 配置项 | 取值 | 说明 |
+|---|---|---|
+| scheduleType | `cron` | cron 表达式（支持 5 段、6 段、`@every 5m`、`@daily`） |
+| | `fixed_rate` | 间隔秒数，从上次**开始执行**起算 |
+| | `fixed_delay` | 间隔秒数，从上次**执行结束**起算 |
+| | `once` | 一次性，配置执行时间 `2006-01-02 15:04:05` |
+| blockStrategy | `serial` / `discard` / `concurrent` / `cover` | 上一次未结束时的处理方式 |
+| misfireStrategy | `do_nothing` / `fire_now` | 错过调度时刻是否立即补偿 |
+| timeout / retryCount / retryInterval | 秒 / 次数 / 秒 | 超时中断、失败重试 |
+
+### 22.4 管理接口（Gin 路由组）
+
+调用 `job.RouterGroup(r)` 将管理接口挂载到任意路由组下（如 `/job`）：
+
+```go
+app.Router.Use(...) // 前置鉴权中间件
+job.GetManager()    // 确保管理器已初始化
+job.RouterGroup(app.Router.Group("/job"))
+```
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/job/list?group=&keyword=&status=&index=&size=` | 任务列表（分页） |
+| GET | `/job/:id` | 任务详情 |
+| POST | `/job` | 新增任务 |
+| PUT | `/job` | 更新任务 |
+| DELETE | `/job/:id` | 删除任务 |
+| POST | `/job/:id/start` | 启动任务 |
+| POST | `/job/:id/stop` | 停止任务 |
+| POST | `/job/:id/trigger` | 手动触发一次（`{"param":"可选覆盖参数"}`） |
+| GET | `/job/handlers` | 已注册执行器列表 |
+| GET | `/job/log?jobId=&jobName=&status=&index=&size=` | 执行日志列表（分页） |
+
+所有接口统一返回 `models.Result`（成功 `status:1`）。
+
+### 22.5 健康检查与关闭
+
+`mgin` 已在 `checkAll`（每 5 分钟）中对运行中的调度器做 DB 探活，并在 `SafeExit` 时调用 `job.Stop()` 优雅等待在途任务结束。也可在代码中手动控制：
+
+```go
+job.Start()        // 启动（若未在 mgin.Init 中启动）
+job.Stop()         // 停止
+job.GetManager().IsRunning() // 是否运行中
+logID, err := job.GetManager().Trigger(id, "") // 手动触发
+```
+
+---
+
+## 23. 新增：S3 对象存储插件（storage/s3）
+
+`jh` 分支内置 S3 对象存储插件 `storage/s3`，基于 **aws-sdk-go-v2**，兼容 AWS S3 与 MinIO 等 S3 兼容服务，支持多 bucket、分片上传、预签名 URL。
+
+### 23.1 启用
+
+在 `go.config.used` 中加入 `s3`。插件在 `mgin.Init` 阶段读取 `go.s3` 节点完成初始化，并在 `SafeExit` 时统一关闭：
+
+```yaml
+go:
+  config:
+    used: "...,s3"
+  s3:
+    enabled: true
+    endpoint: "https://s3.amazonaws.com"   # MinIO 示例: http://localhost:9000
+    region: "cn-north-1"
+    accessKey: "AKIDEXAMPLE"
+    secretKey: "SECRET"
+    # sessionToken: ""                      # 临时凭证时填写
+    pathStyle: true                         # MinIO 等自建服务必须为 true
+    ssl: true
+    maxRetries: 3
+    uploadPartSize: 16777216                # 分片大小（字节），默认 16MB
+    downloadPartSize: 16777216
+    maxUploadParts: 10
+    maxDownloadParts: 10
+    presignExpiry: 3600                     # 预签名 URL 有效期（秒）
+    singleBucket: "my-bucket"               # 单桶模式（不配置 buckets 时使用）
+    buckets:                                # 多桶模式
+      - name: "public-assets"
+        public: true
+        defaultContentType: "image/png"
+      - name: "private-files"
+        public: false
+```
+
+### 23.2 基本使用
+
+```go
+import "github.com/maczh/mgin/storage/s3"
+
+b := s3.GetS3().Default()        // 默认桶（singleBucket 或 buckets[0]）
+b = s3.GetS3().Get("public-assets") // 指定桶
+
+// 上传
+_ = b.Upload(ctx, "avatars/1.png", bytes.NewReader(data), "image/png")
+
+// 下载
+buf := manager.NewWriteAtBuffer([]byte{})
+_ = b.Download(ctx, "avatars/1.png", buf)
+
+// 删除 / 判断存在
+_ = b.Delete(ctx, "avatars/1.png")
+exists, _ := b.Exists(ctx, "avatars/1.png")
+
+// 列举
+list, _ := b.List(ctx, "avatars/", 100)
+
+// 预签名下载 / 上传 URL（客户端直传直下）
+url, _ := b.Presign(ctx, "avatars/1.png")
+upUrl, _ := b.PresignUpload(ctx, "avatars/2.png")
+
+// 分片上传（超大文件）
+etag, _ := b.UploadMultipart(ctx, "big.iso", "", bytes.NewReader(huge), 16*1024*1024)
+```
+
+> 说明：`Upload` 对传入的 `*bytes.Reader` 会自动判断是否超过单片大小并改用分片上传；大文件下载由 `manager.Downloader` 自动分片。ContentType 缺省时按扩展名推断，再缺省为 `application/octet-stream`。
+
+---
+
+## 24. 新增能力汇总（jh 分支）
+
+下表汇总 `jh` 分支在 `master-1.25` 之外的**新增能力**（含上文 21–23 章）：
+
+| 能力 | 包 / 入口 | 启用开关 | 说明 |
+|---|---|---|---|
+| GORM 二级缓存 | `db.Mysql.UseCache()` 等 | `go.data.*.cache.enabled` | 见 20.4 |
+| PostgreSQL 支持 | `db.Pg` / `PostgresDao` | `postgres` | 见 20.5 |
+| ClickHouse 支持 | `db.Clickhouse` / `ClickhouseDao` | `clickhouse` | 见 20.6 |
+| 单例限流中间件 | `middleware/ratelimit` | `ratelimit` | 多算法 + 多维度，见 21 |
+| 定时任务管理器 | `job` | `job` | 类 xxl-job，DB 持久化，见 22 |
+| S3 对象存储插件 | `storage/s3` | `s3` | aws-sdk-go-v2，兼容 MinIO，见 23 |
+
+上述新增能力均通过 `go.config.used` 中的开关按需启用，未启用时不会产生任何连接或副作用。

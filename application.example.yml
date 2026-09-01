@@ -1,0 +1,113 @@
+# MGin 应用配置示例（jh 分支）
+# 复制本文件为 application.yml 并按需修改即可运行。
+# 本示例重点演示三大新增能力的配置：ratelimit（限流）/ job（定时任务）/ s3（对象存储）。
+
+go:
+  application:
+    name: myapp
+    port: 8080
+    project: myproj
+    port_ssl: 8443
+    debug: true
+    ip: 127.0.0.1
+  logger:
+    level: debug
+    out: console,file
+    file: /opt/logs/myapp
+  config:
+    # 启用的组件，逗号分隔。下列组件按需增删：
+    #   sqlite  —— 定时任务(job)需要至少一个数据库；此处用 sqlite 演示
+    #   ratelimit / job / s3 —— 本次新增的三大能力开关
+    used: "sqlite,ratelimit,job,s3"
+    env: test
+    prefix:
+      sqlite: mytest.db
+      # 新增能力为“内联配置”，无需单独的 <prefix>-<env>.yml 文件
+      ratelimit: "go.ratelimit"
+      job: "go.job"
+      s3: "go.s3"
+
+  # ------------------------------------------------------------------
+  # 1) 单例限流中间件（middleware/ratelimit）
+  # ------------------------------------------------------------------
+  ratelimit:
+    enabled: true
+    idleTimeout: 600          # 空闲限流器回收间隔（秒）
+    whitelist:                # 前缀路径白名单，匹配即放行
+      - "/health"
+      - "/actuator"
+    whiteIps:                 # IP 白名单
+      - "127.0.0.1"
+    rules:
+      - name: "全局令牌桶"
+        algorithm: "token_bucket"   # token_bucket | sliding_window | concurrency
+        dimension: "global"         # global | ip | path | ip_path | header
+        rate: 100                    # 令牌桶：每秒补充令牌；滑动窗口：窗口内允许次数
+        burst: 20                    # 令牌桶突发容量（仅 token_bucket）
+        httpStatus: 429             # 触发限流时的 HTTP 状态码
+        code: 1011                   # 业务错误码
+        message: "请求过于频繁，请稍后再试"
+      - name: "登录按 IP 限流"
+        path: "/api/login/*"        # 精确 / 前缀"/*" / Gin 路由模板
+        methods: ["POST"]
+        algorithm: "sliding_window"
+        dimension: "ip"
+        rate: 5                      # 每个 IP 在 window 秒内最多 rate 次
+        window: 60
+        httpStatus: 429
+        code: 1011
+        message: "登录尝试过于频繁"
+      - name: "上传并发控制"
+        path: "/api/upload"
+        algorithm: "concurrency"
+        dimension: "global"
+        maxConcurrent: 10           # 同时最多 10 个上传进行中
+
+  # ------------------------------------------------------------------
+  # 2) 定时任务管理器（job，类 xxl-job）
+  #    依赖一个数据库；本例用 sqlite，生产可换 mysql / postgres
+  # ------------------------------------------------------------------
+  job:
+    enabled: true
+    dbName: ""              # 多库模式指定库名；单库留空
+    initdb: true            # 自动建表 mgin_job_info / mgin_job_log
+    tablePrefix: "mgin_"
+    scanInterval: 1         # 调度扫描间隔（秒）
+    refreshInterval: 30     # 从数据库同步任务配置间隔（秒）
+    logRetainDays: 30       # 执行日志保留天数，0 不清理
+    maxConcurrent: 50       # 全局最大并发执行数
+    maxSerialQueue: 10      # serial 阻塞策略最大排队数
+    timezone: "Asia/Shanghai"
+
+  # ------------------------------------------------------------------
+  # 3) S3 对象存储插件（storage/s3，基于 aws-sdk-go-v2）
+  #    endpoint 填 AWS S3 或 MinIO 等兼容服务的地址
+  # ------------------------------------------------------------------
+  s3:
+    enabled: true
+    endpoint: "https://s3.amazonaws.com"   # MinIO 示例: http://localhost:9000
+    region: "cn-north-1"
+    accessKey: "AKIDEXAMPLE"
+    secretKey: "YOUR_SECRET_KEY"
+    # sessionToken: ""                   # 使用临时凭证时填写
+    pathStyle: true                      # MinIO / 自建服务必须为 true；AWS S3 可 false
+    ssl: true
+    maxRetries: 3
+    uploadPartSize: 16777216             # 分片上传单片大小（字节）
+    downloadPartSize: 16777216
+    maxUploadParts: 10
+    maxDownloadParts: 10
+    presignExpiry: 3600                  # 预签名 URL 有效期（秒）
+    singleBucket: "my-bucket"            # 单桶模式（不配置 buckets 时使用）
+    buckets:                             # 多桶模式（与 singleBucket 二选一）
+      - name: "public-assets"
+        public: true
+        defaultContentType: "image/png"
+      - name: "private-files"
+        public: false
+
+  # 定时任务执行器与 S3 桶的取用均在代码中完成，例如：
+  #   job.Register("demoJob", func(ctx *job.Context) error { ... })
+  #   b := s3.GetS3().Default()
+  # 管理接口挂载（Gin 路由组）：
+  #   job.RouterGroup(app.Router.Group("/job"))

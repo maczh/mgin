@@ -107,6 +107,10 @@
    - 20.7 [Other Improvements (jh branch)](#207-other-improvements-jh-branch)
    - 20.8 [Known Issues and Cautions](#208-known-issues-and-cautions)
    - 20.9 [Upgrade / Migration Advice](#209-upgrade--migration-advice)
+21. [New: Singleton Rate-Limit Middleware (ratelimit)](#21-new-singleton-rate-limit-middleware-ratelimit)
+22. [New: Job Scheduler (job)](#22-new-job-scheduler-job)
+23. [New: S3 Object Storage Plugin (storage/s3)](#23-new-s3-object-storage-plugin-storages3)
+24. [New Capabilities Summary (jh branch)](#24-new-capabilities-summary-jh-branch)
 
 ---
 
@@ -1620,3 +1624,263 @@ The `jh` branch adds a read-cache for relational DB clients based on [go-gorm/ca
 - Migrating `master-1.25` → `jh`: if your project depends on the built-in `sys` module (users/permissions/captcha) or Swagger, **do not switch directly** — build your own admin backend first, or stay on `master-1.25`. The rest (Web / config / registry / cache / DAO usage) is largely compatible.
 - Using the L2 cache: call the relevant `UseCache()` after `mgin.Init`; ensure `go.config.used` includes `redis` (to enable the Redis cache layer; otherwise it falls back to in-process memory).
 - Enabling PostgreSQL/ClickHouse: add `postgres` / `clickhouse` to `go.config.used` and provide the corresponding `<prefix>-<env>.yml`.
+
+---
+
+## 21. New: Singleton Rate-Limit Middleware (ratelimit)
+
+The `jh` branch ships a **config-driven, singleton-managed** rate-limit middleware `middleware/ratelimit` that supports multiple algorithms and dimensions, protecting endpoints from traffic spikes.
+
+### 21.1 Features
+
+- **Multiple algorithms**: token bucket (`token_bucket`), sliding log window (`sliding_window`), max concurrency (`concurrency`).
+- **Multiple dimensions**: global, by IP, by path, by IP+path, by request header.
+- **Rule-based**: each rule independently configures its algorithm, dimension, thresholds, limit HTTP status and message.
+- **Whitelist**: bypass by IP / path prefix.
+- **Idle GC**: unused limiters are reclaimed by a background goroutine to avoid unbounded memory growth when limiting per IP/path.
+- **Programmatic limiting**: besides the HTTP middleware, `Allow(key, rule)` lets non-HTTP code (queue consumers, jobs) reuse the same limiting logic.
+
+### 21.2 Configuration (application.yml)
+
+Add `ratelimit` to `go.config.used` and configure under the `go.ratelimit` node:
+
+```yaml
+go:
+  config:
+    used: "...,ratelimit"
+    prefix:
+      ratelimit: "go.ratelimit"
+  ratelimit:
+    enabled: true
+    idleTimeout: 600
+    whitelist:
+      - "/health"
+    whiteIps:
+      - "127.0.0.1"
+    rules:
+      - name: "global token bucket"
+        algorithm: "token_bucket"
+        dimension: "global"
+        rate: 100
+        burst: 20
+        httpStatus: 429
+        code: 1011
+        message: "Too many requests, please retry later"
+      - name: "login per IP"
+        path: "/api/login/*"
+        methods: ["POST"]
+        algorithm: "sliding_window"
+        dimension: "ip"
+        rate: 5
+        window: 60
+        httpStatus: 429
+        code: 1011
+        message: "Too many login attempts"
+      - name: "upload concurrency"
+        path: "/api/upload"
+        algorithm: "concurrency"
+        dimension: "global"
+        maxConcurrent: 10
+```
+
+### 21.3 Usage
+
+```go
+import "github.com/maczh/mgin/middleware/ratelimit"
+
+// Option 1: from yml config (effective when go.ratelimit.enabled is true)
+app.Router.Use(ratelimit.RateLimit())
+
+// Option 2: code-only rules
+app.Router.Use(ratelimit.RateLimitWith(ratelimit.Rule{
+    Name:         "global concurrency",
+    Algorithm:    ratelimit.AlgoConcurrency,
+    Dimension:    ratelimit.DimGlobal,
+    MaxConcurrent: 50,
+}))
+```
+
+When a request is limited, the middleware writes `X-RateLimit-Limit` / `X-RateLimit-Remaining` / `X-RateLimit-Retry-After` headers and returns the configured `httpStatus` with `code/message`.
+
+Programmatic limiting:
+
+```go
+ok, release := ratelimit.Allow("my-key", ratelimit.Rule{
+    Algorithm: ratelimit.AlgoTokenBucket, Rate: 10, Burst: 5,
+})
+if !ok {
+    return errors.New("rate limited")
+}
+defer release()
+```
+
+---
+
+## 22. New: Job Scheduler (job)
+
+The `jh` branch ships an **xxl-job-like** job scheduler `job`. Job definitions and execution logs are persisted in the current GORM database (auto-selected by priority **MySQL → PostgreSQL → SQLite**), with pure single-instance scheduling.
+
+### 22.1 Enable
+
+Add `job` to `go.config.used`. The scheduler auto-starts during `mgin.Init` (when `go.job.enabled: true`); register all handlers via `job.Register` beforehand:
+
+```yaml
+go:
+  config:
+    used: "mysql,job"
+  job:
+    enabled: true
+    dbName: ""
+    initdb: true
+    tablePrefix: "mgin_"
+    scanInterval: 1
+    refreshInterval: 30
+    logRetainDays: 30
+    maxConcurrent: 50
+    maxSerialQueue: 10
+    timezone: "Asia/Shanghai"
+```
+
+Tables: `mgin_job_info` (definitions), `mgin_job_log` (execution logs).
+
+### 22.2 Register a Handler
+
+A handler is `func(*job.Context) error`, registered by `job.Register(name, handler)`; `name` must match the DB `handler_name` column:
+
+```go
+import "github.com/maczh/mgin/job"
+
+func init() {
+    job.Register("syncUserJob", func(ctx *job.Context) error {
+        ctx.Log("start sync, param=%s", ctx.Param)
+        if err := userService.Sync(ctx.Ctx()); err != nil {
+            return err // returning error triggers retry
+        }
+        return nil
+    })
+}
+```
+
+`job.Context` provides `Ctx()` (cancellable context), `Log(format, ...)` (writes to log detail), `ParamMap()`, `Done()` / `Err()`.
+
+### 22.3 Schedule Types & Strategies
+
+| Field | Values | Description |
+|---|---|---|
+| scheduleType | `cron` | cron expression (5/6 fields, `@every 5m`, `@daily`) |
+| | `fixed_rate` | interval seconds, counted from last **start** |
+| | `fixed_delay` | interval seconds, counted from last **finish** |
+| | `once` | one-shot, time `2006-01-02 15:04:05` |
+| blockStrategy | `serial` / `discard` / `concurrent` / `cover` | behavior when previous run is still active |
+| misfireStrategy | `do_nothing` / `fire_now` | compensate a missed schedule |
+| timeout / retryCount / retryInterval | seconds / count / seconds | timeout, retries |
+
+### 22.4 Admin API (Gin router group)
+
+Mount `job.RouterGroup(r)` onto any router group (e.g. `/job`):
+
+```go
+job.GetManager()
+job.RouterGroup(app.Router.Group("/job"))
+```
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/job/list?group=&keyword=&status=&index=&size=` | list (paged) |
+| GET | `/job/:id` | detail |
+| POST | `/job` | create |
+| PUT | `/job` | update |
+| DELETE | `/job/:id` | delete |
+| POST | `/job/:id/start` | start |
+| POST | `/job/:id/stop` | stop |
+| POST | `/job/:id/trigger` | trigger once (`{"param":"optional override"}`) |
+| GET | `/job/handlers` | registered handlers |
+| GET | `/job/log?jobId=&jobName=&status=&index=&size=` | execution logs (paged) |
+
+All endpoints return `models.Result` (`status:1` on success).
+
+### 22.5 Health & Shutdown
+
+`mgin` pings the running scheduler in `checkAll` (every 5 min) and calls `job.Stop()` on `SafeExit` to gracefully drain in-flight jobs. Manual control:
+
+```go
+job.Start()
+job.Stop()
+job.GetManager().IsRunning()
+logID, err := job.GetManager().Trigger(id, "")
+```
+
+---
+
+## 23. New: S3 Object Storage Plugin (storage/s3)
+
+The `jh` branch ships an S3 object-storage plugin `storage/s3` built on **aws-sdk-go-v2**, compatible with AWS S3 and MinIO-like services, supporting multiple buckets, multipart upload and presigned URLs.
+
+### 23.1 Enable
+
+Add `s3` to `go.config.used`. The plugin reads the `go.s3` node during `mgin.Init` and closes on `SafeExit`:
+
+```yaml
+go:
+  config:
+    used: "...,s3"
+  s3:
+    enabled: true
+    endpoint: "https://s3.amazonaws.com"   # MinIO example: http://localhost:9000
+    region: "cn-north-1"
+    accessKey: "AKIDEXAMPLE"
+    secretKey: "SECRET"
+    pathStyle: true                         # true for MinIO / self-hosted
+    ssl: true
+    maxRetries: 3
+    uploadPartSize: 16777216
+    downloadPartSize: 16777216
+    maxUploadParts: 10
+    maxDownloadParts: 10
+    presignExpiry: 3600
+    singleBucket: "my-bucket"
+    buckets:
+      - name: "public-assets"
+        public: true
+        defaultContentType: "image/png"
+      - name: "private-files"
+        public: false
+```
+
+### 23.2 Basic Usage
+
+```go
+import "github.com/maczh/mgin/storage/s3"
+
+b := s3.GetS3().Default()
+b = s3.GetS3().Get("public-assets")
+
+_ = b.Upload(ctx, "avatars/1.png", bytes.NewReader(data), "image/png")
+buf := manager.NewWriteAtBuffer([]byte{})
+_ = b.Download(ctx, "avatars/1.png", buf)
+_ = b.Delete(ctx, "avatars/1.png")
+exists, _ := b.Exists(ctx, "avatars/1.png")
+list, _ := b.List(ctx, "avatars/", 100)
+url, _ := b.Presign(ctx, "avatars/1.png")
+upUrl, _ := b.PresignUpload(ctx, "avatars/2.png")
+etag, _ := b.UploadMultipart(ctx, "big.iso", "", bytes.NewReader(huge), 16*1024*1024)
+```
+
+> `Upload` auto-switches to multipart for a `*bytes.Reader` larger than the part size; large downloads are auto-chunked by `manager.Downloader`. ContentType defaults to an extension guess, then `application/octet-stream`.
+
+---
+
+## 24. New Capabilities Summary (jh branch)
+
+Summary of capabilities added in the `jh` branch beyond `master-1.25` (chapters 21–23 above):
+
+| Capability | Package / Entry | Switch | Notes |
+|---|---|---|---|
+| GORM L2 cache | `db.Mysql.UseCache()` etc. | `go.data.*.cache.enabled` | see 20.4 |
+| PostgreSQL | `db.Pg` / `PostgresDao` | `postgres` | see 20.5 |
+| ClickHouse | `db.Clickhouse` / `ClickhouseDao` | `clickhouse` | see 20.6 |
+| Singleton rate-limit | `middleware/ratelimit` | `ratelimit` | see 21 |
+| Job scheduler | `job` | `job` | see 22 |
+| S3 storage | `storage/s3` | `s3` | see 23 |
+
+All new capabilities are opt-in via switches in `go.config.used`; when disabled they have no connection overhead or side effects.

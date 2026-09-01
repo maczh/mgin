@@ -5,8 +5,10 @@ import (
 
 	"github.com/maczh/mgin/config"
 	"github.com/maczh/mgin/db"
+	"github.com/maczh/mgin/job"
 	"github.com/maczh/mgin/logs"
 	"github.com/maczh/mgin/registry"
+	"github.com/maczh/mgin/storage/s3"
 	"github.com/sadlil/gologger"
 )
 
@@ -119,7 +121,31 @@ func Init(configFile string) {
 		registry.Registry.Register(config.Config.GetConfigData(config.Config.Config.Prefix.Consul))
 		logger.Info("注册到consul成功")
 	}
+	if strings.Contains(configs, "s3") {
+		s3Data := config.Config.GetConfigData("go.s3")
+		if s3Data != nil {
+			logger.Info("正在初始化S3存储")
+			s3.NewS3().Init(s3Data)
+		} else {
+			logs.Error("s3配置错误，无法获取配置地址")
+		}
+	}
+	if strings.Contains(configs, "job") {
+		logger.Info("正在启动定时任务调度器")
+		if err := job.Start(); err != nil {
+			logs.Error("定时任务调度器启动失败: {}", err.Error())
+		}
+	}
+	// 将加载完成的插件纳入生命周期管理（Init/Close/Check）
+	initPlugins(&mgin{})
 	return
+}
+
+// initPlugins 把已在 Init 中完成初始化的插件注册进 mgin 的生命周期钩子。
+func initPlugins(m *mgin) {
+	if strings.Contains(config.Config.Config.Used, "s3") {
+		m.UsePlugin("s3", s3.NewS3())
+	}
 }
 
 func (m *mgin) checkAll() {
@@ -234,6 +260,15 @@ func (m *mgin) SafeExit() {
 	if strings.Contains(configs, "consul") {
 		logger.Info("正在注销Consul")
 		registry.Registry.DeRegister()
+	}
+	if strings.Contains(configs, "job") {
+		logger.Info("正在停止定时任务调度器")
+		job.Stop()
+	}
+	if strings.Contains(configs, "job") {
+		if err := job.GetManager().Check(); err != nil {
+			logs.Error("定时任务调度器健康检查失败: {}", err.Error())
+		}
 	}
 	if m.plugins != nil {
 		for dbConfigName, pl := range m.plugins {

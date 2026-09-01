@@ -14,6 +14,7 @@ import (
 	"github.com/maczh/mgin/logs"
 	"github.com/maczh/mgin/middleware/cors"
 	"github.com/maczh/mgin/middleware/postlog"
+	"github.com/maczh/mgin/middleware/ratelimit"
 	"github.com/maczh/mgin/middleware/trace"
 	"github.com/maczh/mgin/middleware/xlang"
 	"github.com/scylladb/termtables"
@@ -122,6 +123,12 @@ func (app *App) baseRouter() {
 		app.Router.Use(xlang.RequestLanguage())
 	}
 
+	// 单例限流中间件（middleware/ratelimit）：go.ratelimit.enabled 为 true 时挂载
+	// 规则来自 application.yml 的 go.ratelimit 节点；未启用则不产生任何开销。
+	if config.Config.GetConfigBool("go.ratelimit.enabled") {
+		app.Router.Use(ratelimit.RateLimit())
+	}
+
 	//处理全局异常
 	app.Router.Use(nice.Recovery(recoveryHandler))
 
@@ -129,6 +136,12 @@ func (app *App) baseRouter() {
 	app.Router.NoRoute(func(c *gin.Context) {
 		c.JSON(http.StatusOK, i18n.Error(errcode.URI_NOT_FOUND, errcode.UrlNotFound))
 	})
+
+	// 定时任务管理路由组（job，类 xxl-job）按需挂载，例如：
+	//   job.GetManager()
+	//   app.Router.Group("/job").Use(你的鉴权中间件...).GET(...) // 或：
+	//   job.RouterGroup(app.Router.Group("/job"))
+	// 详见 README 第 22 章。未挂载时不影响定时任务调度本身的运行。
 
 }
 
