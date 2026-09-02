@@ -1,6 +1,7 @@
 package job
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -26,16 +27,18 @@ func TestStoreCRUD(t *testing.T) {
 	st := newMemStore(t)
 
 	job := &JobInfo{
-		JobName:     "testJob",
-		JobGroup:    "default",
+		JobName:      "testJob",
+		JobGroup:     "default",
 		ScheduleType: ScheduleCron,
 		ScheduleConf: "0 */1 * * * ?",
-		HandlerName: "testHandler",
-		Status:      StatusRunning,
+		HandlerName:  "testHandler",
+		Status:       StatusRunning,
+		JobParam:     map[string]interface{}{"amount": 17820, "orderId": "DO202609011451071788245467286109", "enabled": true},
 	}
 	if err := st.create(job); err != nil {
 		t.Fatalf("create: %v", err)
 	}
+	t.Logf("入库成功")
 	if job.ID <= 0 {
 		t.Fatalf("期望自增 ID > 0, got %d", job.ID)
 	}
@@ -44,6 +47,11 @@ func TestStoreCRUD(t *testing.T) {
 	if err != nil {
 		t.Fatalf("getById: %v", err)
 	}
+	jobJson, err := json.Marshal(got)
+	if err != nil {
+		t.Fatalf("marshal job: %v", err)
+	}
+	t.Logf("查询结果: %v", string(jobJson))
 	if got.JobName != "testJob" {
 		t.Fatalf("JobName mismatch: %s", got.JobName)
 	}
@@ -90,7 +98,7 @@ func TestStoreLog(t *testing.T) {
 	now := time.Now()
 	jl := &JobLog{
 		JobId:       1,
-		JobName:    "testJob",
+		JobName:     "testJob",
 		HandlerName: "testHandler",
 		TriggerType: TriggerManual,
 		Status:      LogRunning,
@@ -132,7 +140,7 @@ func TestHandlerRegistry(t *testing.T) {
 	called := false
 	Register("unitHandler", func(ctx *Context) error {
 		called = true
-		ctx.Log("hello %s", ctx.Param)
+		t.Logf("hello %s", ctx.Param["value"].(string))
 		return nil
 	})
 	defer Unregister("unitHandler")
@@ -152,7 +160,7 @@ func TestHandlerRegistry(t *testing.T) {
 		t.Fatalf("ListHandlers 应包含 unitHandler")
 	}
 
-	ctx := &Context{Param: "world", JobName: "u"}
+	ctx := &Context{Param: map[string]interface{}{"value": "world"}, JobName: "u"}
 	if err := h(ctx); err != nil {
 		t.Fatalf("handler 执行失败: %v", err)
 	}

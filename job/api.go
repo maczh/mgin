@@ -252,7 +252,7 @@ func triggerHandler(c *gin.Context) {
 		return
 	}
 	var body struct {
-		Param string `json:"param"`
+		Param map[string]interface{} `json:"param"`
 	}
 	_ = c.ShouldBindJSON(&body)
 	logID, err := GetManager().Trigger(id, body.Param)

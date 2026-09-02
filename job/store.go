@@ -192,20 +192,7 @@ func (s *store) create(j *JobInfo) error {
 
 // update 全量更新任务配置（不含统计字段与调度时间）
 func (s *store) update(j *JobInfo) error {
-	return s.db.Model(&JobInfo{}).Where("id = ?", j.ID).Updates(map[string]any{
-		"job_group":        j.JobGroup,
-		"description":      j.Description,
-		"schedule_type":    j.ScheduleType,
-		"schedule_conf":    j.ScheduleConf,
-		"handler_name":     j.HandlerName,
-		"job_param":        j.JobParam,
-		"timeout":          j.Timeout,
-		"retry_count":      j.RetryCount,
-		"retry_interval":   j.RetryInterval,
-		"block_strategy":   j.BlockStrategy,
-		"misfire_strategy": j.MisfireStrategy,
-		"remark":           j.Remark,
-	}).Error
+	return s.db.Save(j).Error
 }
 
 // remove 删除任务及其执行日志

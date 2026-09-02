@@ -83,33 +83,33 @@ var tablePrefix = "mgin_"
 // MySQL / PostgreSQL / SQLite 三种数据库上正确建表。
 type JobInfo struct {
 	ID          int64  `gorm:"primaryKey;autoIncrement;comment:任务ID" json:"id" form:"id"`
-	JobName     string `gorm:"size:100;uniqueIndex;not null;comment:任务名称(全局唯一)" json:"jobName" form:"jobName" binding:"required"`
-	JobGroup    string `gorm:"size:50;index;default:DEFAULT;comment:任务分组" json:"jobGroup" form:"jobGroup"`
-	Description string `gorm:"size:255;comment:任务描述" json:"description" form:"description"`
+	JobName     string `gorm:"column:job_name;size:100;uniqueIndex;not null;comment:任务名称(全局唯一)" json:"jobName" form:"jobName" binding:"required"`
+	JobGroup    string `gorm:"column:job_group;size:50;index;default:DEFAULT;comment:任务分组" json:"jobGroup" form:"jobGroup"`
+	Description string `gorm:"column:description;size:255;comment:任务描述" json:"description" form:"description"`
 
-	ScheduleType string `gorm:"size:20;not null;default:cron;comment:调度类型 cron|fixed_rate|fixed_delay|once" json:"scheduleType" form:"scheduleType"`
-	ScheduleConf string `gorm:"size:128;not null;comment:调度配置 cron表达式/间隔秒数/执行时间" json:"scheduleConf" form:"scheduleConf" binding:"required"`
+	ScheduleType string `gorm:"column:schedule_type;size:20;not null;default:cron;comment:调度类型 cron|fixed_rate|fixed_delay|once" json:"scheduleType" form:"scheduleType"`
+	ScheduleConf string `gorm:"column:schedule_conf;size:128;not null;comment:调度配置 cron表达式/间隔秒数/执行时间" json:"scheduleConf" form:"scheduleConf" binding:"required"`
 
-	HandlerName string `gorm:"size:100;not null;index;comment:执行器名称，对应代码中 job.Register 注册的名字" json:"handlerName" form:"handlerName" binding:"required"`
-	JobParam    string `gorm:"type:text;comment:任务执行参数" json:"jobParam" form:"jobParam"`
+	HandlerName string                 `gorm:"column:handler_name;size:100;not null;index;comment:执行器名称，对应代码中 job.Register 注册的名字" json:"handlerName" form:"handlerName" binding:"required"`
+	JobParam    map[string]interface{} `gorm:"column:job_param;type:text;serializer:json;comment:任务执行参数" json:"jobParam" form:"jobParam"`
 
-	Timeout         int    `gorm:"default:0;comment:执行超时时间(秒)，0为不限制" json:"timeout" form:"timeout"`
-	RetryCount      int    `gorm:"default:0;comment:失败重试次数" json:"retryCount" form:"retryCount"`
-	RetryInterval   int    `gorm:"default:0;comment:失败重试间隔(秒)" json:"retryInterval" form:"retryInterval"`
-	BlockStrategy   string `gorm:"size:20;default:serial;comment:阻塞策略 serial|discard|concurrent|cover" json:"blockStrategy" form:"blockStrategy"`
-	MisfireStrategy string `gorm:"size:20;default:do_nothing;comment:调度过期策略 do_nothing|fire_now" json:"misfireStrategy" form:"misfireStrategy"`
+	Timeout         int    `gorm:"column:timeout;default:0;comment:执行超时时间(秒)，0为不限制" json:"timeout" form:"timeout"`
+	RetryCount      int    `gorm:"column:retry_count;default:0;comment:失败重试次数" json:"retryCount" form:"retryCount"`
+	RetryInterval   int    `gorm:"column:retry_interval;default:0;comment:失败重试间隔(秒)" json:"retryInterval" form:"retryInterval"`
+	BlockStrategy   string `gorm:"column:block_strategy;size:20;default:serial;comment:阻塞策略 serial|discard|concurrent|cover" json:"blockStrategy" form:"blockStrategy"`
+	MisfireStrategy string `gorm:"column:misfire_strategy;size:20;default:do_nothing;comment:调度过期策略 do_nothing|fire_now" json:"misfireStrategy" form:"misfireStrategy"`
 
-	Status int `gorm:"default:0;index;comment:任务状态 1运行中 0已停止" json:"status" form:"status"`
+	Status int `gorm:"column:status;default:0;index;comment:任务状态 1运行中 0已停止" json:"status" form:"status"`
 
-	LastFireTime *time.Time `gorm:"comment:上次调度时间" json:"lastFireTime"`
-	NextFireTime *time.Time `gorm:"comment:下次调度时间" json:"nextFireTime"`
-	TriggerCount int64      `gorm:"default:0;comment:累计调度次数" json:"triggerCount"`
-	SuccessCount int64      `gorm:"default:0;comment:累计成功次数" json:"successCount"`
-	FailCount    int64      `gorm:"default:0;comment:累计失败次数" json:"failCount"`
+	LastFireTime *time.Time `gorm:"column:last_fire_time;comment:上次调度时间" json:"lastFireTime"`
+	NextFireTime *time.Time `gorm:"column:next_fire_time;comment:下次调度时间" json:"nextFireTime"`
+	TriggerCount int64      `gorm:"column:trigger_count;default:0;comment:累计调度次数" json:"triggerCount"`
+	SuccessCount int64      `gorm:"column:success_count;default:0;comment:累计成功次数" json:"successCount"`
+	FailCount    int64      `gorm:"column:fail_count;default:0;comment:累计失败次数" json:"failCount"`
 
-	Remark   string    `gorm:"size:255;comment:备注" json:"remark" form:"remark"`
-	CreateAt time.Time `gorm:"autoCreateTime;comment:创建时间" json:"createAt"`
-	UpdateAt time.Time `gorm:"autoUpdateTime;comment:更新时间" json:"updateAt"`
+	Remark   string    `gorm:"column:remark;size:255;comment:备注" json:"remark" form:"remark"`
+	CreateAt time.Time `gorm:"column:create_at;autoCreateTime;comment:创建时间" json:"createAt"`
+	UpdateAt time.Time `gorm:"column:update_at;autoUpdateTime;comment:更新时间" json:"updateAt"`
 }
 
 func (JobInfo) TableName() string {
@@ -119,25 +119,25 @@ func (JobInfo) TableName() string {
 // JobLog 定时任务执行日志表
 type JobLog struct {
 	ID       int64  `gorm:"primaryKey;autoIncrement;comment:日志ID" json:"id" form:"id"`
-	JobId    int64  `gorm:"index;not null;comment:任务ID" json:"jobId" form:"jobId"`
-	JobName  string `gorm:"size:100;index;comment:任务名称" json:"jobName" form:"jobName"`
-	JobGroup string `gorm:"size:50;index;comment:任务分组" json:"jobGroup" form:"jobGroup"`
+	JobId    int64  `gorm:"column:job_id;index;not null;comment:任务ID" json:"jobId" form:"jobId"`
+	JobName  string `gorm:"column:job_name;size:100;index;comment:任务名称" json:"jobName" form:"jobName"`
+	JobGroup string `gorm:"column:job_group;size:50;index;comment:任务分组" json:"jobGroup" form:"jobGroup"`
 
-	HandlerName string `gorm:"size:100;comment:执行器名称" json:"handlerName"`
-	JobParam    string `gorm:"type:text;comment:本次执行参数" json:"jobParam"`
-	TriggerType string `gorm:"size:20;comment:触发类型 cron|manual|retry|misfire" json:"triggerType"`
+	HandlerName string                 `gorm:"column:handler_name;size:100;comment:执行器名称" json:"handlerName"`
+	JobParam    map[string]interface{} `gorm:"column:job_param;type:text;serializer:json;comment:本次执行参数" json:"jobParam"`
+	TriggerType string                 `gorm:"column:trigger_type;size:20;comment:触发类型 cron|manual|retry|misfire" json:"triggerType"`
 
-	Status   int        `gorm:"index;default:0;comment:执行状态 0执行中 1成功 2失败 3超时 4阻塞丢弃 5被取消" json:"status" form:"status"`
-	StartAt  time.Time  `gorm:"index;comment:开始执行时间" json:"startAt"`
-	EndAt    *time.Time `gorm:"comment:执行结束时间" json:"endAt"`
-	CostMs   int64      `gorm:"default:0;comment:执行耗时(毫秒)" json:"costMs"`
-	RetryNum int        `gorm:"default:0;comment:当前为第几次重试，0表示首次执行" json:"retryNum"`
+	Status   int        `gorm:"column:status;index;default:0;comment:执行状态 0执行中 1成功 2失败 3超时 4阻塞丢弃 5被取消" json:"status" form:"status"`
+	StartAt  time.Time  `gorm:"column:start_at;index;comment:开始执行时间" json:"startAt"`
+	EndAt    *time.Time `gorm:"column:end_at;comment:执行结束时间" json:"endAt"`
+	CostMs   int64      `gorm:"column:cost_ms;default:0;comment:执行耗时(毫秒)" json:"costMs"`
+	RetryNum int        `gorm:"column:retry_num;default:0;comment:当前为第几次重试，0表示首次执行" json:"retryNum"`
 
-	Message  string `gorm:"type:text;comment:执行结果信息或错误原因" json:"message"`
-	LogDetail string `gorm:"type:text;comment:任务内通过 ctx.Log 输出的执行明细" json:"logDetail"`
-	Hostname string `gorm:"size:100;comment:执行该任务的实例主机名" json:"hostname"`
+	Message   string `gorm:"column:message;type:text;comment:执行结果信息或错误原因" json:"message"`
+	LogDetail string `gorm:"column:log_detail;type:text;comment:任务内通过 ctx.Log 输出的执行明细" json:"logDetail"`
+	Hostname  string `gorm:"column:hostname;size:100;comment:执行该任务的实例主机名" json:"hostname"`
 
-	CreateAt time.Time `gorm:"autoCreateTime;index;comment:创建时间" json:"createAt"`
+	CreateAt time.Time `gorm:"column:create_at;autoCreateTime;index;comment:创建时间" json:"createAt"`
 }
 
 func (JobLog) TableName() string {

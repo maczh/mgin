@@ -306,7 +306,7 @@ func (m *Manager) Store() *store {
 // Trigger 手动触发一次任务执行（等价于管理界面「执行一次」）。
 // param 可临时覆盖任务配置中的 JobParam，留空则使用任务配置的参数。
 // 返回本次执行产生的日志 ID；若调度器未运行或任务不存在则返回错误。
-func (m *Manager) Trigger(id int64, param string) (int64, error) {
+func (m *Manager) Trigger(id int64, param map[string]interface{}) (int64, error) {
 	m.mu.RLock()
 	running := m.running
 	jr, ok := m.jobs[id]
@@ -319,7 +319,7 @@ func (m *Manager) Trigger(id int64, param string) (int64, error) {
 		return 0, fmt.Errorf("任务[%d]不存在或未启用", id)
 	}
 	info := jr.snapshot()
-	if param == "" {
+	if param == nil || len(param) == 0 {
 		param = info.JobParam
 	}
 	// 同步执行以便立即返回结果与日志 ID
@@ -624,7 +624,7 @@ func (m *Manager) cleanLoop() {
 }
 
 // fire 触发一次任务执行，按阻塞策略决定是否真正执行
-func (m *Manager) fire(jr *jobRuntime, triggerType, param string) {
+func (m *Manager) fire(jr *jobRuntime, triggerType string, param map[string]interface{}) {
 	info := jr.snapshot()
 	handler := GetHandler(info.HandlerName)
 	if handler == nil {
@@ -680,7 +680,7 @@ func (m *Manager) fire(jr *jobRuntime, triggerType, param string) {
 }
 
 // execute 执行任务并处理超时、重试与日志落库
-func (m *Manager) execute(jr *jobRuntime, handler HandlerFunc, triggerType, param string) {
+func (m *Manager) execute(jr *jobRuntime, handler HandlerFunc, triggerType string, param map[string]interface{}) {
 	info := jr.snapshot()
 	atomic.AddInt32(&jr.active, 1)
 	defer atomic.AddInt32(&jr.active, -1)
@@ -724,7 +724,7 @@ func (m *Manager) execute(jr *jobRuntime, handler HandlerFunc, triggerType, para
 
 // runOnce 单次执行，返回是否成功
 func (m *Manager) runOnce(jr *jobRuntime, handler HandlerFunc, info JobInfo,
-	triggerType, param string, retryNum int) bool {
+	triggerType string, param map[string]interface{}, retryNum int) bool {
 	m.mu.RLock()
 	st := m.st
 	m.mu.RUnlock()
@@ -832,7 +832,7 @@ func (m *Manager) runOnce(jr *jobRuntime, handler HandlerFunc, info JobInfo,
 }
 
 // writeBlockedLog 记录一条未真正执行的调度日志（阻塞丢弃、执行器缺失等）
-func (m *Manager) writeBlockedLog(info JobInfo, triggerType, param string, status int, message string) {
+func (m *Manager) writeBlockedLog(info JobInfo, triggerType string, param map[string]interface{}, status int, message string) {
 	m.mu.RLock()
 	st := m.st
 	m.mu.RUnlock()

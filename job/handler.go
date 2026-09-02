@@ -29,7 +29,7 @@ type Context struct {
 	// HandlerName 执行器名称
 	HandlerName string
 	// Param 任务参数，来自任务配置的 JobParam 或手动触发时传入的参数
-	Param string
+	Param map[string]interface{}
 	// LogId 本次执行的日志 ID
 	LogId int64
 	// TriggerType 触发类型：cron / manual / retry / misfire
@@ -85,21 +85,21 @@ func (c *Context) detail() string {
 }
 
 // ParamMap 将形如 a=1&b=2 的任务参数解析为 map，便于快速取值
-func (c *Context) ParamMap() map[string]string {
-	m := make(map[string]string)
-	for _, kv := range strings.Split(c.Param, "&") {
-		if kv == "" {
-			continue
-		}
-		parts := strings.SplitN(kv, "=", 2)
-		if len(parts) == 2 {
-			m[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
-		} else {
-			m[strings.TrimSpace(parts[0])] = ""
-		}
-	}
-	return m
-}
+// func (c *Context) ParamMap() map[string]string {
+// 	m := make(map[string]string)
+// 	for _, kv := range strings.Split(c.Param, "&") {
+// 		if kv == "" {
+// 			continue
+// 		}
+// 		parts := strings.SplitN(kv, "=", 2)
+// 		if len(parts) == 2 {
+// 			m[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
+// 		} else {
+// 			m[strings.TrimSpace(parts[0])] = ""
+// 		}
+// 	}
+// 	return m
+// }
 
 // handlerRegistry 执行器注册表，全局唯一
 type handlerRegistry struct {
