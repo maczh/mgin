@@ -90,10 +90,10 @@ type jobRuntime struct {
 	mu   sync.RWMutex
 	info JobInfo
 
-	schedule cron.Schedule  // cron 类型的调度计划
-	interval time.Duration  // fixed_rate / fixed_delay 的间隔
-	onceAt   time.Time      // once 类型的执行时刻
-	next     time.Time      // 下次触发时间，零值表示不再调度
+	schedule cron.Schedule // cron 类型的调度计划
+	interval time.Duration // fixed_rate / fixed_delay 的间隔
+	onceAt   time.Time     // once 类型的执行时刻
+	next     time.Time     // 下次触发时间，零值表示不再调度
 
 	active   int32 // 正在执行的实例数
 	queued   int32 // serial 策略下的排队数
@@ -167,6 +167,7 @@ func GetManager() *Manager {
 				cron.Dom | cron.Month | cron.Dow | cron.Descriptor),
 		}
 		manager.hostname, _ = os.Hostname()
+		manager.cfg = loadConfig()
 	})
 	return manager
 }
@@ -300,6 +301,9 @@ func (m *Manager) IsRunning() bool {
 func (m *Manager) Store() *store {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
+	if m.st == nil {
+		m.st, _ = newStore(m.cfg.DbName)
+	}
 	return m.st
 }
 

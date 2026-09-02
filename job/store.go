@@ -111,6 +111,10 @@ func (s *store) Driver() string {
 
 // DB 返回底层 GORM 连接，便于业务侧做自定义查询
 func (s *store) DB() *gorm.DB {
+	if s.db == nil {
+		loadConfig()
+		s, _ = newStore(config.Config.GetConfigString("go.job.dbName"))
+	}
 	return s.db
 }
 

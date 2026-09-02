@@ -11,6 +11,7 @@ import (
 	"github.com/maczh/mgin/config"
 	"github.com/maczh/mgin/errcode"
 	"github.com/maczh/mgin/i18n"
+	"github.com/maczh/mgin/job"
 	"github.com/maczh/mgin/logs"
 	"github.com/maczh/mgin/middleware/cors"
 	"github.com/maczh/mgin/middleware/postlog"
@@ -138,9 +139,11 @@ func (app *App) baseRouter() {
 	})
 
 	// 定时任务管理路由组（job，类 xxl-job）按需挂载，例如：
-	//   job.GetManager()
-	//   app.Router.Group("/job").Use(你的鉴权中间件...).GET(...) // 或：
-	//   job.RouterGroup(app.Router.Group("/job"))
+	if config.Config.GetConfigBool("go.job.enabled") {
+		job.GetManager()
+		app.Router.Group("/job")
+		job.RouterGroup(app.Router.Group("/job"))
+	}
 	// 详见 README 第 22 章。未挂载时不影响定时任务调度本身的运行。
 
 }
