@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"mime"
+	"path"
 	"strings"
 	"time"
 
@@ -52,6 +54,72 @@ func (m *mongo[E]) Set(mgodao dao.Dao[E], isMultiDBFunc func() bool) {
 }
 
 var accessChannel = make(chan string, 100)
+
+var fileResponseFormats = map[string]string{
+	"application/zip":    "zip",
+	"application/msword": "doc",
+	"application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+	"application/vnd.ms-excel": "xls",
+	"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":         "xlsx",
+	"application/vnd.ms-powerpoint":                                             "ppt",
+	"application/vnd.openxmlformats-officedocument.presentationml.presentation": "pptx",
+	"application/pdf":    "pdf",
+	"application/gzip":   "gz",
+	"application/x-gzip": "gz",
+	"application/x-tar":  "tar",
+	"text/csv":           "csv",
+	"text/plain":         "txt",
+}
+
+var fileResponseExtensions = map[string]bool{
+	"zip": true, "doc": true, "docx": true, "xls": true, "xlsx": true,
+	"ppt": true, "pptx": true, "pdf": true, "gz": true, "tar": true,
+	"csv": true, "txt": true,
+}
+
+func fileResponseSummary(contentType, contentDisposition, requestPath string, size int) string {
+	mediaType, _, _ := mime.ParseMediaType(contentType)
+	format := fileResponseFormats[strings.ToLower(mediaType)]
+
+	if format == "" {
+		if _, params, err := mime.ParseMediaType(contentDisposition); err == nil {
+			format = fileExtension(params["filename"])
+		}
+	}
+	if format == "" {
+		format = fileExtension(requestPath)
+	}
+	if !fileResponseExtensions[format] {
+		return ""
+	}
+
+	return fmt.Sprintf("输出%s格式文件，大小%.2fMB", format, float64(size)/(1024*1024))
+}
+
+func fileExtension(filename string) string {
+	extension := strings.TrimPrefix(strings.ToLower(path.Ext(filename)), ".")
+	if fileResponseExtensions[extension] {
+		return extension
+	}
+	return ""
+}
+
+func getResponseLogMode() string {
+	mode := strings.ToLower(config.Config.Log.Get)
+	if mode != "line" && mode != "off" {
+		return "full"
+	}
+	return mode
+}
+
+func oneLineResponse(response string) string {
+	response = strings.Join(strings.Fields(response), " ")
+	responseRunes := []rune(response)
+	if len(responseRunes) <= 180 {
+		return response
+	}
+	return string(responseRunes[:176]) + " ..."
+}
 
 func (w bodyLogWriter) Write(b []byte) (int, error) {
 	w.body.Write(b)
@@ -100,8 +168,12 @@ func RequestLogger() gin.HandlerFunc {
 		c.Next()
 
 		responseBody := bodyLogWriter.body.String()
+		fileSummary := fileResponseSummary(bodyLogWriter.Header().Get("Content-Type"), bodyLogWriter.Header().Get("Content-Disposition"), c.Request.URL.Path, bodyLogWriter.body.Len())
+		if fileSummary != "" {
+			responseBody = fileSummary
+		}
 		//如果gzip压缩，需要解压缩
-		if strings.Contains(bodyLogWriter.Header().Get("Content-Encoding"), "gzip") {
+		if fileSummary == "" && strings.Contains(bodyLogWriter.Header().Get("Content-Encoding"), "gzip") {
 			r, err := gzip.NewReader(bytes.NewBufferString(responseBody))
 			if err != nil {
 				logs.Error("gzip.NewReader error:", err.Error())
@@ -113,6 +185,17 @@ func RequestLogger() gin.HandlerFunc {
 			}
 			responseBody = string(rBody)
 		}
+		responseDatabaseBody := responseBody
+		responseLogBody := responseBody
+		if c.Request.Method == "GET" {
+			switch getResponseLogMode() {
+			case "line":
+				responseLogBody = oneLineResponse(responseBody)
+			case "off":
+				responseLogBody = ""
+				responseDatabaseBody = ""
+			}
+		}
 		var result any
 
 		// 日志格式
@@ -120,8 +203,8 @@ func RequestLogger() gin.HandlerFunc {
 			return
 		}
 
-		if responseBody != "" && responseBody[0:1] == "{" {
-			err := json.Unmarshal([]byte(responseBody), &result)
+		if responseDatabaseBody != "" && responseDatabaseBody[0:1] == "{" {
+			err := json.Unmarshal([]byte(responseDatabaseBody), &result)
 			if err != nil {
 				result = map[string]any{"status": -1, "msg": "解析异常:" + err.Error()}
 			}
@@ -156,12 +239,14 @@ func RequestLogger() gin.HandlerFunc {
 		postLog.RequestBody = reqBody
 		postLog.ResponseTime = endTime.Format("2006-01-02 15:04:05")
 		postLog.ResponseMap = result
-		//postLog.ResponseStr = responseBody
+		postLog.ResponseStr = responseDatabaseBody
 		postLog.TTL = int(endTime.UnixNano()/1e6 - startTime.UnixNano()/1e6)
 
 		accessLog := "|" + c.Request.Method + "|" + postLog.Uri + "|" + c.ClientIP() + "|" + endTime.Format("2006-01-02 15:04:05.012") + "|" + fmt.Sprintf("%vms", endTime.UnixNano()/1e6-startTime.UnixNano()/1e6)
 		logs.Debug(accessLog)
-		logs.Debug("接口返回:{}", responseBody)
+		if responseLogBody != "" {
+			logs.Debug("接口返回:{}", responseLogBody)
+		}
 
 		if config.Config.Log.RequestTableName != "" || config.Config.Log.Kafka.Use {
 			accessChannel <- utils.ToJSON(postLog)
@@ -227,5 +312,4 @@ func handleAccessChannel() {
 			logs.Debug("日志写入ElasticSearch返回:{}", resp)
 		}
 	}
-	return
 }

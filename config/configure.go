@@ -77,6 +77,9 @@ type appLog struct {
 	CallTableName    string `json:"call" bson:"call"`
 	LogDb            string `json:"logDb" bson:"logDb"`
 	DbName           string `json:"dbName" bson:"dbName"`
+	Get              string `json:"get" bson:"get"`
+	Req              string `json:"req" bson:"req"`
+	Api              string `json:"api" bson:"api"` //api日志表名
 	Kafka            struct {
 		Use   bool   `json:"use" bson:"use"`
 		Topic string `json:"topic" bson:"topic"`
@@ -153,8 +156,10 @@ func (c *config) Init(cf string) {
 	c.Log.RequestTableName = c.Cnf.String("go.log.req")
 	c.Log.CallTableName = c.Cnf.String("go.log.call")
 	c.Log.DbName = c.Cnf.String("go.log.dbName")
-	c.Log.Kafka.Use = c.Cnf.Bool("go.log.kafka.use")
-	c.Log.Kafka.Topic = c.Cnf.String("go.log.kafka.topic")
+	c.Log.Get = c.Cnf.String("go.log.get")
+	c.Log.Req = c.Cnf.String("go.log.req")
+	c.Log.Api = c.Cnf.String("go.log.api")
+	c.Cnf.Unmarshal("go.log.kafka", &c.Log.Kafka)
 	if c.Log.Kafka.Topic == "" {
 		c.Log.Kafka.Topic = c.App.Name
 	}
