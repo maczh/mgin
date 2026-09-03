@@ -1,0 +1,17 @@
+go:
+  application:
+    name: quickstart
+    port: 18096
+    project: quickstart
+    debug: true
+  logger:
+    level: debug
+    out: console,file
+    file: logs/quickstart
+  config:
+    used: "sqlite"
+    env: test
+    server_type: file
+    path: conf
+    prefix:
+      sqlite: quickstart.db
