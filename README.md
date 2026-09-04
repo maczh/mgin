@@ -1,8 +1,8 @@
-# MGin 微服务框架（v2-arch）
+# MGin 微服务框架（v2）
 
-> 模块路径：`github.com/maczh/mgin` · Go 1.25+ · 当前分支：`v2-arch`（基线：`v1.25.14-jh`）
+> 模块路径：`github.com/maczh/mgin` · Go 1.25+ · 当前分支：`v2`（基线：`v1.25.14-jh`）
 >
-> v2-arch 是**对 v1.25.14-jh 的内部架构重构**，**模块路径未升级**（仍为 `github.com/maczh/mgin`）。
+> v2 是**对 v1.25.14-jh 的内部架构重构**，**模块路径未升级**（仍为 `github.com/maczh/mgin`）。
 > 它在保留 v1 所有对外 API 的同时，引入了统一的插件系统、客户端韧性、四类客户端负载均衡、
 > Prometheus 指标、统一错误码与 OpenTelemetry 接入；并把脚手架（`cmd/`）升级为对应的 v2 输出。
 >
@@ -19,7 +19,7 @@
 - [v2 框架目录结构](#v2-框架目录结构)
 - [与 v1.25.14-jh 的功能变迁](#与-v12514-jh-的功能变迁)
 - [配置分层 `go.framework.*` / `go.application.*` / `go.runtime.*`](#配置分层)
-- [升级到 v2-arch](#升级到-v2-arch)
+- [升级到 v2](#升级到-v2)
 - [测试 / 构建 / Makefile](#测试--构建--makefile)
 
 ---
@@ -30,8 +30,8 @@
 
 ```bash
 # 安装脚手架 CLI
-go install github.com/maczh/mgin/cmd/mgin@v1.25.14-jh
-# 或在 v2-arch 分支本地构建：cd cmd && go build -o $(go env GOPATH)/bin/mgin .
+go install github.com/maczh/mgin/cmd/mgin@v2.0.0
+# 或在 v2 分支本地构建：cd cmd && go build -o $(go env GOPATH)/bin/mgin .
 
 # 一步生成一个带健康检查、Prometheus 指标、负载均衡、注册中心的 Go 微服务工程
 mgin new order --module github.com/acme/order \
@@ -101,14 +101,14 @@ func main() {
 
 ## v2 新增能力一览
 
-v2-arch 提交链（`v2-arch` 分支，从旧到新）：
+v2 提交链（`v2` 分支，从旧到新）：
 
 | Commit | 一句话 |
 |---|---|
 | `a285b65` | **健康探针 + client.Call 韧性 + HTTPS 优雅关闭** 三大生产缺口补齐 |
 | `d6416a6` | **v2.0 骨架重构**：包迁移到 `pkg/`、统一 `Plugin` 系统、配置分层、`client.CallCtx` 零破坏升级、`Dao[E]` 接口扩展 |
 | `e3cfca2` | **v2.1 微服务能力**：客户端负载均衡（4 策略）、Prometheus 指标、统一错误码增强、OpenTelemetry 抽象 |
-| `7507f7f` | **脚手架 v2-arch 适配**：`cmd/{mgin,new,scaffold,templates}.go` 输出 v2 兼容代码、新增 `--health/--metrics/--otel/--loadbalancer` 开关 |
+| `7507f7f` | **脚手架 v2 适配**：`cmd/{mgin,new,scaffold,templates}.go` 输出 v2 兼容代码、新增 `--health/--metrics/--otel/--loadbalancer` 开关 |
 
 ### 核心架构层
 
@@ -157,7 +157,7 @@ v2-arch 提交链（`v2-arch` 分支，从旧到新）：
 
 ### 进程生命周期
 
-- **HTTPS 优雅关闭** —— v2-arch 把 `server` 与 `serverSsl` 收集到切片，退出时逐个 `Shutdown`；超时由 `go.application.shutdownTimeout` 决定（默认 5 秒）。
+- **HTTPS 优雅关闭** —— v2 把 `server` 与 `serverSsl` 收集到切片，退出时逐个 `Shutdown`；超时由 `go.application.shutdownTimeout` 决定（默认 5 秒）。
 - 顺带修复了 `signalChan := make(chan os.Signal)` 无缓冲会丢信号的隐患。
 
 ---
@@ -325,11 +325,11 @@ mgin/                                   # 框架仓库根 (github.com/maczh/mgin
 
 ## 与 v1.25.14-jh 的功能变迁
 
-> v1.25.14-jh 提交 `5d8f40a`（"新增cmd命令行生成mgin工程框架"）；v2-arch 在其之上重写了 4 个独立 commit。
+> v1.25.14-jh 提交 `5d8f40a`（"新增cmd命令行生成mgin工程框架"）；v2 在其之上重写了 4 个独立 commit。
 
 ### 大方向变化
 
-| 维度 | v1.25.14-jh | v2-arch | 增量价值 |
+| 维度 | v1.25.14-jh | v2 | 增量价值 |
 |------|-------------|---------|----------|
 | 包结构 | 14 个顶层包平铺（`client/` `config/` `errcode/` ...） | 全部收至 `pkg/`；顶层仅 `cmd docs internal logs pkg` | 内部细节私有化，未来引入 `internal/` |
 | 生命周期 | `mgin.go` 手写 `if Contains(used, "mysql")` 等十几次 | 统一 `Plugin` 接口 + 注册表驱动，`Init/Close/Health` 标准化 | 加一个数据源 = 注册一个 plugin，不再改 `mgin.go` |
@@ -416,9 +416,9 @@ go:
 
 ---
 
-## 升级到 v2-arch
+## 升级到 v2
 
-老项目拉取 `v2-arch` 后，**主要工作是改 import 路径**：
+老项目拉取 `v2` 后，**主要工作是改 import 路径**：
 
 ```bash
 # 一键 sed（macOS / BSD）：把 14 个旧顶层包替换为 pkg/
@@ -430,7 +430,7 @@ done
 # sed -i 's|github.com/maczh/mgin/\(client\|config\|errcode\|...\)\([^a-zA-Z]\)|github.com/maczh/mgin/pkg/\1\2|g'
 ```
 
-或者用脚手架 `--mgin-version v1.25.14-jh`（默认值）保持兼容，单独开 v2-arch 分支开新工程。
+或者用脚手架 `--mgin-version v1.25.14-jh`（默认值）保持兼容，单独开 v2 分支开新工程。
 
 完整迁移文档参见 [`docs/migration-v1-to-v2.md`](docs/migration-v1-to-v2.md)。
 
@@ -450,7 +450,7 @@ go build ./...
 go vet ./...
 ```
 
-> **已知失败**：`pkg/config / pkg/registry/{consul,etcd,polaris}` 的少量测试在 jh 基线上就会 panic（v1 既有 bug，依赖远程 etcd/consul/polaris 进程；与 v2-arch 重构无关，不在本分支责任范围）。
+> **已知失败**：`pkg/config / pkg/registry/{consul,etcd,polaris}` 的少量测试在 jh 基线上就会 panic（v1 既有 bug，依赖远程 etcd/consul/polaris 进程；与 v2 重构无关，不在本分支责任范围）。
 
 ### 脚手架级
 
@@ -483,4 +483,4 @@ make clean
   - [`docs/v2-package-map.md`](docs/v2-package-map.md) — `pkg/` 包归属表
   - [`docs/migration-v1-to-v2.md`](docs/migration-v1-to-v2.md) — v1 → v2 迁移
   - [`docs/mgin-architecture-options.md`](docs/mgin-architecture-options.md) — 六套架构方案对比（基于源码实测的额外前置文档）
-- 版本说明：基线 `v1.25.14-jh`（`5d8f40a`）；v2-arch 在其之上叠加 4 个 commit。
+- 版本说明：基线 `v1.25.14-jh`（`5d8f40a`）；v2 在其之上叠加 4 个 commit。
