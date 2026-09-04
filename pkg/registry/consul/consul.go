@@ -122,6 +122,31 @@ func (c *ConsulClient) GetServiceURL(servicename string, groupName ...string) (s
 	return "", currentGroup
 }
 
+// GetServices v2 新增：返回该服务在 Consul 上的全部健康实例 URL 列表。
+// 与 GetServiceURL 走同一条 Health().Service 路径，只是不再随机选 1 个。
+func (c *ConsulClient) GetServices(servicename string, groupName ...string) ([]string, error) {
+	if len(groupName) == 0 || groupName[0] == "" {
+		groupName = []string{c.group}
+	}
+	for _, group := range groupName {
+		services, _, err := c.client.Health().Service(servicename, group, true, &api.QueryOptions{})
+		if err != nil {
+			logger.Error("Consul 拉取" + servicename + "实例失败:" + err.Error())
+			continue
+		}
+		if len(services) == 0 {
+			continue
+		}
+		urls := make([]string, 0, len(services))
+		for _, svc := range services {
+			urls = append(urls, fmt.Sprintf("%s%s:%d", svc.Service.Tags[2], svc.Service.Address, svc.Service.Port))
+		}
+		logger.Debug("Consul 获取" + servicename + "服务列表成功:" + strings.Join(urls, ","))
+		return urls, nil
+	}
+	return nil, nil
+}
+
 // DeRegister 方法用于从 Consul 注销服务
 func (c *ConsulClient) DeRegister() {
 	localip, _ := localIPv4s(c.lan, c.lanNetwork)

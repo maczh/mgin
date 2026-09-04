@@ -107,6 +107,26 @@ func ErrorWithMsg(code int, messageId, msg string) models.Result[any] {
 func ErrorWithMsgT[T any](code int, messageId, msg string) models.Result[T] {
 	return models.ErrorT[T](code, fmt.Sprintf("%s:%s", String(messageId), msg))
 }
+
+// ErrorDef v2.1 新增：基于 errcode.Definition 的标准化错误响应。
+//
+// 把三向映射（errcode.Definition → i18n 文案 → HTTP 状态码）一步完成：
+//   - 文案通过 def.MessageKey + args 走 i18n.Format
+//   - 业务码写入返回体的 Code 字段
+//   - HTTP 状态码由 def.HTTPStatus 决定（调用方需在自己的 handler 里手动 c.JSON(def.HTTPStatus, result)）
+//
+// 返回的 result 是已渲染文案的 models.Result，业务侧调用方式：
+//
+//	c.JSON(errcode.LookupDef(errcode.PARAM_ERROR).HTTPStatus,
+//	    i18n.ErrorDef(errcode.PARAM_ERROR, paramName))
+func ErrorDef(def errcode.Definition, args ...any) models.Result[any] {
+	return models.Error(def.Code, Format(def.MessageKey, args...))
+}
+
+// ErrorDefT 泛型版，行为同 ErrorDef。
+func ErrorDefT[T any](def errcode.Definition, args ...any) models.Result[T] {
+	return models.ErrorT[T](def.Code, Format(def.MessageKey, args...))
+}
 func Success[T any](data T) models.Result[T] {
 	return models.SuccessWithMsg[T](String("success"), data)
 }

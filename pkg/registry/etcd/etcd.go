@@ -184,6 +184,32 @@ func (c *EtcdClient) GetServiceURL(servicename string, groupName ...string) (str
 	return "", currentGroup
 }
 
+// GetServices v2 新增：返回该服务在 etcd 上注册的全部实例 URL 列表。
+// 与 GetServiceURL 走同一条 prefix 扫描路径，只是把"随机选一个"改为"全部返回"。
+func (c *EtcdClient) GetServices(servicename string, groupName ...string) ([]string, error) {
+	if len(groupName) == 0 || groupName[0] == "" {
+		groupName = []string{c.group}
+	}
+	for _, group := range groupName {
+		prefix := fmt.Sprintf("%s/%s/%s/", c.prefix, group, servicename)
+		resp, err := c.client.Get(context.Background(), prefix, clientv3.WithPrefix())
+		if err != nil {
+			logger.Error("etcd 拉取" + servicename + "实例失败:" + err.Error())
+			continue
+		}
+		if len(resp.Kvs) == 0 {
+			continue
+		}
+		urls := make([]string, 0, len(resp.Kvs))
+		for _, kv := range resp.Kvs {
+			urls = append(urls, string(kv.Value))
+		}
+		logger.Debug("etcd 获取" + servicename + "服务列表成功:" + strings.Join(urls, ","))
+		return urls, nil
+	}
+	return nil, nil
+}
+
 func (c *EtcdClient) DeRegister() {
 	//localip, _ := localIPv4s(c.lan, c.lanNetwork)
 	//ip := localip[0]

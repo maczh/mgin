@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"runtime"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -28,6 +29,24 @@ func PutRequestId(c *gin.Context) {
 	if headers["X-User-Agent"] == "" {
 		headers["X-User-Agent"] = headers["User-Agent"]
 	}
+
+	// v2.1 增强：W3C Trace Context 透传。
+	// 若入站请求已带 traceparent（上游已开 trace），则原样透传；
+	// 否则生成一个 v2 兼容的 traceparent：version-traceid-spanid-flags。
+	// 这样下游 OTel SDK 能直接识别，业务无需手写 context propagation。
+	if headers["traceparent"] == "" {
+		traceId := getRandomHexString(16) // 16-byte = 32 hex chars
+		spanId := getRandomHexString(8)   // 8-byte = 16 hex chars
+		headers["traceparent"] = "00-" + traceId + "-" + spanId + "-01"
+		headers["X-Trace-Id"] = traceId // v1 兼容：保留旧 header
+	} else if headers["X-Trace-Id"] == "" {
+		// 入站有 traceparent 但没有 X-Trace-Id，解析出来给 v1 业务用。
+		parts := strings.Split(headers["traceparent"], "-")
+		if len(parts) >= 2 {
+			headers["X-Trace-Id"] = parts[1]
+		}
+	}
+
 	cache.OnGetCache("Header").Add(routineId, headers, 5*time.Minute)
 }
 

@@ -209,6 +209,87 @@ func (n *NacosClient) GetServiceURL(servicename string, groupName ...string) (st
 	return "", ""
 }
 
+// GetServices v2 新增：返回该服务的所有可用实例 URL 列表（健康检查通过 + enabled）。
+// 直接复用 GetServiceURL 已有的 /list 调用，去掉"随机选 1 个"这一步。
+func (n *NacosClient) GetServices(servicename string, groupName ...string) ([]string, error) {
+	var instance InstanceResp
+	var resp *grequests.Response
+	var err error
+
+	doList := func(group string) {
+		q := map[string]string{"serviceName": servicename}
+		if group != "" {
+			q["groupName"] = group
+		}
+		resp, err = grequests.DoRegularRequest(http.MethodGet, n.nsurl+"/list", &grequests.RequestOptions{
+			Params: q,
+		})
+	}
+
+	if len(groupName) > 0 && groupName[0] != "" {
+		for _, g := range groupName {
+			doList(g)
+			if err != nil {
+				logger.Error("获取Nacos服务" + servicename + "失败:" + err.Error())
+				continue
+			}
+			if resp == nil || resp.StatusCode != 200 {
+				if resp != nil {
+					logger.Error("获取Nacos服务" + servicename + "失败:" + resp.String())
+				}
+				continue
+			}
+			if uerr := json.Unmarshal(resp.Bytes(), &instance); uerr != nil {
+				logger.Error("解析Nacos服务" + servicename + "失败:" + uerr.Error())
+				continue
+			}
+			urls := []string{}
+			for _, h := range instance.Hosts {
+				if !h.Healthy || !h.Enabled {
+					continue
+				}
+				protocol := "http://"
+				if h.Metadata != nil && h.Metadata["ssl"] == "true" {
+					protocol = "https://"
+				}
+				urls = append(urls, protocol+h.IP+":"+strconv.Itoa(h.Port))
+			}
+			if len(urls) > 0 {
+				logger.Debug("Nacos获取" + servicename + "服务列表成功:" + strings.Join(urls, ","))
+				return urls, nil
+			}
+		}
+		return nil, nil
+	}
+
+	doList("")
+	if err != nil {
+		return nil, err
+	}
+	if resp == nil || resp.StatusCode != 200 {
+		if resp != nil {
+			logger.Error("获取Nacos服务" + servicename + "失败:" + resp.String())
+		}
+		return nil, nil
+	}
+	if uerr := json.Unmarshal(resp.Bytes(), &instance); uerr != nil {
+		return nil, uerr
+	}
+	urls := []string{}
+	for _, h := range instance.Hosts {
+		if !h.Healthy || !h.Enabled {
+			continue
+		}
+		protocol := "http://"
+		if h.Metadata != nil && h.Metadata["ssl"] == "true" {
+			protocol = "https://"
+		}
+		urls = append(urls, protocol+h.IP+":"+strconv.Itoa(h.Port))
+	}
+	logger.Debug("Nacos获取" + servicename + "服务列表成功:" + strings.Join(urls, ","))
+	return urls, nil
+}
+
 func (n *NacosClient) DeRegister() {
 	_, err := grequests.DoRegularRequest(http.MethodDelete, n.nsurl, &grequests.RequestOptions{
 		Params: n.param,

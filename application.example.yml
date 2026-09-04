@@ -167,3 +167,33 @@ go:
   #   goVersion: "go1.25.7"
   #   startedAt: <框架在 NewApp 时填入>
   #   pid: <框架在 NewApp 时填入>
+
+# ------------------------------------------------------------------
+# 5) Prometheus 指标（pkg/metrics，v2.1 新增）
+#    启用后框架在主引擎上最先挂载（早于所有中间件），因此不会被 casbin / jwt
+#    等鉴权中间件拦截，Prometheus 抓取不会返回 401。
+#    端点: GET /metrics
+#    关键指标:
+#      mgin_http_requests_total{method,path,status}
+#      mgin_http_request_duration_seconds{method,path}
+#      mgin_http_requests_in_flight
+#      mgin_build_info{version,commit,go_version}
+#      mgin_plugin_health{name}
+#      mgin_dependency_up{name}
+# ------------------------------------------------------------------
+metrics:
+  enabled: false
+  # 业务可主动调用 mgin.App.EnableMetrics() 显式启用，行为与 enabled=true 一致。
+
+# ------------------------------------------------------------------
+# 6) OpenTelemetry（pkg/otel，v2.1 新增）
+#    v2 决定走"轻量接口 + 业务自接 SDK"路线，框架不强制引入 OTel SDK/exporter。
+#    业务启用方式：
+#      1) go get go.opentelemetry.io/otel/sdk + exporter
+#      2) import "github.com/maczh/mgin/pkg/otel"
+#      3) otel.SetTracerProvider(自行构造的 sdktrace.TracerProvider)
+#    框架已自动给 trace header 加上 W3C traceparent，可与 OTel SDK 无缝对接。
+# ------------------------------------------------------------------
+otel:
+  enabled: false
+  # endpoint: "http://localhost:4318"  # OTLP HTTP 端点；为空时业务自行选择 exporter

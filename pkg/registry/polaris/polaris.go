@@ -172,6 +172,52 @@ func (c *PolarisClient) GetServiceURL(servicename string, namespaces ...string) 
 	return "", currentNameSpace
 }
 
+// GetServices v2 新增：返回该服务在 Polaris 上的全部健康实例 URL 列表。
+// 与 GetServiceURL 走同一条 /naming/v1/instances 路径。
+func (c *PolarisClient) GetServices(servicename string, namespaces ...string) ([]string, error) {
+	if len(namespaces) == 0 {
+		namespaces = append(namespaces, c.namespace)
+	}
+	if namespaces[0] == "" {
+		namespaces[0] = c.namespace
+	}
+	for _, namespace := range namespaces {
+		query := map[string]string{
+			"service":   servicename,
+			"namespace": namespace,
+		}
+		resp, err := grequests.Get(fmt.Sprintf("%s/naming/v1/instances", c.apiBaseUrl), grequests.FromRequestOptions(&grequests.RequestOptions{
+			Headers: map[string]string{
+				"X-Polaris-Token": c.token,
+			},
+			Params: query,
+		}))
+		if err != nil {
+			logger.Error("Polaris 拉取" + servicename + "实例失败:" + err.Error())
+			continue
+		}
+		var res QueryInstanceResponse
+		if uerr := resp.JSON(&res); uerr != nil {
+			logger.Error("Polaris 解析" + servicename + "实例失败:" + uerr.Error())
+			continue
+		}
+		if res.Code != SUCCESS || len(res.Instances) == 0 {
+			continue
+		}
+		urls := make([]string, 0, len(res.Instances))
+		for _, ins := range res.Instances {
+			protocol := "http"
+			if ins.Metadata["ssl"] == "true" {
+				protocol = "https"
+			}
+			urls = append(urls, fmt.Sprintf("%s://%s:%d", protocol, ins.Host, ins.Port))
+		}
+		logger.Debug("Polaris 获取" + servicename + "服务列表成功:" + strings.Join(urls, ","))
+		return urls, nil
+	}
+	return nil, nil
+}
+
 func (c *PolarisClient) DeRegister() {
 	query := DeregisterInstanceRequest{}
 	serviceId, exists := cache.OnGetCache("polaris").Get("serviceId")

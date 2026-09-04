@@ -14,6 +14,7 @@ import (
 	"github.com/maczh/mgin/pkg/i18n"
 	"github.com/maczh/mgin/pkg/job"
 	"github.com/maczh/mgin/pkg/logs"
+	"github.com/maczh/mgin/pkg/metrics"
 	"github.com/maczh/mgin/pkg/middleware/cors"
 	"github.com/maczh/mgin/pkg/middleware/postlog"
 	"github.com/maczh/mgin/pkg/middleware/ratelimit"
@@ -42,6 +43,11 @@ type App struct {
 	healthEnabled bool
 	// healthMounted 标记探针路由是否已挂载，防止重复注册（Gin 会 panic）。
 	healthMounted bool
+	// metricsEnabled v2.1：标记是否启用 /metrics 端点。
+	// 开启方式：配置 go.metrics.enabled=true，或业务调用 App.EnableMetrics()。
+	metricsEnabled bool
+	// metricsMounted 防止重复挂载 /metrics（Gin 对重复 method+path 会 panic）。
+	metricsMounted bool
 }
 
 // NewApp 创建一个新的 MGin App 实例。
@@ -125,6 +131,15 @@ func (app *App) baseRouter() {
 	// 选型理由详见 health 包头部注释（方案 a 与方案 b 的对比）。
 	app.mountHealth()
 
+	// Prometheus /metrics 端点（v2.1 引入）必须与 /health 同样策略：最早注册，
+	// 才能避免被业务 casbin / jwt 拦截导致 Prometheus 抓取 401。
+	// 端点路径硬编码为 /metrics（与 Prometheus 生态约定一致）。
+	if app.metricsEnabled && !app.metricsMounted && config.Config.GetConfigBool("go.metrics.enabled") {
+		app.Router.GET("/metrics", gin.WrapH(metrics.Handler()))
+		app.metricsMounted = true
+		logs.Info("Prometheus 指标端点已挂载: /metrics")
+	}
+
 	//添加跟踪日志
 	app.Router.Use(trace.TraceId())
 
@@ -148,8 +163,11 @@ func (app *App) baseRouter() {
 	app.Router.Use(nice.Recovery(recoveryHandler))
 
 	//设置404返回的内容
+	// v2.1 增强：HTTP 状态码按 errcode.URI_NOT_FOUND 的定义（404）返，而不是 200。
+	// 这让反向代理（nginx/envoy）与 K8s ingress 能根据真实状态做正确路由判断。
 	app.Router.NoRoute(func(c *gin.Context) {
-		c.JSON(http.StatusOK, i18n.Error(errcode.URI_NOT_FOUND, errcode.UrlNotFound))
+		def := errcode.LookupDef(errcode.URI_NOT_FOUND)
+		c.JSON(def.HTTPStatus, i18n.ErrorDef(def))
 	})
 
 	// 定时任务管理路由组（job，类 xxl-job）按需挂载，例如：
@@ -194,6 +212,18 @@ func (app *App) mountHealth() {
 func (app *App) EnableHealth() {
 	app.healthEnabled = true
 	app.mountHealth()
+}
+
+// EnableMetrics 显式启用 Prometheus /metrics 端点，等价于配置 go.metrics.enabled=true。
+// 建议在 NewApp() 之后立即调用，确保端点先于业务路由注册。
+func (app *App) EnableMetrics() {
+	app.metricsEnabled = true
+	if app.metricsMounted || app.Router == nil {
+		return
+	}
+	app.Router.GET("/metrics", gin.WrapH(metrics.Handler()))
+	app.metricsMounted = true
+	logs.Info("Prometheus 指标端点已挂载: /metrics")
 }
 
 // MarkHealthStarted 标记应用已完成启动，使 /startup 探针返回 200。
@@ -310,7 +340,10 @@ func (app *App) Run() {
 }
 
 func recoveryHandler(c *gin.Context, err interface{}) {
-	c.JSON(http.StatusOK, i18n.Error(errcode.SYSTEM_ERROR, errcode.SystemError))
+	// v2.1 增强：HTTP 状态码按 errcode.SYSTEM_ERROR 的定义（500）返，而不是 200。
+	// 客户端能据此识别"服务端异常"做重试或告警，而不是把异常当成功响应处理。
+	def := errcode.LookupDef(errcode.SYSTEM_ERROR)
+	c.JSON(def.HTTPStatus, i18n.ErrorDef(def))
 }
 
 func (app *App) GetVersion() string {

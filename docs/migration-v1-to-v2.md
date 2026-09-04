@@ -119,3 +119,35 @@ go build -ldflags "-X main.CommitHash=$(git rev-parse --short HEAD) \
 | `plugin.Plugin` 接口 + `plugin.Register` + `plugin.InitAll/CloseAll/HealthAll` | 直接调用组件 Init 函数 | 新代码推荐用 Plugin 系统；老 `mgin.Use / UsePlugin` 仍保留 |
 | `Config.Framework.*` | 无（直接读 `config.Config.GetConfigBool("go.framework.*")`） | 零值兜底，未配置时所有开关关闭 |
 | `Config.Runtime.*` | 无 | `startedAt` / `pid` / `goVersion` 由框架在 `Init()` 填入；`commitHash` / `buildTime` 由 `-ldflags` 注入 |
+
+## 5. v2.1 新增 API 索引（P1 精选 4 项）
+
+### 5.1 客户端负载均衡
+- `pkg/loadbalancer.RoundRobinLB` / `RandomLB` / `LeastConnectionsLB` / `ConsistentHashLB`
+- `pkg/loadbalancer.Default()` 取全局默认策略（默认 RoundRobin）
+- `pkg/loadbalancer.Register(name, lb)` 注册自定义策略
+- `client.Options.LoadBalancer` 字段指定调用方策略（为空走默认）
+- `registry.RegistryClient.GetServices(service, group...)` 新接口返多实例 URL 列表
+- per-instance 熔断：所有被熔断的实例会被 LB 跳过，重选不到时返 `client.ErrAllInstancesCircuitOpen`
+
+### 5.2 Prometheus 指标
+- 启用方式：配置 `go.metrics.enabled: true` 或调用 `app.EnableMetrics()`
+- 端点：`GET /metrics`（与 `/health` 同样策略：baseRouter 最早注册）
+- 关键指标：`mgin_http_requests_total` / `mgin_http_request_duration_seconds` / `mgin_http_requests_in_flight` / `mgin_build_info` / `mgin_plugin_health` / `mgin_dependency_up`
+- 中间件：`r.Use(metrics.Middleware())` 自动记录所有路由的 HTTP 指标
+- 上报 plugin/依赖健康：`metrics.SetPluginHealth(name, true)` / `metrics.SetDependencyUp(name, true)`
+
+### 5.3 统一错误码增强
+- `errcode.Definition{Code, HTTPStatus, MessageKey, Module}` 结构
+- `errcode.New(module, code, httpStatus, msgKey)` 构造器（自动修正非法 HTTPStatus）
+- `errcode.LookupDef(code)` 查预置 Definition
+- `errcode.RegisterDef(d)` 业务覆盖预置或注册自定义
+- `i18n.ErrorDef(def, args...)` / `i18n.ErrorDefT[T](def, args...)` 三向映射（i18n 文案 + 业务码）
+- 框架 NoRoute 与 Recovery 已改用 ErrorDef，正确返 404/500
+
+### 5.4 OpenTelemetry
+- 框架 trace header 自动加 W3C `traceparent`（兼容既有 `X-Trace-Id`）
+- `pkg/otel.SetTracerProvider(tp)` 注入业务自建 TracerProvider
+- `pkg/otel.StartSpan(ctx, name, ...)` 便捷开 span
+- `pkg/otel.IsEnabled()` 判断是否已启用（未启用时所有 span 走 noop）
+- `client.callInternal` 在 OTel 启用时自动开 `mgin.client.call` span

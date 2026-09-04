@@ -8,16 +8,24 @@ import (
 	"github.com/levigross/grequests"
 	"github.com/maczh/mgin/pkg/cache"
 	"github.com/maczh/mgin/pkg/config"
+	"github.com/maczh/mgin/pkg/loadbalancer"
 	"github.com/maczh/mgin/pkg/logs"
 	"github.com/maczh/mgin/pkg/middleware/trace"
 	"github.com/maczh/mgin/pkg/models"
+	"github.com/maczh/mgin/pkg/otel"
 	"github.com/maczh/mgin/pkg/registry"
 	"github.com/maczh/mgin/pkg/utils"
+	otelAttr "go.opentelemetry.io/otel/attribute"
+	otelTrace "go.opentelemetry.io/otel/trace"
 	"math/rand"
 	"net/url"
 	"strings"
 	"time"
 )
+
+// ErrAllInstancesCircuitOpen v2 负载均衡专用错误：当服务的全部实例都被熔断时返此错误，
+// 调用方可以快速失败（避免对已挂掉的下游继续施压）。
+var ErrAllInstancesCircuitOpen = errors.New("client: all instances circuit-open")
 
 const (
 	CONTENT_TYPE_FORM    = "x-form"
@@ -37,6 +45,11 @@ type Options struct {
 	Path     map[string]string      `json:"path"`     //restful模式的路径参数
 	Files    []grequests.FileUpload //文件上传数据
 	Retry    bool                   `json:"retry"` //是否重试
+
+	// v2 新增：负载均衡相关字段（可选，零侵入）。
+	// LoadBalancer 为空时走 loadbalancer.Default()（RoundRobin）。
+	// 命名常量参见 pkg/loadbalancer：roundrobin / random / leastconn / consistenthash。
+	LoadBalancer string `json:"loadbalancer,omitempty"`
 }
 
 // Call 是 v1 时代的微服务调用入口，等价于 CallCtx(context.Background(), service, uri, op)。
@@ -67,6 +80,21 @@ func CallCtx(ctx context.Context, service, uri string, op *Options) (string, err
 // callInternal 是 CallCtx 与 Call 共享的底层实现。ctx 在此函数内仅用于"占位 + 未来扩展"，
 // 当前 goroutine+timer 兑底由 resilience.go 提供的 CallResilientCtx 负责。
 func callInternal(ctx context.Context, service, uri string, op *Options) (string, error) {
+	// v2.1 增强：OTel 集成（可选）。
+	// 业务侧调用 otel.SetTracerProvider(...)
+	// 之后，callInternal 会自动开一个 client.call 的 span，并把 traceparent 注入 header。
+	// 未启用时 otel.Tracer() 返 noop，开销近零。
+	if otel.IsEnabled() {
+		var span otelTrace.Span
+		ctx, span = otel.StartSpan(ctx, "mgin.client.call",
+			otelTrace.WithAttributes(
+				otelAttr.String("rpc.service", service),
+				otelAttr.String("http.method", methodOrDefault(op)),
+				otelAttr.String("rpc.uri", uri),
+			),
+		)
+		defer span.End()
+	}
 	_ = ctx // 当前实现未直接使用，仅保留扩展位。
 	if op.Protocol == "" {
 		op.Protocol = config.Config.Discovery.CallType
@@ -89,10 +117,12 @@ func callInternal(ctx context.Context, service, uri string, op *Options) (string
 	}
 	host := ""
 	var err error
-	//host, err := getHostFromCache(fmt.Sprintf("%s@%s", service, op.Group))
-	//if err != nil || host == "" {
-	host, op.Group = registry.Registry.GetServiceURL(service, op.Group)
-	//}
+	// v2 路径：优先尝试 GetServices 多实例，配合 LoadBalancer + per-instance 熔断选 host。
+	host, err = selectHostByLB(service, op)
+	if err != nil || host == "" {
+		// 回退 v1 路径：单实例 GetServiceURL（向后兼容：旧注册中心或单实例部署）。
+		host, op.Group = registry.Registry.GetServiceURL(service, op.Group)
+	}
 	if host == "" {
 		//cache.OnGetCache("service", false).Add(fmt.Sprintf("%s@%s", service, op.Group), host, 5*time.Minute)
 		//subscribeNacos(service, op.Group)
@@ -226,3 +256,79 @@ func getHostFromCache(serviceName string) (string, error) {
 //		cache.OnGetCache("nacos").Add(serviceName, host, 5*time.Minute)
 //	}
 //}
+
+// selectHostByLB 是 v2 负载均衡入口：先 GetServices 拿多实例，按 op.LoadBalancer 指定的策略
+//（为空则走 loadbalancer.Default()，即 RoundRobin）选 1 个 host，并跳过被熔断的实例（per-instance
+// 熔断器：client.GetBreaker(service+"@"+host)）。
+//
+// 返回：
+//   - host != ""：选到可用实例
+//   - host == "" && err == nil：无可用实例但 GetServices 返回空，让调用方走 v1 fallback
+//   - err != nil：所有实例都被熔断，调用方应快速失败（ErrAllInstancesCircuitOpen）
+func selectHostByLB(service string, op *Options) (string, error) {
+	if registry.Registry == nil {
+		return "", nil
+	}
+	instances, err := registry.Registry.GetServices(service, op.Group)
+	if err != nil || len(instances) == 0 {
+		return "", nil // 调用方会回退到 v1 单实例路径
+	}
+
+	// 选策略：op.LoadBalancer 非空时按名取；否则走全局 Default。
+	lb := loadbalancer.Default()
+	if op != nil && op.LoadBalancer != "" {
+		if named := loadbalancer.Get(op.LoadBalancer); named != nil {
+			lb = named
+		}
+	}
+
+	// 一致性哈希 key：把 method+service 拼起来，确保同一业务调用尽量命中同一实例
+	//（除非该实例被熔断，才会在下一轮重选时换）。
+	key := service
+	if op != nil && op.Method != "" {
+		key = op.Method + "@" + service
+	}
+
+	// 最多尝试 len(instances) 次：每次选到被熔断的实例就把它临时剔除再选。
+	skipped := make(map[string]struct{}, len(instances))
+	for attempt := 0; attempt < len(instances); attempt++ {
+		// 构造候选集：剔除已尝试且熔断的实例
+		candidates := make([]string, 0, len(instances))
+		for _, ins := range instances {
+			if _, hit := skipped[ins]; !hit {
+				candidates = append(candidates, ins)
+			}
+		}
+		if len(candidates) == 0 {
+			break
+		}
+		picked, pickErr := lb.Pick(candidates, key)
+		if pickErr != nil {
+			// LB 选不出来（理论上不该发生，候选非空），把这一批都视为不可用，触发 fallback。
+			return "", nil
+		}
+		// per-instance 熔断
+		br := GetBreaker(service + "@" + picked)
+		if br != nil && !br.Allow() {
+			skipped[picked] = struct{}{}
+			continue
+		}
+		return picked, nil
+	}
+
+	// 全部实例都被熔断：直接快速失败，不再让请求穿透到下游。
+	return "", fmt.Errorf("%w: %s 的全部 %d 个实例当前均处于熔断/打开状态",
+		ErrAllInstancesCircuitOpen, service, len(instances))
+}
+
+// methodOrDefault 取 op.Method，未设置时返 "POST"（与 callInternal 内部默认保持一致）。
+// 仅用于 OTel span attribute，不影响实际 HTTP 请求。
+func methodOrDefault(op *Options) string {
+	if op == nil {
+		return "POST"
+	}
+	if op.Method == "" {
+		return "POST"
+	}
+	return op.Method
+}
