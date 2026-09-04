@@ -10,6 +10,7 @@ import (
 	"github.com/labstack/gommon/color"
 	"github.com/maczh/mgin/config"
 	"github.com/maczh/mgin/errcode"
+	"github.com/maczh/mgin/health"
 	"github.com/maczh/mgin/i18n"
 	"github.com/maczh/mgin/job"
 	"github.com/maczh/mgin/logs"
@@ -36,6 +37,11 @@ type App struct {
 	i18n       bool
 	Router     *gin.Engine
 	MGin       *mgin
+	// healthEnabled 标记业务是否通过 App.EnableHealth() 显式启用了健康检查探针。
+	// 为 false 时仍可能由配置 go.health.enabled 驱动挂载（见 mountHealth）。
+	healthEnabled bool
+	// healthMounted 标记探针路由是否已挂载，防止重复注册（Gin 会 panic）。
+	healthMounted bool
 }
 
 // NewApp 创建一个新的 MGin App 实例。
@@ -111,6 +117,14 @@ func (app *App) baseRouter() {
 	// gin.DisableConsoleColor()
 	app.Router = gin.Default()
 
+	// 健康检查探针（health 包）必须在此处、且在所有 Use() 之前挂载。
+	// Gin 在路由注册时（RouterGroup.handle -> combineHandlers）就已经把当前已注册的中间件链
+	// 快照进了路由节点，之后再注册的中间件不会回溯作用到已注册的路由上。因此只要探针路由
+	// 先于一切 Use() 完成注册，就不会被用户后续挂载的 casbin / jwt 等鉴权中间件拦截
+	// （K8s 探活不会被 401），也不会被 ratelimit 等限流中间件误伤。
+	// 选型理由详见 health 包头部注释（方案 a 与方案 b 的对比）。
+	app.mountHealth()
+
 	//添加跟踪日志
 	app.Router.Use(trace.TraceId())
 
@@ -146,6 +160,46 @@ func (app *App) baseRouter() {
 	}
 	// 详见 README 第 22 章。未挂载时不影响定时任务调度本身的运行。
 
+}
+
+// mountHealth 按配置挂载健康检查探针（/health/live /health/ready /health/startup）。
+//
+// 默认不启用：只有配置 go.health.enabled=true，或业务调用了 App.EnableHealth() 时才挂载。
+// 未启用的项目不会多出任何路由，行为与升级前完全一致。
+//
+// 挂到 /health 前缀而非根路径，是为了避免与既有项目的业务路由产生冲突：
+// 探针在 baseRouter() 中最先注册，会早于用户的所有业务路由。
+// 若挂在根路径 (/live、/ready、/startup) 而用户已有同名业务路由，启动时将 panic。
+//
+// healthMounted 用于保证同一进程内只挂载一次：Gin 对重复注册同一 method+path 会直接 panic，
+// 因此当配置开关与 App.EnableHealth() 同时使用时必须去重。
+func (app *App) mountHealth() {
+	if app.healthMounted || app.Router == nil {
+		return
+	}
+	if !app.healthEnabled && !config.Config.GetConfigBool("go.health.enabled") {
+		return
+	}
+	health.Router(app.Router.Group("/health"))
+	app.healthMounted = true
+	logs.Info("健康检查探针已挂载: /health/live /health/ready /health/startup")
+}
+
+// EnableHealth 显式启用健康检查探针，等价于配置 go.health.enabled=true。
+//
+// 建议在挂载 casbin / jwt 等鉴权中间件之前调用。由于 NewApp() 中 baseRouter() 已执行，
+// 此时挂载的探针会带上 baseRouter() 中已注册的无害中间件（trace / postlog / cors / recovery），
+// 但不会带上本方法之后才注册的中间件；若需要完全干净的调用链，请直接使用 go.health.enabled 配置。
+// 重复调用或与配置开关同时使用都是安全的，探针路由只会挂载一次。
+func (app *App) EnableHealth() {
+	app.healthEnabled = true
+	app.mountHealth()
+}
+
+// MarkHealthStarted 标记应用已完成启动，使 /startup 探针返回 200。
+// 等价于直接调用 health.MarkStarted()。
+func (app *App) MarkHealthStarted() {
+	health.MarkStarted()
 }
 
 // Run 方法用于启动 HTTP 和 HTTPS 服务器，并监听系统信号以实现优雅关闭。
@@ -186,8 +240,14 @@ func (app *App) Run() {
 	//logs.Info("|-----------------------------------|")
 	//logs.Info("")
 
+	// servers 收集所有实际启动的 http.Server，退出时逐个优雅关闭。
+	// 注意：此前 serverSsl 从未被 Shutdown，收到退出信号后 HTTPS 的监听 goroutine 会泄漏、
+	// 端口也会延迟释放，这里统一纳入管理。
+	servers := make([]*http.Server, 0, 2)
+
 	// 如果配置文件中设置的 HTTP 端口大于 0，则启动 HTTP 服务器
 	if config.Config.App.Port > 0 {
+		servers = append(servers, server)
 		go func() {
 			// 启动 HTTP 服务器监听连接
 			if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -199,6 +259,7 @@ func (app *App) Run() {
 
 	// 如果配置文件中设置了 SSL 证书路径，则启动 HTTPS 服务器
 	if config.Config.App.Cert != "" {
+		servers = append(servers, serverSsl)
 		go func() {
 			var err error
 			// 启动 HTTPS 服务器监听连接
@@ -209,8 +270,17 @@ func (app *App) Run() {
 			}
 		}()
 	}
-	// 创建一个信号通道，用于接收系统信号
-	signalChan := make(chan os.Signal)
+
+	// 若配置了 go.health.autoStarted=true，则在监听启动之后自动标记启动完成，
+	// 使 /startup 探针返回 200。默认不自动标记，由业务自行调用 health.MarkStarted()。
+	if config.Config.GetConfigBool("go.health.autoStarted") {
+		health.MarkStarted()
+	}
+
+	// 创建一个信号通道，用于接收系统信号。
+	// 缓冲区设为 1：signal.Notify 内部是非阻塞投递，使用无缓冲通道时，
+	// 若信号在 <-signalChan 之前到达会被直接丢弃，导致进程收不到退出信号而无法优雅关闭。
+	signalChan := make(chan os.Signal, 1)
 	// 监听指定的系统信号
 	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGHUP, syscall.SIGTERM, syscall.SIGQUIT)
 	// 阻塞等待系统信号
@@ -221,13 +291,18 @@ func (app *App) Run() {
 	logs.Error("Shutdown Server ...")
 	// 安全退出应用
 	app.MGin.SafeExit()
-	// 创建一个带有 5 秒超时的上下文
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	// 优雅关闭 HTTP 服务器
-	if err := server.Shutdown(ctx); err != nil {
-		// 记录服务器关闭错误信息
-		logs.Error("Server Shutdown:" + err.Error())
+	// 优雅关闭超时时间：读取 go.application.shutdownTimeout（秒），
+	// 未配置或 <= 0 时回退为默认 5 秒（与升级前的硬编码值一致）。
+	shutdownTimeout := config.Config.GetShutdownTimeout()
+	// 逐个优雅关闭所有已启动的服务器（HTTP / HTTPS），错误分别记录日志。
+	// 每个服务器各自持有一个超时上下文，互不挤占；未启动的服务器不会被 Shutdown。
+	for _, s := range servers {
+		ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+		if err := s.Shutdown(ctx); err != nil {
+			// 记录服务器关闭错误信息
+			logs.Error("Server[{}] Shutdown:{}", s.Addr, err.Error())
+		}
+		cancel()
 	}
 	// 记录服务器退出信息
 	logs.Error("Server exiting")

@@ -10,6 +10,9 @@ go:
     port_ssl: 8443
     debug: true
     ip: 127.0.0.1
+    # 优雅关闭超时时间（秒）。退出时逐个 Shutdown 已启动的 HTTP / HTTPS server，
+    # 未配置或 <= 0 时回退为 5 秒（与升级前硬编码值一致，老项目不受影响）
+    shutdownTimeout: 10
   logger:
     level: debug
     out: console,file
@@ -117,3 +120,16 @@ go:
   #   b := s3.GetS3().Default()
   # 管理接口挂载（Gin 路由组）：
   #   job.RouterGroup(app.Router.Group("/job"))
+
+  # ------------------------------------------------------------------
+  # 4) 健康检查探针（health 包，K8s liveness / readiness / startup）
+  #    默认关闭；enabled=true 时框架在主引擎上最先挂载（早于所有中间件），
+  #    因此不会被 casbin / jwt 等鉴权中间件拦截，探活不会返回 401。
+  #    端点: GET /health/live   GET /health/ready   GET /health/startup
+  #    响应: {"status":"ok","dependencies":{"mysql":"ok","redis":"fail"}}
+  # ------------------------------------------------------------------
+  health:
+    enabled: false
+    # autoStarted: true 时框架在监听启动后自动调用 health.MarkStarted()，
+    # 使 /startup 立即返回 200；默认 false，由业务初始化完成后自行调用 health.MarkStarted()
+    autoStarted: false

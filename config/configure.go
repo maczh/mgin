@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/knadh/koanf"
 	"github.com/knadh/koanf/parsers/yaml"
@@ -38,6 +39,10 @@ type app struct {
 	Key     string `json:"key" bson:"key"`
 	Debug   bool   `json:"debug" bson:"debug"`
 	IpAddr  string `json:"ipAddr" bson:"ipAddr"`
+	// ShutdownTimeout 优雅关闭的超时时间（秒），对应配置项 go.application.shutdownTimeout。
+	// 未配置或配置值 <= 0 时回退为 DefaultShutdownTimeout（5 秒），
+	// 保证未升级配置的老项目行为与升级前完全一致。
+	ShutdownTimeout int `json:"shutdownTimeout" bson:"shutdownTimeout"`
 }
 
 type appConfig struct {
@@ -113,6 +118,20 @@ var logger = gologger.GetLogger()
 
 const config_file = "./application.yml"
 
+// DefaultShutdownTimeout 优雅关闭的默认超时时间。
+// 未配置 go.application.shutdownTimeout 或配置值非法（<=0）时使用该值，
+// 与升级前硬编码的 5 秒保持一致，确保向后兼容。
+const DefaultShutdownTimeout = 5 * time.Second
+
+// GetShutdownTimeout 返回优雅关闭的超时时间。
+// 读取 go.application.shutdownTimeout（单位：秒）；未配置或 <= 0 时回退为 DefaultShutdownTimeout。
+func (c *config) GetShutdownTimeout() time.Duration {
+	if c.App.ShutdownTimeout > 0 {
+		return time.Duration(c.App.ShutdownTimeout) * time.Second
+	}
+	return DefaultShutdownTimeout
+}
+
 func (c *config) Init(cf string) {
 	if cf == "" {
 		cf = config_file
@@ -136,6 +155,7 @@ func (c *config) Init(cf string) {
 	c.App.Key = c.Cnf.String("go.application.key")
 	c.App.Debug = c.Cnf.Bool("go.application.debug")
 	c.App.IpAddr = c.Cnf.String("go.application.ip")
+	c.App.ShutdownTimeout = c.Cnf.Int("go.application.shutdownTimeout")
 	c.Config.Server = c.Cnf.String("go.config.server")
 	c.Config.Type = c.Cnf.String("go.config.server_type")
 	c.Config.Token = c.Cnf.String("go.config.token")
