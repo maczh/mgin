@@ -4,14 +4,21 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
+
 	"github.com/gofrs/uuid"
 	"github.com/maczh/mgin/v2/pkg/logs"
 	"github.com/maczh/mgin/v2/pkg/utils"
 	"github.com/olivere/elastic"
-	"strings"
 )
 
 func (e *ElasticSearch) AddDocument(database, table string, doc map[string]any, searchFields []string) (string, error) {
+	if e == nil || e.Elastic == nil {
+		return "", errors.New("Elasticsearch client is nil")
+	}
+	if doc == nil {
+		return "", errors.New("document is nil")
+	}
 	indexName := fmt.Sprintf("%s_%s", database, table)
 	if table == "" {
 		indexName = database
@@ -37,24 +44,37 @@ func (e *ElasticSearch) AddDocument(database, table string, doc map[string]any, 
 			return "", err
 		}
 	}
-	resp, err := e.Elastic.Index().Index(indexName).Type("_doc").Id(doc["id"].(string)).BodyJson(doc).Do(context.TODO())
+	id, ok := doc["id"].(string)
+	if !ok || id == "" {
+		return "", errors.New("document id must be a non-empty string")
+	}
+	resp, err := e.Elastic.Index().Index(indexName).Type("_doc").Id(id).BodyJson(doc).Do(context.TODO())
 	logs.Debug("插入文档结果:{}", resp)
 	if err != nil {
 		return "", err
 	}
 	if resp.Result == "created" || resp.Result == "updated" {
-		return doc["id"].(string), nil
+		return id, nil
 	} else {
 		return "", errors.New(resp.Result)
 	}
 }
 
 func (e *ElasticSearch) AddDocuments(database, table string, docs []map[string]any, searchFields []string) ([]string, error) {
+	if e == nil || e.Elastic == nil {
+		return nil, errors.New("Elasticsearch client is nil")
+	}
+	if len(docs) == 0 {
+		return nil, errors.New("documents are empty")
+	}
 	indexName := fmt.Sprintf("%s_%s", database, table)
 	if table == "" {
 		indexName = database
 	}
 	for i, doc := range docs {
+		if doc == nil {
+			return nil, fmt.Errorf("document at index %d is nil", i)
+		}
 		if _, ok := doc["id"]; !ok {
 			uid, _ := uuid.NewV4()
 			docs[i]["id"] = uid.String()
@@ -81,8 +101,12 @@ func (e *ElasticSearch) AddDocuments(database, table string, docs []map[string]a
 	bulk := e.Elastic.Bulk()
 	ids := make([]string, len(docs))
 	for i, doc := range docs {
-		ids[i] = doc["id"].(string)
-		bulk.Add(elastic.NewBulkIndexRequest().Index(indexName).Id(doc["id"].(string)).Doc(doc))
+		id, ok := doc["id"].(string)
+		if !ok || id == "" {
+			return nil, fmt.Errorf("document id at index %d must be a non-empty string", i)
+		}
+		ids[i] = id
+		bulk.Add(elastic.NewBulkIndexRequest().Index(indexName).Id(id).Doc(doc))
 	}
 	resp, err := bulk.Do(context.Background())
 	logs.Debug("批量插入返回结果:{}", resp)

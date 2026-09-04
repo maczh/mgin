@@ -4,6 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand"
+	"net/url"
+	"strings"
+	"time"
+
 	"github.com/gin-gonic/gin"
 	"github.com/levigross/grequests"
 	"github.com/maczh/mgin/v2/pkg/cache"
@@ -17,10 +22,6 @@ import (
 	"github.com/maczh/mgin/v2/pkg/utils"
 	otelAttr "go.opentelemetry.io/otel/attribute"
 	otelTrace "go.opentelemetry.io/otel/trace"
-	"math/rand"
-	"net/url"
-	"strings"
-	"time"
 )
 
 // ErrAllInstancesCircuitOpen v2 负载均衡专用错误：当服务的全部实例都被熔断时返此错误，
@@ -184,7 +185,7 @@ func CallCtxT[T any](ctx context.Context, service, uri string, op *Options) mode
 	if err != nil {
 		return models.ErrorT[T](-1, err.Error())
 	}
-	if resp[:1] != "{" {
+	if strings.TrimSpace(resp) == "" || !strings.HasPrefix(strings.TrimSpace(resp), "{") {
 		return models.ErrorT[T](-1, "Service error")
 	}
 	var result models.Result[T]
@@ -197,11 +198,23 @@ func getHostFromCache(serviceName string) (string, error) {
 	if h == nil {
 		logs.Debug("{} 服务无缓存", serviceName)
 		return "", errors.New("无此服务缓存")
-	} else {
-		hosts := strings.Split(h.(string), ",")
-		r := rand.New(rand.NewSource(time.Now().UnixNano()))
-		return hosts[r.Intn(len(hosts))], nil
 	}
+	hostString, ok := h.(string)
+	if !ok || strings.TrimSpace(hostString) == "" {
+		return "", errors.New("服务缓存格式无效")
+	}
+	hosts := strings.Split(hostString, ",")
+	available := hosts[:0]
+	for _, host := range hosts {
+		if strings.TrimSpace(host) != "" {
+			available = append(available, strings.TrimSpace(host))
+		}
+	}
+	if len(available) == 0 {
+		return "", errors.New("服务缓存无可用主机")
+	}
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	return available[r.Intn(len(available))], nil
 }
 
 //func subscribeNacos(serviceName, groupName string) {

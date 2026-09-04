@@ -9,6 +9,8 @@ import (
 	"context"
 	"sort"
 	"sync"
+
+	"github.com/maczh/mgin/v2/pkg/logs"
 )
 
 // Plugin 是 mgin v2 的统一组件契约。
@@ -102,11 +104,14 @@ func InitAll(ctx context.Context) error {
 		if !p.Enabled() {
 			continue
 		}
+		logs.Info("正在初始化{}", p.Name())
 		if err := p.Init(ctx); err != nil {
 			if firstErr == nil {
 				firstErr = err
 			}
+			logs.Error("初始化插件{}失败:{}", p.Name(), err)
 		}
+		logs.Info("插件{}初始化成功", p.Name())
 	}
 	return firstErr
 }
@@ -123,6 +128,7 @@ func CloseAll(ctx context.Context) error {
 		if !p.Enabled() {
 			continue
 		}
+		logs.Info("正在关闭{}", p.Name())
 		func() {
 			defer func() {
 				if r := recover(); r != nil {

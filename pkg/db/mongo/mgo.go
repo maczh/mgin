@@ -3,13 +3,14 @@ package mongo
 import (
 	"errors"
 	"fmt"
+	"strings"
+	"time"
+
 	"github.com/knadh/koanf"
 	"github.com/knadh/koanf/parsers/yaml"
 	"github.com/knadh/koanf/providers/rawbytes"
 	"github.com/maczh/mgo"
 	"github.com/sadlil/gologger"
-	"strings"
-	"time"
 )
 
 type Mongodb struct {
@@ -117,25 +118,39 @@ func (m *Mongodb) Init(mongodbConfigData []byte) {
 }
 
 func (m *Mongodb) Close() {
+	if m == nil || m.conns == nil {
+		return
+	}
 	if m.multi {
-		for k, _ := range m.conns {
-			m.conns[k].conn.Close()
+		for k, conn := range m.conns {
+			if conn.conn != nil {
+				conn.conn.Close()
+			}
 			delete(m.conns, k)
 		}
 	} else {
-		m.conns["0"].conn.Close()
+		if conn, ok := m.conns["0"]; ok && conn.conn != nil {
+			conn.conn.Close()
+		}
 		delete(m.conns, "0")
 	}
 }
 
 func (m *Mongodb) mgoCheck(tag string) error {
+	if m == nil {
+		return errors.New("Mongodb is nil")
+	}
 	if len(m.conns) == 0 {
 		m.Init(m.confData)
 	}
-	if m.conns[tag].conn.Ping() != nil {
-		uri := m.conns[tag].url
-		db := m.conns[tag].db
-		m.conns[tag].conn.Close()
+	conn, ok := m.conns[tag]
+	if !ok || conn.conn == nil {
+		return errors.New("MongoDB connection not found")
+	}
+	if conn.conn.Ping() != nil {
+		uri := conn.url
+		db := conn.db
+		conn.conn.Close()
 		session, err := mgo.DialWithTimeout(uri, 10*time.Second, m.max)
 		if err != nil {
 			logger.Error(tag + " MongoDB连接错误:" + err.Error())
@@ -151,12 +166,15 @@ func (m *Mongodb) mgoCheck(tag string) error {
 }
 
 func (m *Mongodb) Check() error {
+	if m == nil {
+		return errors.New("Mongodb is nil")
+	}
 	var err error
 	if len(m.conns) == 0 {
 		m.Init(m.confData)
 	}
 	if m.multi {
-		for dbName, _ := range m.conns {
+		for dbName := range m.conns {
 			err = m.mgoCheck(dbName)
 			if err != nil {
 				logger.Error(dbName + "连接检查失败:" + err.Error())
@@ -170,11 +188,17 @@ func (m *Mongodb) Check() error {
 }
 
 func (m *Mongodb) GetConnection(dbName ...string) (*mgo.Database, error) {
+	if m == nil {
+		return nil, errors.New("Mongodb is nil")
+	}
 	if m.multi {
 		if len(dbName) > 1 || len(dbName) == 0 {
 			return nil, errors.New("Multidb Mongodb get connection must be specified one dbName")
 		}
 		if dbName[0] == "" {
+			if len(m.tags) == 0 {
+				return nil, errors.New("MongoDB multidb has no available database")
+			}
 			dbName[0] = m.tags[0]
 		}
 		if _, ok := m.conns[dbName[0]]; !ok {
@@ -190,11 +214,18 @@ func (m *Mongodb) GetConnection(dbName ...string) (*mgo.Database, error) {
 		if len(m.conns) == 0 {
 			return nil, errors.New("Mongodb connection failed")
 		}
-		return m.conns["0"].conn.Copy().DB(m.conns["0"].db), nil
+		conn, ok := m.conns["0"]
+		if !ok || conn.conn == nil {
+			return nil, errors.New("Mongodb connection failed")
+		}
+		return conn.conn.Copy().DB(conn.db), nil
 	}
 }
 
 func (m *Mongodb) ReturnConnection(conn *mgo.Database) {
+	if conn == nil {
+		return
+	}
 	conn.Session().Close()
 }
 

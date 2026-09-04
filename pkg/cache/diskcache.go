@@ -1,8 +1,9 @@
 package cache
 
 import (
-	"git.mills.io/prologic/bitcask"
 	"time"
+
+	"git.mills.io/prologic/bitcask"
 )
 
 type DiskCache struct {
@@ -10,13 +11,18 @@ type DiskCache struct {
 }
 
 func (d *DiskCache) Add(key any, value any, lifeSpan time.Duration) {
+	if d == nil || d.db == nil {
+		return
+	}
 	k, err := anyToString(key)
 	if err != nil {
 		logger.Error("key to string failed: " + err.Error())
+		return
 	}
 	v, err := anyToString(value)
 	if err != nil {
 		logger.Error("value to string failed: " + err.Error())
+		return
 	}
 	if lifeSpan <= 0 {
 		err := d.db.Put([]byte(k), []byte(v))
@@ -34,9 +40,13 @@ func (d *DiskCache) Add(key any, value any, lifeSpan time.Duration) {
 }
 
 func (d *DiskCache) Value(key any) (any, bool) {
+	if d == nil || d.db == nil {
+		return nil, false
+	}
 	k, err := anyToString(key)
 	if err != nil {
 		logger.Error("key to string failed: " + err.Error())
+		return nil, false
 	}
 	if d.db.Has([]byte(k)) {
 		v, err := d.db.Get([]byte(k))
@@ -50,14 +60,21 @@ func (d *DiskCache) Value(key any) (any, bool) {
 }
 
 func (d *DiskCache) IsExist(key any) bool {
+	if d == nil || d.db == nil {
+		return false
+	}
 	k, err := anyToString(key)
 	if err != nil {
 		logger.Error("key to string failed: " + err.Error())
+		return false
 	}
 	return d.db.Has([]byte(k))
 }
 
 func (d *DiskCache) Clear() bool {
+	if d == nil || d.db == nil {
+		return false
+	}
 	err := d.db.DeleteAll()
 	if err != nil {
 		return false
@@ -74,6 +91,9 @@ func (d *DiskCache) Set(key any, value any, duration time.Duration) {
 }
 
 func (d *DiskCache) Range(f func(key, value any) bool) {
+	if d == nil || d.db == nil || f == nil {
+		return
+	}
 	//函数不同，暂不支持
 	keys := make([]string, 0)
 	for k := range d.db.Keys() {
@@ -87,14 +107,21 @@ func (d *DiskCache) Range(f func(key, value any) bool) {
 }
 
 func (d *DiskCache) Delete(key any) {
+	if d == nil || d.db == nil {
+		return
+	}
 	k, err := anyToString(key)
 	if err != nil {
 		logger.Error("key to string failed: " + err.Error())
+		return
 	}
 	d.db.Delete([]byte(k))
 }
 
 func (d *DiskCache) Close() {
+	if d == nil || d.db == nil {
+		return
+	}
 	d.db.Sync()
 	d.db.Close()
 }

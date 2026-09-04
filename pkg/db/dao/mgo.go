@@ -34,6 +34,9 @@ func (m MgoDao[E]) Insert(entity *E) error {
 		logger.Error("数据库连接失败: " + err.Error())
 		return errors.New("数据库连接失败")
 	}
+	if conn == nil {
+		return errors.New("数据库连接为空")
+	}
 	defer db.Mongo.ReturnConnection(conn)
 	err = conn.C(m.CollectionName).Insert(entity)
 	if err != nil {
@@ -55,6 +58,9 @@ func (m MgoDao[E]) Delete(query bson.M) error {
 	if err != nil {
 		logger.Error("数据库连接失败: " + err.Error())
 		return errors.New("数据库连接失败")
+	}
+	if conn == nil {
+		return errors.New("数据库连接为空")
 	}
 	defer db.Mongo.ReturnConnection(conn)
 	err = conn.C(m.CollectionName).Remove(query)
@@ -78,6 +84,9 @@ func (m MgoDao[E]) Updates(id primitive.ObjectID, doc E) error {
 		logger.Error("数据库连接失败: " + err.Error())
 		return errors.New("数据库连接失败")
 	}
+	if conn == nil {
+		return errors.New("数据库连接为空")
+	}
 	defer db.Mongo.ReturnConnection(conn)
 	err = conn.C(m.CollectionName).Update(bson.M{"_id": id}, bson.M{"$set": doc})
 	if err != nil {
@@ -99,6 +108,9 @@ func (m MgoDao[E]) All(query bson.M) ([]E, error) {
 	if err != nil {
 		logger.Error("数据库连接失败: " + err.Error())
 		return nil, errors.New("数据库连接失败")
+	}
+	if conn == nil {
+		return nil, errors.New("数据库连接为空")
 	}
 	defer db.Mongo.ReturnConnection(conn)
 
@@ -123,6 +135,9 @@ func (m MgoDao[E]) One(query bson.M) (*E, error) {
 	if err != nil {
 		logger.Error("数据库连接失败: " + err.Error())
 		return nil, errors.New("数据库连接失败")
+	}
+	if conn == nil {
+		return nil, errors.New("数据库连接为空")
 	}
 	defer db.Mongo.ReturnConnection(conn)
 	var result E
@@ -150,9 +165,15 @@ func (m MgoDao[E]) Pager(query bson.M, sort []string, page, size int) ([]E, *mod
 		logger.Error("数据库连接失败: " + err.Error())
 		return nil, nil, errors.New("数据库连接失败")
 	}
+	if conn == nil {
+		return nil, nil, errors.New("数据库连接为空")
+	}
 	defer db.Mongo.ReturnConnection(conn)
 	// 默认分页大小为20条
-	if size == 0 {
+	if page < 1 {
+		page = 1
+	}
+	if size <= 0 {
 		size = 20
 	}
 	var result = make([]E, 0)

@@ -355,6 +355,10 @@ func (c *config) GetConfigData(prefix string) []byte {
 		if err != nil {
 			return nil
 		}
+		if len(resp.Kvs) == 0 {
+			logger.Debug("etcd中配置文件不存在,疑似project配置错误,key为: " + fmt.Sprintf("/config/%s/%s-%s.yml", c.App.Project, prefix, c.Config.Env))
+			return nil
+		}
 		return resp.Kvs[0].Value
 	case "polaris":
 		resp, err := grequests.Get(c.GetConfigUrl(prefix), grequests.FromRequestOptions(&grequests.RequestOptions{

@@ -3,13 +3,14 @@ package cache
 import (
 	"crypto/md5"
 	"fmt"
-	"git.mills.io/prologic/bitcask"
-	"github.com/sadlil/gologger"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"git.mills.io/prologic/bitcask"
+	"github.com/sadlil/gologger"
 )
 
 type Cache struct {
@@ -43,7 +44,8 @@ func OnDiskCache(cachePath string) ICache {
 	if cachePath == "" {
 		cachePath = fmt.Sprintf("%s/cache.db", path)
 	} else {
-		if !(strings.HasPrefix(cachePath, "/") || cachePath[1:2] == ":") {
+		isWindowsAbsolute := len(cachePath) >= 2 && cachePath[1] == ':'
+		if !(strings.HasPrefix(cachePath, "/") || isWindowsAbsolute) {
 			cachePath = fmt.Sprintf("%s/%s", path, cachePath)
 		}
 	}
@@ -77,24 +79,30 @@ func OnMemCache(cachename string) ICache {
 	//	mc.cacheType = make(map[string]string)
 	//	mc.db = make(map[string]*DiskCache)
 	//}
-	if c, ok := mc.cache.Load(cachename); ok {
-		return c.(ICache)
-	} else {
-		c = new(MemCache)
-		mc.cache.Store(cachename, c)
-		return c.(ICache)
+	if value, ok := mc.cache.Load(cachename); ok {
+		if cache, ok := value.(ICache); ok && cache != nil {
+			return cache
+		}
+		mc.cache.Delete(cachename)
 	}
+	cache := new(MemCache)
+	mc.cache.Store(cachename, cache)
+	return cache
 }
 
 func CloseCache() {
 	if mc != nil {
 		mc.db.Range(func(key, value any) bool {
-			value.(ICache).Close()
+			if cache, ok := value.(ICache); ok && cache != nil {
+				cache.Close()
+			}
 			mc.db.Delete(key)
 			return true
 		})
 		mc.cache.Range(func(key, value any) bool {
-			value.(ICache).Close()
+			if cache, ok := value.(ICache); ok && cache != nil {
+				cache.Close()
+			}
 			mc.cache.Delete(key)
 			return true
 		})

@@ -3,12 +3,13 @@ package casbin
 import (
 	"errors"
 	"fmt"
+	"strconv"
+	"sync"
+
 	"github.com/casbin/casbin/v2"
 	"github.com/maczh/mgin/v2/pkg/config"
 	"github.com/maczh/mgin/v2/pkg/db"
 	"github.com/maczh/mgin/v2/pkg/logs"
-	"strconv"
-	"sync"
 
 	"github.com/casbin/casbin/v2/model"
 	gormAdapter "github.com/casbin/gorm-adapter/v3"
@@ -149,6 +150,9 @@ func (s *casbinService) SyncPolicy(roleId string, rule [][]string) error {
 func (s *casbinService) AddPolicy(rules [][]string) error {
 	var casbinRules []gormAdapter.CasbinRule
 	for i := range rules {
+		if len(rules[i]) < 3 {
+			return fmt.Errorf("casbin policy at index %d must contain at least 3 fields", i)
+		}
 		casbinRules = append(casbinRules, gormAdapter.CasbinRule{
 			Ptype: "p",
 			V0:    rules[i][0],
