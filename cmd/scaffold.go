@@ -12,6 +12,12 @@ import (
 
 // scaffold 推导配置并写出整个工程骨架。
 func scaffold(opts *ProjectOptions) error {
+	if opts == nil {
+		return fmt.Errorf("工程选项不能为空")
+	}
+	if strings.TrimSpace(opts.ProjectName) == "" {
+		return fmt.Errorf("工程名不能为空")
+	}
 	computeDerived(opts)
 
 	root := opts.OutputDir
@@ -149,6 +155,9 @@ func (o *ProjectOptions) HasMQKey(key string) bool {
 
 // computeDerived 根据用户输入推导 used/prefix/数据层/配置中心等字段。
 func computeDerived(o *ProjectOptions) {
+	if o == nil {
+		return
+	}
 	o.Env = "test"
 	o.BaseURI = "/api/v1"
 
@@ -255,21 +264,27 @@ func buildAppYAML(o *ProjectOptions) string {
 	b.WriteString("    out: console,file\n")
 	fmt.Fprintf(&b, "    file: logs/%s\n", o.ProjectName)
 	b.WriteString("  config:\n")
-	fmt.Fprintf(&b, "    used: \"%s\"\n", o.UsedList)
+	if o.ConfigServer != "" {
+		fmt.Fprintf(&b, "    server: %s\n", o.ConfigServer)
+	}
 	fmt.Fprintf(&b, "    env: %s\n", o.Env)
 	fmt.Fprintf(&b, "    server_type: %s\n", o.ServerType)
 	if o.ServerType == "file" {
 		b.WriteString("    path: conf\n")
 	}
-	if o.ConfigServer != "" {
-		fmt.Fprintf(&b, "    server: %s\n", o.ConfigServer)
-	}
 	if o.ConfigToken != "" {
 		fmt.Fprintf(&b, "    token: %s\n", o.ConfigToken)
 	}
+	b.WriteString("    type: .yml\n")
+	fmt.Fprintf(&b, "    used: \"%s\"\n", o.UsedList)
 	b.WriteString("    prefix:\n")
 	b.WriteString(o.PrefixBlock)
 
+	b.WriteString("  log:\n")
+	b.WriteString("    db: mongodb\n")
+	fmt.Fprintf(&b, "    req: %sReqLog\n", o.ProjectName)
+	fmt.Fprintf(&b, "    api: %sApiLog\n", o.ProjectName)
+	fmt.Fprintf(&b, "    call: %sCallLog\n", o.ProjectName)
 	// v2 框架元配置 (新增, 与 application.* 解耦; 旧项目未声明时按零值处理)。
 	b.WriteString("  framework:\n")
 	fmt.Fprintf(&b, "    health: %s    # K8s 探针: 启用 /health/live /health/ready /health/startup\n", boolYAML(o.Health))
@@ -344,7 +359,7 @@ func buildReadme(o *ProjectOptions) string {
 	fmt.Fprintf(&b, "| 健康检查 `/health/{live,ready,startup}` | %s | K8s 探针; `/health/ready` 按数据源 Check 自报健康 |\n", onOff(o.Health))
 	fmt.Fprintf(&b, "| Prometheus `/metrics` | %s | HTTP 请求计数/直方图/in_flight + go_* 运行时 |\n\n", onOff(o.Metrics))
 	fmt.Fprintf(&b, "| OpenTelemetry | %s | 业务侧 `otel.SetTracerProvider()` 启用; W3C traceparent 始终透传 |\n", onOff(o.Otel))
-	fmt.Fprintf(&b, "| 客户端负载均衡 | %s | 策略: %s; 4 实例全熔断时返 ErrAllInstancesCircuitOpen |\n", onOff(o.LBPolicy != "" && o.Registry != "none" && o.Registry != "" && o.Registry != "none"), o.LBPolicy)
+	fmt.Fprintf(&b, "| 客户端负载均衡 | %s | 策略: %s; 4 实例全熔断时返 ErrAllInstancesCircuitOpen |\n", onOff(o.LBPolicy != "" && o.Registry != "none" && o.Registry != ""), o.LBPolicy)
 
 	b.WriteString("\n## 生成时选择的配置\n\n")
 	fmt.Fprintf(&b, "- 模块路径: `%s`\n", o.Module)

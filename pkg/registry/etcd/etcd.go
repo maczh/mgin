@@ -36,6 +36,9 @@ type EtcdClient struct {
 var logger = gologger.GetLogger()
 
 func (c *EtcdClient) Register(etcdConfigData []byte) {
+	if c == nil {
+		return
+	}
 	if etcdConfigData != nil {
 		c.confData = etcdConfigData
 	}
@@ -85,7 +88,14 @@ func (c *EtcdClient) Register(etcdConfigData []byte) {
 		ports := strings.Split(portstr, ",")
 		etcd_urls := make([]string, 0)
 		for i, ip := range ips {
+			if strings.TrimSpace(ip) == "" || i >= len(ports) || strings.TrimSpace(ports[i]) == "" {
+				continue
+			}
 			etcd_urls = append(etcd_urls, fmt.Sprintf("http://%s:%s", ip, ports[i]))
+		}
+		if len(etcd_urls) == 0 {
+			logger.Error("Etcd 配置缺少有效 server/port")
+			return
 		}
 		serverConfig := clientv3.Config{Endpoints: etcd_urls, DialTimeout: 5 * time.Second}
 		logger.Debug("Etcd客户端配置: " + toJSON(serverConfig))
@@ -95,7 +105,10 @@ func (c *EtcdClient) Register(etcdConfigData []byte) {
 			return
 		}
 		localip, _ := localIPv4s(c.lan, c.lanNetwork)
-		ip := localip[0]
+		ip := "127.0.0.1"
+		if len(localip) > 0 {
+			ip = localip[0]
+		}
 		if config.Config.App.IpAddr != "" {
 			ip = config.Config.App.IpAddr
 		}
@@ -119,7 +132,10 @@ func (c *EtcdClient) Register(etcdConfigData []byte) {
 		if len(resp.Kvs) > 0 {
 			for _, kv := range resp.Kvs {
 				if string(kv.Value) == apiUrl {
-					instanceIds = append(instanceIds, string(kv.Key)[len(prefix):])
+					key := string(kv.Key)
+					if strings.HasPrefix(key, prefix) {
+						instanceIds = append(instanceIds, strings.TrimPrefix(key, prefix))
+					}
 				}
 			}
 		}
@@ -158,7 +174,12 @@ func (c *EtcdClient) Register(etcdConfigData []byte) {
 }
 
 func (c *EtcdClient) GetServiceURL(servicename string, groupName ...string) (string, string) {
-	if groupName[0] == "" {
+	if c == nil || c.client == nil {
+		return "", ""
+	}
+	if len(groupName) == 0 {
+		groupName = []string{c.group}
+	} else if groupName[0] == "" {
 		groupName[0] = c.group
 	}
 	currentGroup := groupName[0]
@@ -178,7 +199,12 @@ func (c *EtcdClient) GetServiceURL(servicename string, groupName ...string) (str
 		r := rand.New(rand.NewSource(time.Now().UnixNano()))
 		kv := resp.Kvs[r.Intn(len(resp.Kvs))]
 		//将当前服务实例对应的instanceId保存到缓存当中
-		cache.OnMemCache("etcd_service").Set(fmt.Sprintf("etcd_%s_%s", servicename, string(kv.Value)), string(kv.Key)[len(prefix):], 5*time.Second)
+		key := string(kv.Key)
+		instanceID := ""
+		if strings.HasPrefix(key, prefix) {
+			instanceID = strings.TrimPrefix(key, prefix)
+		}
+		cache.OnMemCache("etcd_service").Set(fmt.Sprintf("etcd_%s_%s", servicename, string(kv.Value)), instanceID, 5*time.Second)
 		return string(kv.Value), currentGroup
 	}
 	return "", currentGroup
@@ -187,6 +213,9 @@ func (c *EtcdClient) GetServiceURL(servicename string, groupName ...string) (str
 // GetServices v2 新增：返回该服务在 etcd 上注册的全部实例 URL 列表。
 // 与 GetServiceURL 走同一条 prefix 扫描路径，只是把"随机选一个"改为"全部返回"。
 func (c *EtcdClient) GetServices(servicename string, groupName ...string) ([]string, error) {
+	if c == nil || c.client == nil {
+		return nil, fmt.Errorf("Etcd client is nil")
+	}
 	if len(groupName) == 0 || groupName[0] == "" {
 		groupName = []string{c.group}
 	}
@@ -211,6 +240,9 @@ func (c *EtcdClient) GetServices(servicename string, groupName ...string) ([]str
 }
 
 func (c *EtcdClient) DeRegister() {
+	if c == nil || c.client == nil {
+		return
+	}
 	//localip, _ := localIPv4s(c.lan, c.lanNetwork)
 	//ip := localip[0]
 	//if config.Config.App.IpAddr != "" {

@@ -351,6 +351,7 @@ func (c *config) GetConfigData(prefix string) []byte {
 		if err != nil {
 			return nil
 		}
+		defer cli.Close()
 		resp, err := cli.Get(context.Background(), fmt.Sprintf("/config/%s/%s-%s.yml", c.App.Project, prefix, c.Config.Env))
 		if err != nil {
 			return nil

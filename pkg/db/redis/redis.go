@@ -3,14 +3,15 @@ package redis
 import (
 	"errors"
 	"fmt"
+	"strings"
+	"time"
+
 	redis "github.com/go-redis/redis/v7"
 	"github.com/knadh/koanf"
 	"github.com/knadh/koanf/parsers/yaml"
 	"github.com/knadh/koanf/providers/rawbytes"
 	"github.com/maczh/mgin/v2/pkg/logs"
 	"github.com/sadlil/gologger"
-	"strings"
-	"time"
 )
 
 type RedisClient struct {
@@ -78,7 +79,13 @@ func (r *RedisClient) Init(redisConfigData []byte) {
 						ports := strings.Split(r.conf.String(fmt.Sprintf("go.data.redis.%s.port", dbName)), ",")
 						addrs := make([]string, 0)
 						for i, addr := range hosts {
+							if strings.TrimSpace(addr) == "" || i >= len(ports) || strings.TrimSpace(ports[i]) == "" {
+								continue
+							}
 							addrs = append(addrs, fmt.Sprintf("%s:%s", addr, ports[i]))
+						}
+						if len(addrs) == 0 {
+							continue
 						}
 						uo.Addrs = addrs
 					} else {
@@ -106,7 +113,13 @@ func (r *RedisClient) Init(redisConfigData []byte) {
 				ports := strings.Split(r.conf.String("go.data.redis.port"), ",")
 				addrs := make([]string, 0)
 				for i, addr := range hosts {
+					if strings.TrimSpace(addr) == "" || i >= len(ports) || strings.TrimSpace(ports[i]) == "" {
+						continue
+					}
 					addrs = append(addrs, fmt.Sprintf("%s:%s", addr, ports[i]))
+				}
+				if len(addrs) == 0 {
+					return
 				}
 				uo.Addrs = addrs
 			}

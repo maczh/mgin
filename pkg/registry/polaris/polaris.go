@@ -3,6 +3,12 @@ package polaris
 import (
 	"crypto/md5"
 	"fmt"
+	"io"
+	"math/rand"
+	"net"
+	"strings"
+	"time"
+
 	jsoniter "github.com/json-iterator/go"
 	"github.com/knadh/koanf"
 	"github.com/knadh/koanf/parsers/yaml"
@@ -11,11 +17,6 @@ import (
 	"github.com/maczh/mgin/v2/pkg/cache"
 	"github.com/maczh/mgin/v2/pkg/config"
 	"github.com/sadlil/gologger"
-	"io"
-	"math/rand"
-	"net"
-	"strings"
-	"time"
 )
 
 type PolarisClient struct {
@@ -33,6 +34,9 @@ type PolarisClient struct {
 var logger = gologger.GetLogger()
 
 func (c *PolarisClient) Register(registryConfigData []byte) {
+	if c == nil {
+		return
+	}
 	if registryConfigData != nil {
 		c.confData = registryConfigData
 	}
@@ -55,7 +59,10 @@ func (c *PolarisClient) Register(registryConfigData []byte) {
 			c.namespace = "default"
 		}
 		localip, _ := localIPv4s(c.lan, c.lanNetwork)
-		ip := localip[0]
+		ip := "127.0.0.1"
+		if len(localip) > 0 {
+			ip = localip[0]
+		}
 		if config.Config.App.IpAddr != "" {
 			ip = config.Config.App.IpAddr
 		}
@@ -120,6 +127,10 @@ func (c *PolarisClient) Register(registryConfigData []byte) {
 			logger.Error("Polaris 服务实例注册失败:" + toJSON(res1))
 			return
 		}
+		if len(res1.Responses) == 0 {
+			logger.Error("Polaris 服务实例注册响应为空")
+			return
+		}
 		serviceId := res1.Responses[0].Instance.Id
 		cache.OnGetCache("polaris").Set("serviceId", serviceId, 0)
 		logger.Info(fmt.Sprintf("%s服务注册成功", config.Config.App.Name))
@@ -127,6 +138,9 @@ func (c *PolarisClient) Register(registryConfigData []byte) {
 }
 
 func (c *PolarisClient) GetServiceURL(servicename string, namespaces ...string) (string, string) {
+	if c == nil {
+		return "", ""
+	}
 	if len(namespaces) == 0 {
 		namespaces = append(namespaces, c.namespace)
 	}
@@ -146,6 +160,10 @@ func (c *PolarisClient) GetServiceURL(servicename string, namespaces ...string) 
 			},
 			Params: query,
 		}))
+		if err != nil {
+			logger.Error("Polaris 查询服务实例失败:" + err.Error())
+			continue
+		}
 		var res QueryInstanceResponse
 		err = resp.JSON(&res)
 		if err != nil {
@@ -175,6 +193,9 @@ func (c *PolarisClient) GetServiceURL(servicename string, namespaces ...string) 
 // GetServices v2 新增：返回该服务在 Polaris 上的全部健康实例 URL 列表。
 // 与 GetServiceURL 走同一条 /naming/v1/instances 路径。
 func (c *PolarisClient) GetServices(servicename string, namespaces ...string) ([]string, error) {
+	if c == nil {
+		return nil, fmt.Errorf("Polaris client is nil")
+	}
 	if len(namespaces) == 0 {
 		namespaces = append(namespaces, c.namespace)
 	}
@@ -219,14 +240,26 @@ func (c *PolarisClient) GetServices(servicename string, namespaces ...string) ([
 }
 
 func (c *PolarisClient) DeRegister() {
+	if c == nil {
+		return
+	}
 	query := DeregisterInstanceRequest{}
 	serviceId, exists := cache.OnGetCache("polaris").Get("serviceId")
 	if exists {
-		query.ID = serviceId.(string)
-	} else {
+		id, ok := serviceId.(string)
+		if ok && id != "" {
+			query.ID = id
+		} else {
+			exists = false
+		}
+	}
+	if !exists {
 
 		localip, _ := localIPv4s(c.lan, c.lanNetwork)
-		ip := localip[0]
+		ip := "127.0.0.1"
+		if len(localip) > 0 {
+			ip = localip[0]
+		}
 		if config.Config.App.IpAddr != "" {
 			ip = config.Config.App.IpAddr
 		}

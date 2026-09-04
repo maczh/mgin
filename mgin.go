@@ -10,6 +10,7 @@ package mgin
 import (
 	"context"
 	"os"
+	"reflect"
 	goruntime "runtime"
 	"strings"
 	"time"
@@ -53,7 +54,10 @@ type dbCheckFunc func() error
 // v2 行为：若 go.config.used 启用了 dbConfigName，则按 cnfData 立即执行 Init，
 // 并把组件纳入 m.plugins 生命周期。仍由 SafeExit / checkAll 显式驱动。
 func (m *mgin) Use(dbConfigName string, dbInit dbInitFunc, dbClose dbCloseFunc, dbCheck dbCheckFunc) {
-	if !strings.Contains(config.Config.Config.Used, dbConfigName) {
+	if m == nil || dbInit == nil {
+		return
+	}
+	if !configuredComponent(config.Config.Config.Used, dbConfigName) {
 		logs.Error("加载{}失败，配置文件中未使用", dbConfigName)
 		return
 	}
@@ -77,7 +81,36 @@ func (m *mgin) Use(dbConfigName string, dbInit dbInitFunc, dbClose dbCloseFunc, 
 
 // UsePlugin 是 v1 时代基于 MginPlugin 接口的便捷入口，等价于 Use 的对象化版本。
 func (m *mgin) UsePlugin(dbConfigName string, mginPlugin MginPlugin) {
+	if m == nil || isNilPlugin(mginPlugin) {
+		return
+	}
 	m.Use(dbConfigName, mginPlugin.Init, mginPlugin.Close, mginPlugin.Check)
+}
+
+func configuredComponent(used, name string) bool {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return false
+	}
+	for _, component := range strings.Split(used, ",") {
+		if strings.TrimSpace(component) == name {
+			return true
+		}
+	}
+	return false
+}
+
+func isNilPlugin(p MginPlugin) bool {
+	if p == nil {
+		return true
+	}
+	v := reflect.ValueOf(p)
+	switch v.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return v.IsNil()
+	default:
+		return false
+	}
 }
 
 // Init 是框架统一初始化入口。v2 行为：
@@ -132,6 +165,9 @@ func initPlugins(m *mgin) {
 // v2 行为：调用 plugin.HealthAll() 汇总所有已启用组件的 Health()，
 // 同时保留对 v1 旧 m.plugins 中组件的 Check 遍历。
 func (m *mgin) checkAll() {
+	if m == nil {
+		return
+	}
 	// v2：插件注册表驱动
 	healths := plugin.HealthAll()
 	for name, err := range healths {
@@ -157,6 +193,9 @@ func (m *mgin) checkAll() {
 // SafeExit 在收到退出信号后被调用，按 plugin.PluginRegistry 的 Order 逆序关闭内置组件，
 // 同时兼容旧 m.plugins 中的组件。
 func (m *mgin) SafeExit() {
+	if m == nil {
+		return
+	}
 	// 给关闭动作一个 5 秒上限（与配置无关，SafeExit 不阻塞退出）
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

@@ -108,21 +108,36 @@ var lbStrategies = []string{"round", "random", "least", "consistent"}
 var componentTemplates = map[string]string{
 	"mysql": `go:
   data:
-    mysql: root:123456@tcp(127.0.0.1:3306)/{{.ProjectName}}?charset=utf8mb4&parseTime=True&loc=Local
+    mysql: user:password@tcp(127.0.0.1:3306)/{{.ProjectName}}?charset=utf8mb4&parseTime=True&loc=Local
     mysql_debug: true
+    mysql_cache: true   #打开缓存
+    mysql_pool:     #连接池设置,若无此项则使用单一长连接
+      max: 200      #实际最大连接数
+      total: 1000   #最大并发数,不填默认为最大连接数5倍
+      timeout: 30   #空闲连接超时，秒，默认60秒
+      life: 5       #连接生命周期，分钟，默认60分钟
 `,
 	"postgres": `go:
   data:
     postgres:
       dsn: "host=127.0.0.1 user=postgres password=postgres dbname={{.ProjectName}} port=5432 sslmode=disable TimeZone=Asia/Shanghai"
       debug: true
+	  cache: true   #打开缓存
+	  pool:     #连接池设置,若无此项则使用单一长连接
+        max: 200      #实际最大连接数
+        total: 1000   #最大并发数,不填默认为最大连接数5倍
+        timeout: 30   #空闲连接超时，秒，默认60秒
+        life: 5       #连接生命周期，分钟，默认60分钟
 `,
 	"mongodb": `go:
   data:
     mongodb:
-      uri: mongodb://user:password@127.0.0.1:27017
+    mongodb:
+      uri: mongodb://user:password@127.0.0.1:27017/{{.ProjectName}} #当使用复制集时 mongodb://user:pwd@192.168..3.5:27017,192.168.3.6:27017/dbname?replicaSet=replsetname
       db: {{.ProjectName}}
-      debug: true
+      debug: true   #打开调试模式
+    mongo_pool:     #连接池设置,若无此项则使用单一长连接
+      max: 200       #最大连接数
 `,
 	"redis": `go:
   data:
@@ -131,6 +146,11 @@ var componentTemplates = map[string]string{
       port: 6379
       password: ""
       database: 0
+    redis_pool:
+      min: 3
+      max: 100
+      idle: 10
+      timeout: 300
 `,
 	"clickhouse": `go:
   data:
@@ -149,30 +169,30 @@ var componentTemplates = map[string]string{
       ack: all
       auto_commit: true
       partitioner: hash
-      version: 2.8.1
+      version: 3.7.1
 `,
 	"nats": `go:
   data:
     nats:
       multi: false
       uri: "nats://127.0.0.1:4222"
-      user: ""
-      password: ""
+      user: user
+      password: password
 `,
 	"mqtt": `go:
   data:
     mqtt:
       multi: false
       broker: "tcp://127.0.0.1:1883"
-      clientId: {{.ProjectName}}
-      username: ""
-      password: ""
+      clientId: {{.ProjectName}}-client
+      username: user
+      password: password
 `,
 	"rabbit": `go:
   rabbitmq:
     multi: false
-    uri: "amqp://guest:guest@127.0.0.1:5672/"
-    exchange: ""
+    uri: "amqp://user:password@127.0.0.1:5672/vhost"
+    exchange: "exchange"
 `,
 	"nacos": `go:
   nacos:
@@ -182,15 +202,37 @@ var componentTemplates = map[string]string{
     group: DEFAULT_GROUP
     weight: 1
     lan: true
+	lanNet: 192.168.113.    #网段前缀
 `,
 	"consul": `go:
   consul:
     server: 127.0.0.1
     port: 8500
+	clusterName: DEFAULT
+	group: DEFAULT_GROUP
+	weight: 1
+	lan: true
+	lanNet: 192.168.113.    #网段前缀
 `,
 	"etcd": `go:
   etcd:
-    server: 127.0.0.1:2379
+    server:  127.0.0.1   #etcd服务IP
+    port: 2379            #etcd端口
+    clusterName: DEFAULT
+    group: DEFAULT_GROUP    #根据项目不同配置不同分组
+    weight: 1
+    lan: false   #以内网地址注册，否则以公网地址注册
+    lanNet: 192.168.113.    #网段前缀
+`,
+	"polaris": `go:
+  polaris:
+    server: 127.0.0.1
+    port: 8080
+    namespace: default
+    token: "polaris-token"
+    weight: 1
+    lan: true
+	lanNet: 192.168.113.    #网段前缀
 `,
 }
 

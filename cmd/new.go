@@ -20,7 +20,7 @@ var (
 	dbOptions = []string{"mysql", "postgres", "sqlite", "mongodb", "redis", "clickhouse", "elasticsearch"}
 	// 消息队列支持多选; 直接回车(空)表示不使用任何消息队列
 	mqOptions           = []string{"none", "nats", "kafka", "mqtt", "rabbit"}
-	registryOptions     = []string{"none", "nacos", "consul", "etcd"}
+	registryOptions     = []string{"none", "nacos", "consul", "etcd", "polaris"}
 	configCenterOptions = []string{"none", "file", "nacos", "consul", "etcd", "polaris", "springconfig"}
 )
 
@@ -47,7 +47,7 @@ func runNew(args []string) error {
 	fs.IntVar(&port, "port", 8080, "HTTP 端口")
 	fs.StringVar(&dbs, "db", "", "数据库列表, 逗号分隔")
 	fs.StringVar(&mq, "mq", "", "消息队列, 逗号分隔多选: nats/kafka/mqtt/rabbit/none")
-	fs.StringVar(&registry, "registry", "", "注册中心: nacos/consul/etcd/none")
+	fs.StringVar(&registry, "registry", "", "注册中心: etcd/consul/nacos/polaris/none")
 	fs.StringVar(&configCenter, "config-center", "", "配置中心: nacos/consul/etcd/polaris/springconfig/file/none")
 	fs.BoolVar(&i18n, "i18n", false, "启用国际化")
 	fs.BoolVar(&jwt, "jwt", false, "启用 JWT 鉴权")
@@ -213,6 +213,9 @@ func resolveMginVersion() string {
 // runInteractive 通过菜单式问答收集全部工程配置。
 // 已通过 flag 提供的取值会作为默认值展示, 用户直接回车即可沿用。
 func runInteractive(r *bufio.Reader, opts *ProjectOptions) error {
+	if r == nil || opts == nil {
+		return fmt.Errorf("交互式输入或工程选项不能为空")
+	}
 	if opts.ProjectName == "" {
 		opts.ProjectName = "myservice"
 	}
@@ -244,6 +247,9 @@ func runInteractive(r *bufio.Reader, opts *ProjectOptions) error {
 
 // askText 读取一行文本, 为空时返回默认值 def。
 func askText(r *bufio.Reader, label, def string) string {
+	if r == nil {
+		return def
+	}
 	fmt.Printf("%s [%s]: ", label, def)
 	line, err := r.ReadString('\n')
 	if err != nil && line == "" {
@@ -278,6 +284,9 @@ func indexOf(list []string, s string) int {
 
 // singleFrom 展示单选菜单, 返回用户选择的选项字符串。
 func singleFrom(r *bufio.Reader, label string, options []string, def string) string {
+	if r == nil || len(options) == 0 {
+		return def
+	}
 	defIdx := indexOf(options, def)
 	if defIdx < 0 {
 		defIdx = 0
@@ -321,6 +330,9 @@ func askBool(r *bufio.Reader, label string, def bool) bool {
 
 // askMulti 展示多选菜单, 返回用户选择的选项切片(基于序号, 逗号分隔)。
 func askMulti(r *bufio.Reader, label string, options []string, current []string) []string {
+	if r == nil || len(options) == 0 {
+		return current
+	}
 	fmt.Printf("%s\n", label)
 	for i, o := range options {
 		mark := "  "

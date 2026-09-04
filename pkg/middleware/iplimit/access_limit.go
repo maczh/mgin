@@ -1,11 +1,12 @@
 package iplimit
 
 import (
-	"github.com/maczh/mgin/v2/pkg/models"
 	"log"
 	"net"
 	"net/http"
 	"strings"
+
+	"github.com/maczh/mgin/v2/pkg/models"
 
 	"github.com/gin-gonic/gin"
 )
@@ -71,7 +72,7 @@ func CIDR(CIDRs string) gin.HandlerFunc {
 		// if no CIDR ranges contains our IP
 		if matchCount == 0 {
 			if DisableLogging == false {
-				log.Printf("[LIMIT] Request from [" + remoteAddr + "] is not allow to access `" + c.Request.RequestURI + "`, only allow from: [" + CIDRs + "]")
+				log.Printf("%s", "[LIMIT] Request from ["+remoteAddr+"] is not allow to access `"+c.Request.RequestURI+"`, only allow from: ["+CIDRs+"]")
 			}
 
 			c.AbortWithStatusJSON(http.StatusForbidden, models.Error(403, "IP not allow to access"))

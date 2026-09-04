@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/consul/api"
-	"github.com/json-iterator/go"
+	jsoniter "github.com/json-iterator/go"
 	"github.com/knadh/koanf"
 	"github.com/knadh/koanf/parsers/yaml"
 	"github.com/knadh/koanf/providers/rawbytes"
@@ -34,6 +34,9 @@ var logger = gologger.GetLogger()
 // Register 方法用于向 Consul 注册服务
 // etcdConfigData 是包含 Consul 配置的字节切片
 func (c *ConsulClient) Register(etcdConfigData []byte) {
+	if c == nil {
+		return
+	}
 	if etcdConfigData != nil {
 		c.confData = etcdConfigData
 	}
@@ -61,7 +64,14 @@ func (c *ConsulClient) Register(etcdConfigData []byte) {
 		ports := strings.Split(portstr, ",")
 		consul_urls := make([]string, 0)
 		for i, ip := range ips {
+			if strings.TrimSpace(ip) == "" || i >= len(ports) || strings.TrimSpace(ports[i]) == "" {
+				continue
+			}
 			consul_urls = append(consul_urls, fmt.Sprintf("%s:%s", ip, ports[i]))
+		}
+		if len(consul_urls) == 0 {
+			logger.Error("Consul 配置缺少有效 server/port")
+			return
 		}
 		serverConfig := api.DefaultConfig()
 		serverConfig.Address = consul_urls[0]
@@ -71,7 +81,10 @@ func (c *ConsulClient) Register(etcdConfigData []byte) {
 			return
 		}
 		localip, _ := localIPv4s(c.lan, c.lanNetwork)
-		ip := localip[0]
+		ip := "127.0.0.1"
+		if len(localip) > 0 {
+			ip = localip[0]
+		}
 		if config.Config.App.IpAddr != "" {
 			ip = config.Config.App.IpAddr
 		}
@@ -100,7 +113,12 @@ func (c *ConsulClient) Register(etcdConfigData []byte) {
 // servicename 是要查询的服务名称
 // groupName 是可选的服务组名称
 func (c *ConsulClient) GetServiceURL(servicename string, groupName ...string) (string, string) {
-	if groupName[0] == "" {
+	if c == nil || c.client == nil {
+		return "", ""
+	}
+	if len(groupName) == 0 {
+		groupName = []string{c.group}
+	} else if groupName[0] == "" {
 		groupName[0] = c.group
 	}
 	currentGroup := groupName[0]
@@ -116,7 +134,11 @@ func (c *ConsulClient) GetServiceURL(servicename string, groupName ...string) (s
 		//fmt.Printf("服务查询结果: %s\n", toJSON(services))
 		r := rand.New(rand.NewSource(time.Now().UnixNano()))
 		service := services[r.Intn(len(services))]
-		address := fmt.Sprintf("%s%s:%d", service.Service.Tags[2], service.Service.Address, service.Service.Port)
+		protocol := "http://"
+		if len(service.Service.Tags) > 2 && service.Service.Tags[2] != "" {
+			protocol = service.Service.Tags[2]
+		}
+		address := fmt.Sprintf("%s%s:%d", protocol, service.Service.Address, service.Service.Port)
 		return address, currentGroup
 	}
 	return "", currentGroup
@@ -125,6 +147,9 @@ func (c *ConsulClient) GetServiceURL(servicename string, groupName ...string) (s
 // GetServices v2 新增：返回该服务在 Consul 上的全部健康实例 URL 列表。
 // 与 GetServiceURL 走同一条 Health().Service 路径，只是不再随机选 1 个。
 func (c *ConsulClient) GetServices(servicename string, groupName ...string) ([]string, error) {
+	if c == nil || c.client == nil {
+		return nil, fmt.Errorf("Consul client is nil")
+	}
 	if len(groupName) == 0 || groupName[0] == "" {
 		groupName = []string{c.group}
 	}
@@ -139,7 +164,11 @@ func (c *ConsulClient) GetServices(servicename string, groupName ...string) ([]s
 		}
 		urls := make([]string, 0, len(services))
 		for _, svc := range services {
-			urls = append(urls, fmt.Sprintf("%s%s:%d", svc.Service.Tags[2], svc.Service.Address, svc.Service.Port))
+			protocol := "http://"
+			if len(svc.Service.Tags) > 2 && svc.Service.Tags[2] != "" {
+				protocol = svc.Service.Tags[2]
+			}
+			urls = append(urls, fmt.Sprintf("%s%s:%d", protocol, svc.Service.Address, svc.Service.Port))
 		}
 		logger.Debug("Consul 获取" + servicename + "服务列表成功:" + strings.Join(urls, ","))
 		return urls, nil
@@ -149,8 +178,14 @@ func (c *ConsulClient) GetServices(servicename string, groupName ...string) ([]s
 
 // DeRegister 方法用于从 Consul 注销服务
 func (c *ConsulClient) DeRegister() {
+	if c == nil || c.client == nil {
+		return
+	}
 	localip, _ := localIPv4s(c.lan, c.lanNetwork)
-	ip := localip[0]
+	ip := "127.0.0.1"
+	if len(localip) > 0 {
+		ip = localip[0]
+	}
 	if config.Config.App.IpAddr != "" {
 		ip = config.Config.App.IpAddr
 	}

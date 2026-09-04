@@ -31,6 +31,8 @@ import (
 	"time"
 )
 
+var configFileFlag string
+
 type App struct {
 	name       string
 	version    string
@@ -48,6 +50,8 @@ type App struct {
 	metricsEnabled bool
 	// metricsMounted 防止重复挂载 /metrics（Gin 对重复 method+path 会 panic）。
 	metricsMounted bool
+	checkTicker    *time.Ticker
+	checkDone      chan struct{}
 }
 
 // NewApp 创建一个新的 MGin App 实例。
@@ -61,24 +65,37 @@ type App struct {
 //   - *App: 新创建的 App 实例指针。
 func NewApp(configFile, appName, version string, xlang bool) *App {
 	// 检查配置文件路径是否为空，如果为空则尝试从命令行参数获取
-	var getVersion bool
+	getVersion := false
 	// 仅在用户显式传入 -v 时才打印版本号并返回；默认值必须为 false
-	flag.BoolVar(&getVersion, "v", false, "显示版本号")
+	if flag.Lookup("v") == nil {
+		flag.BoolVar(&getVersion, "v", false, "显示版本号")
+	}
 	if configFile == "" {
 		// 定义一个命令行参数 -f，默认值为当前可执行文件同名的 yml 文件，用于指定配置文件名
-		flag.StringVar(&configFile, "f", strings.TrimSuffix(os.Args[0], ".exe")+".yml", "yml配置文件名")
+		if flag.Lookup("f") == nil {
+			flag.StringVar(&configFileFlag, "f", strings.TrimSuffix(os.Args[0], ".exe")+".yml", "yml配置文件名")
+		}
 		// 解析命令行参数
 	}
 	flag.Parse()
+	if configFile == "" {
+		configFile = flagValueString("f")
+		if configFile == "" {
+			configFile = configFileFlag
+		}
+	}
 	// 如果启用了版本号显示，则打印版本号并退出程序
-	if getVersion {
+	if flagValueBool("v") {
 		fmt.Printf("%s, 版本号: %s\n", appName, version)
 		return nil
 	}
 	// 获取当前可执行文件所在的绝对路径
-	path, _ := filepath.Abs(filepath.Dir(os.Args[0]))
+	path, err := filepath.Abs(filepath.Dir(os.Args[0]))
+	if err != nil {
+		path = "."
+	}
 	// 检查配置文件路径是否包含路径分隔符，如果不包含则将其与当前可执行文件所在路径拼接
-	if !(strings.Contains(configFile, "/") || strings.Contains(configFile, "\\")) {
+	if !filepath.IsAbs(configFile) {
 		configFile = path + "/" + configFile
 	}
 	// 创建一个新的 App 实例
@@ -91,10 +108,16 @@ func NewApp(configFile, appName, version string, xlang bool) *App {
 	// 初始化配置，传入配置文件路径
 	Init(app.configFile)
 	//设置定时任务自动检查
-	ticker := time.NewTicker(time.Minute * 5)
+	app.checkTicker = time.NewTicker(time.Minute * 5)
+	app.checkDone = make(chan struct{})
 	go func() {
-		for _ = range ticker.C {
-			app.MGin.checkAll()
+		for {
+			select {
+			case <-app.checkTicker.C:
+				app.MGin.checkAll()
+			case <-app.checkDone:
+				return
+			}
 		}
 	}()
 
@@ -119,6 +142,9 @@ func NewApp(configFile, appName, version string, xlang bool) *App {
 
 // baseRouter 初始化路由,添加中间件
 func (app *App) baseRouter() {
+	if app == nil {
+		return
+	}
 	// Disable Console Color
 	// gin.DisableConsoleColor()
 	app.Router = gin.Default()
@@ -192,7 +218,7 @@ func (app *App) baseRouter() {
 // healthMounted 用于保证同一进程内只挂载一次：Gin 对重复注册同一 method+path 会直接 panic，
 // 因此当配置开关与 App.EnableHealth() 同时使用时必须去重。
 func (app *App) mountHealth() {
-	if app.healthMounted || app.Router == nil {
+	if app == nil || app.healthMounted || app.Router == nil {
 		return
 	}
 	if !app.healthEnabled && !config.Config.GetConfigBool("go.health.enabled") {
@@ -210,6 +236,9 @@ func (app *App) mountHealth() {
 // 但不会带上本方法之后才注册的中间件；若需要完全干净的调用链，请直接使用 go.health.enabled 配置。
 // 重复调用或与配置开关同时使用都是安全的，探针路由只会挂载一次。
 func (app *App) EnableHealth() {
+	if app == nil {
+		return
+	}
 	app.healthEnabled = true
 	app.mountHealth()
 }
@@ -217,6 +246,9 @@ func (app *App) EnableHealth() {
 // EnableMetrics 显式启用 Prometheus /metrics 端点，等价于配置 go.metrics.enabled=true。
 // 建议在 NewApp() 之后立即调用，确保端点先于业务路由注册。
 func (app *App) EnableMetrics() {
+	if app == nil {
+		return
+	}
 	app.metricsEnabled = true
 	if app.metricsMounted || app.Router == nil {
 		return
@@ -229,11 +261,18 @@ func (app *App) EnableMetrics() {
 // MarkHealthStarted 标记应用已完成启动，使 /startup 探针返回 200。
 // 等价于直接调用 health.MarkStarted()。
 func (app *App) MarkHealthStarted() {
+	if app == nil {
+		return
+	}
 	health.MarkStarted()
 }
 
 // Run 方法用于启动 HTTP 和 HTTPS 服务器，并监听系统信号以实现优雅关闭。
 func (app *App) Run() {
+	if app == nil || app.Router == nil || app.MGin == nil {
+		logs.Error("无法启动应用: App、Router 或 MGin 未初始化")
+		return
+	}
 	// 获取当前可执行文件所在的绝对路径
 	path, _ := filepath.Abs(filepath.Dir(os.Args[0]))
 
@@ -320,6 +359,13 @@ func (app *App) Run() {
 	// 记录服务器开始关闭的信息
 	logs.Error("Shutdown Server ...")
 	// 安全退出应用
+	if app.checkTicker != nil {
+		app.checkTicker.Stop()
+	}
+	if app.checkDone != nil {
+		close(app.checkDone)
+		app.checkDone = nil
+	}
 	app.MGin.SafeExit()
 	// 优雅关闭超时时间：读取 go.application.shutdownTimeout（秒），
 	// 未配置或 <= 0 时回退为默认 5 秒（与升级前的硬编码值一致）。
@@ -339,6 +385,19 @@ func (app *App) Run() {
 	return
 }
 
+func flagValueBool(name string) bool {
+	f := flag.Lookup(name)
+	return f != nil && f.Value.String() == "true"
+}
+
+func flagValueString(name string) string {
+	f := flag.Lookup(name)
+	if f == nil {
+		return ""
+	}
+	return f.Value.String()
+}
+
 func recoveryHandler(c *gin.Context, err interface{}) {
 	// v2.1 增强：HTTP 状态码按 errcode.SYSTEM_ERROR 的定义（500）返，而不是 200。
 	// 客户端能据此识别"服务端异常"做重试或告警，而不是把异常当成功响应处理。
@@ -347,5 +406,8 @@ func recoveryHandler(c *gin.Context, err interface{}) {
 }
 
 func (app *App) GetVersion() string {
+	if app == nil {
+		return ""
+	}
 	return app.version
 }

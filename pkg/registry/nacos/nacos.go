@@ -63,6 +63,9 @@ func (w *nacosHeartbeatWorker) Start(nc *NacosClient) {
 }
 
 func (n *NacosClient) Register(nacosConfigData []byte) {
+	if n == nil {
+		return
+	}
 	if nacosConfigData != nil {
 		n.confData = nacosConfigData
 	}
@@ -90,7 +93,10 @@ func (n *NacosClient) Register(nacosConfigData []byte) {
 			n.group = "DEFAULT_GROUP"
 		}
 		localip, _ := localIPv4s(n.lan, n.lanNetwork)
-		ip := localip[0]
+		ip := "127.0.0.1"
+		if len(localip) > 0 {
+			ip = localip[0]
+		}
 		if config.Config.App.IpAddr != "" {
 			ip = config.Config.App.IpAddr
 		}
