@@ -49,7 +49,7 @@ func main() {
 }
 
 func printUsage() {
-	fmt.Print(`MGin 项目脚手架
+	fmt.Print(`MGin 项目脚手架 (v2 适配版)
 
 用法:
   mgin new <工程名> [选项]
@@ -69,8 +69,16 @@ func printUsage() {
   --jwt                   启用 JWT 鉴权中间件
   --casbin                启用 Casbin 接口鉴权
   --sys                   启用内置系统管理模块 (仅 master 分支, jh 分支已移除)
+
+  v2 新能力开关:
+  --health                启用 /health/{live,ready,startup} 探针 (K8s 推荐)
+  --metrics               启用 /metrics 端点 (Prometheus)
+  --otel                  启用 OTel (需业务侧 SetTracerProvider)
+  --loadbalancer <name>   客户端 LB 策略: round/random/least/consistent (默认 round)
+
+  其他:
   --output <dir>          输出目录 (默认当前目录)
-  --mgin-version <ver>    mgin 依赖版本 (默认自动获取最新发布版)
+  --mgin-version <ver>    mgin 依赖版本 (默认自动获取最新发布版; 离线回退 v1.25.14-jh)
   --force                 目录已存在时覆盖文件
 
 交互模式: 省略任意选项将在终端中逐项询问；非终端环境自动使用默认值。

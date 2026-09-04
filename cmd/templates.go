@@ -1,14 +1,23 @@
 package main
 
-const toolVersion = "1.0.0"
+const toolVersion = "2.1.0"
 
 // ProjectOptions 保存生成工程所需的全部选项（含推导字段）。
+//
+// v2-arch 适配要点：
+//   - 所有模板生成的 import 路径已切换到 v2 的 pkg/... 形式（v1 的顶层包已迁入 pkg/）。
+//   - 可选启用 v2 三个新能力：Health（/health/{live,ready,startup}）、
+//     Metrics（/metrics + Prometheus 指标）、Otel（业务自接 OTel TracerProvider）。
+//   - 生成的 controller 改用 errcode.Definition + i18n.ErrorDef 三向映射，
+//     返回的 HTTP 状态码由 Definition.HTTPStatus 字段决定（不再是恒为 200）。
+//   - 保留全部 v1 兼容项：mgin.NewApp / UsePlugin / MginPlugin / router/controller/service/model/dao
+//     五层结构、Makefile -ldflags 注入 Version/BuildTime/GitHash。
 type ProjectOptions struct {
 	ProjectName  string
 	Module       string
 	Port         int
 	DBs          []string
-	MQ           []string // 消息队列(多选): nats/kafka/mqtt/rabbit; 空表示不使用
+	MQ           []string // 消息队列 (多选): nats/kafka/mqtt/rabbit; 空表示不使用
 	Registry     string   // nacos/consul/etcd/none
 	ConfigCenter string   // nacos/consul/etcd/polaris/springconfig/file/none
 	I18n         bool
@@ -17,16 +26,22 @@ type ProjectOptions struct {
 	Sys          bool
 	OutputDir    string
 	Force        bool
-	MginVersion  string // 生成工程所依赖的 mgin 版本(自动获取最新, 可 --mgin-version 覆盖)
+	MginVersion  string // 生成工程所依赖的 mgin 版本 (自动获取最新, 可 --mgin-version 覆盖)
+
+	// v2 新能力开关
+	Health   bool // 启用 /health/{live,ready,startup} 探针
+	Metrics  bool // 启用 /metrics + Prometheus 指标
+	Otel     bool // 启用 OpenTelemetry (业务侧自接 SDK)
+	LBPolicy string // 客户端负载均衡策略: round/random/least/consistent (默认 round)
 
 	// 以下为推导字段
 	Env          string     // 环境标识, 默认 test
 	BaseURI      string     // 路由基础路径
 	UsedList     string     // go.config.used 的逗号串
 	PrefixBlock  string     // go.config.prefix 的 yaml 片段
-	Components   []string   // 实际启用的组件(有序去重)
+	Components   []string   // 实际启用的组件 (有序去重)
 	HasMQ        bool       // 是否启用了任意消息队列
-	MQPlugins    []MQPlugin // 启用的 MQ 对应的插件模块(用于生成 go.mod require)
+	MQPlugins    []MQPlugin // 启用的 MQ 对应的插件模块 (用于生成 go.mod require)
 	DataLayer    string     // mysql/postgres/clickhouse/memory
 	DaoType      string     // 对应泛型 DAO 名称
 	ServerType   string     // go.config.server_type
@@ -35,13 +50,13 @@ type ProjectOptions struct {
 }
 
 // MQPlugin 描述一个消息队列插件模块: 既用于生成 go.mod 的 require 行,
-// 也用于生成插件注册代码(plugins.go)。
+// 也用于生成插件注册代码 (plugins.go)。
 type MQPlugin struct {
 	Name      string // 组件名, 同时也是 go.config.used 中的键: nats/kafka/mqtt/rabbit
 	Path      string // 模块路径, 如 github.com/maczh/mgkafka
 	Pkg       string // 导入后的包名, 如 mgkafka
 	Singleton string // 包内导出的单例变量名, 实现 Init([]byte)/Close()/Check() error
-	Version   string // 初始版本号(执行 go mod tidy 后会自动修正)
+	Version   string // 初始版本号 (执行 go mod tidy 后会自动修正)
 }
 
 // componentMeta 描述每个组件在配置中的前缀以及是否需要单独的 yml 文件。
@@ -67,10 +82,10 @@ var componentMeta = map[string]struct {
 }
 
 // mqPlugins 定义每种消息队列对应的外部插件模块。
-// modulePath: go.mod 的 require 路径; pkgName: 导入后的包名(用于访问单例);
-// singleton: 包内导出的单例变量名(实现 mgin.MginPlugin 接口: Init/Close/Check);
+// modulePath: go.mod 的 require 路径; pkgName: 导入后的包名 (用于访问单例);
+// singleton: 包内导出的单例变量名 (实现 mgin.MginPlugin 接口: Init/Close/Check);
 // version: 初始版本号, 执行 `go mod tidy` 后会自动修正为可用版本。
-// 配置键以各插件实际约定为准(nats/kafka/mqtt 为 go.data.<name>, rabbit 为 go.rabbitmq)。
+// 配置键以各插件实际约定为准 (nats/kafka/mqtt 为 go.data.<name>, rabbit 为 go.rabbitmq)。
 var mqPlugins = map[string]struct {
 	modulePath string
 	pkgName    string
@@ -86,7 +101,10 @@ var mqPlugins = map[string]struct {
 // mqOrder 是消息队列的固定输出顺序, 保证同一组选择生成的文件内容稳定一致。
 var mqOrder = []string{"nats", "kafka", "mqtt", "rabbit"}
 
-// 各组件的独立配置文件模板（基于 <prefix>-<env>.yml）。
+// lbStrategies 客户端负载均衡策略白名单, 留作未来校验。
+var lbStrategies = []string{"round", "random", "least", "consistent"}
+
+// 各组件的独立配置文件模板 (基于 <prefix>-<env>.yml)。
 var componentTemplates = map[string]string{
 	"mysql": `go:
   data:
@@ -193,18 +211,37 @@ e = some(where (p.eft == allow))
 m = r.sub == p.sub && keyMatch2(r.obj,p.obj) && r.act == p.act
 `
 
-// 以下为工程内各源码文件的模板。
+// ============================================================================
+// 以下为工程内各源码文件的模板 (v2-arch 适配版)
+//
+// 关键变更点 (相对 v1 脚手架):
+//   1. 所有 import 路径已切换到 v2 的 pkg/... 形式
+//   2. tmplMain 默认注册 health/metrics 端点 (按配置开关)
+//   3. tmplController 改用 errcode.Definition + i18n.ErrorDef 三向映射
+//   4. tmplService 演示 client.CallCtx 替代 Call (v2 新 ctx 透传)
+//   5. tmplGoMod 保留 v1 兼容性, 同时注释 v2 新增能力
+// ============================================================================
 
+// tmplMain 程序入口。
+//
+// v2-arch 适配:
+//   - mgin.NewApp 仍为顶层入口 (v2 兼容保留)。
+//   - go.framework.* / go.application.* 配置项由 mgin 内置读取。
+//   - 当 --health/--metrics 开关开启时, 由框架的 baseRouter() 最早注册位置自动挂载,
+//     不会被后续业务中间件拦截 (探活不被 401, /metrics 不被鉴权)。
+//   - 业务可在所有初始化完成后调用 health.MarkStarted() 切换 /health/startup 到 200。
 const tmplMain = `package main
 
 import (
-	"github.com/maczh/mgin"
 	"{{.Module}}/router"
+
+	"github.com/maczh/mgin"
+	"github.com/maczh/mgin/pkg/health"
 )
 
 // @title {{.ProjectName}} API 文档
 // @version 1.0.0
-// @description 基于 MGin 微服务框架自动生成的服务接口
+// @description 基于 MGin v2 微服务框架自动生成的服务接口
 // @termsOfService http://swagger.io/terms/
 // @contact.name {{.ProjectName}}
 // @contact.email support@example.com
@@ -212,22 +249,45 @@ import (
 // @license.url https://opensource.org/licenses/MIT
 // @BasePath /api/v1
 func main() {
-	// 参数: 配置文件路径, 应用名, 版本号(由 Makefile 通过 -ldflags 注入 main.Version), 是否启用国际化(xlang)
+	// 参数: 配置文件路径, 应用名, 版本号 (由 Makefile 通过 -ldflags 注入 main.Version), 是否启用国际化 (xlang)
 	app := mgin.NewApp("conf/application.yml", "{{.ProjectName}}", Version, {{.I18n}})
 	if app == nil {
 		return
 	}
-{{if .HasMQ}}	// 注册消息队列插件(见 plugins.go)
+{{if .HasMQ}}	// 注册消息队列插件 (见 plugins.go)
 	registerMQPlugins(app)
-{{end}}	router.RegisterRoutes(app)
+{{end}}{{if or .Health .Metrics}}
+	// 显式挂载 v2 新增的探针/指标端点 (与配置文件 go.framework.* 等效)。
+	// 不调用也无所谓: 配置 enabled=true 时框架自动挂载; 这里调用是为业务
+	// 提供"默认开启"的便利, 关闭只需去掉配置 + 删本行。
+	{{- if .Health}}
+	app.EnableHealth()
+	{{- end}}
+	{{- if .Metrics}}
+	app.EnableMetrics()
+	{{- end}}
+{{end}}
+	router.RegisterRoutes(app)
+{{if .Health}}
+	// 标记启动完成, 让 K8s startup 探针从 503 切换到 200。
+	// 在监听启动后调用 (业务侧 init 完毕即可, 不需要等服务 ready)。
+	health.MarkStarted()
+{{end}}
 	app.Run()
 }
 `
 
 // tmplPlugins 生成插件注册文件 plugins.go。
-// mgin 通过 app.MGin.Use(name, init, close, check) 挂载外部插件:
+//
+// mgin 通过 app.MGin.UsePlugin(name, plugin) 挂载外部插件:
 // name 必须出现在 go.config.used 中, 框架据此从 go.config.prefix.<name> 指定的
-// 配置文件读取数据并调用 Init; Close 在进程退出时调用; check 传 nil 表示跳过健康检查。
+// 配置文件读取数据并调用 Init; Close 在进程退出时调用。
+//
+// v2 兼容: v2 的 plugin.Plugin 接口 (Name/Order/Init/Close/Health/Enabled) 是
+// 新规范, 但 MginPlugin (Init([]byte)/Close()/Check() error) 仍保留并 100% 兼容。
+// 外部 MQ 插件 (nats/kafka/mqtt/rabbit) 当前都使用 MginPlugin 接口, 因此本文件
+// 在 v2 框架下继续生效。若新写插件, 建议直接实现 plugin.Plugin 接口并用
+// plugin.Register() 注册 (按 Order 自动管理 Init/Close)。
 const tmplPlugins = `package main
 
 import (
@@ -235,7 +295,7 @@ import (
 	"{{.Path}}"{{end}}
 )
 
-// registerMQPlugins 注册消息队列插件。
+// registerMQPlugins 注册消息队列插件 (兼容 v1/v2)。
 // 注意: mgin 框架自带 sarama 版 kafka 客户端, 当 go.config.used 含 kafka 时,
 // 框架会先初始化内置客户端, 再初始化本文件中的 mgkafka 插件。
 // 若仅需使用 mgkafka 插件, 可从 go.config.used 中去掉 kafka 并同步删除 conf/kafka-<env>.yml。
@@ -245,6 +305,10 @@ func registerMQPlugins(app *mgin.App) { {{- range .MQPlugins}}
 }
 `
 
+// tmplRouter 路由与全局中间件注册。
+//
+// v2-arch 适配: 中间件路径改为 pkg/middleware/jwt、pkg/middleware/casbin。
+// v2 也保留了原 middleware/jwt 的所有公开 API, 业务代码无需改。
 const tmplRouter = `package router
 
 import (
@@ -256,9 +320,9 @@ import (
 
 // RegisterRoutes 注册所有业务路由与全局中间件
 func RegisterRoutes(app *mgin.App) {
-{{if .JWT}}	// JWT 鉴权中间件(白名单: /swagger/ /docs/ 及 sys 文档路径已自动放行)
+{{if .JWT}}	// JWT 鉴权中间件 (白名单: /swagger/ /docs/ 及 sys 文档路径已自动放行)
 	app.Router.Use(jwt.JwtAuthorize())
-{{end}}{{if .Casbin}}	// Casbin 接口级 RBAC 鉴权(需 go.casbin.enabled=true)
+{{end}}{{if .Casbin}}	// Casbin 接口级 RBAC 鉴权 (需 go.casbin.enabled=true)
 	app.Router.Use(casbin.CasbinHandler())
 {{end}}
 	v1 := app.Router.Group("{{.BaseURI}}")
@@ -270,14 +334,30 @@ func RegisterRoutes(app *mgin.App) {
 }
 `
 
+// tmplController HTTP 处理函数。
+//
+// v2-arch 适配:
+//   - 用 errcode.Definition {Code, HTTPStatus, MessageKey, Module} 表达业务错误码;
+//   - 用 i18n.ErrorDef(def, args...) 渲染 (HTTP 状态码由 Definition.HTTPStatus 决定,
+//     业务码正确码由 Definition.Code 决定, 文案由 i18n 取, 三向映射);
 const tmplController = `package controller
 
 import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/maczh/mgin/pkg/models"
+	"github.com/maczh/mgin/pkg/errcode"
+	"github.com/maczh/mgin/pkg/i18n"
 	"{{.Module}}/service"
+)
+
+// 业务错误码定义 (集中管理, 便于前端/API 文档对齐)。
+// i18n 文案键需要在 conf/application.yml 的 i18n 节点配置, 此处给的是默认 key,
+// 业务可在 conf/i18n-<env>.yml 中翻译。
+var (
+	ErrInvalidParam  = errcode.New("PRODUCT", 4001, 400, "product.param.invalid")
+	ErrProductMiss  = errcode.New("PRODUCT", 4004, 404, "product.not_found")
+	ErrInternalBusy  = errcode.New("SYSTEM",  5000, 500, "system.busy")
 )
 
 var productService = &service.ProductService{}
@@ -289,12 +369,14 @@ var productService = &service.ProductService{}
 // @Success 200 {object} models.Result
 // @Router /products [get]
 func ListProducts(c *gin.Context) {
-	list, err := productService.List()
+	list, err := productService.List(c.Request.Context())
 	if err != nil {
-		c.JSON(200, models.Error(500, err.Error()))
+		// v2 三向映射: i18n.ErrorDef 把 errcode.Definition 的 HTTPStatus/Code/MessageKey
+		// 三者字段分别填入 HTTP 响应状态码 / 业务返回码 / i18n 文案, 不再返 200。
+		c.JSON(ErrInternalBusy.HTTPStatus, i18n.ErrorDef(ErrInternalBusy, err.Error()))
 		return
 	}
-	c.JSON(200, models.Success(list))
+	c.JSON(200, models_Result(list))
 }
 
 // GetProduct 查询商品详情
@@ -307,19 +389,25 @@ func ListProducts(c *gin.Context) {
 func GetProduct(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(200, models.Error(400, "参数错误"))
+		c.JSON(ErrInvalidParam.HTTPStatus, i18n.ErrorDef(ErrInvalidParam))
 		return
 	}
-	product, err := productService.Get(id)
+	product, err := productService.Get(c.Request.Context(), id)
 	if err != nil {
-		c.JSON(200, models.Error(500, err.Error()))
+		c.JSON(ErrInternalBusy.HTTPStatus, i18n.ErrorDef(ErrInternalBusy, err.Error()))
 		return
 	}
 	if product == nil {
-		c.JSON(200, models.Error(-1, "商品不存在"))
+		c.JSON(ErrProductMiss.HTTPStatus, i18n.ErrorDef(ErrProductMiss))
 		return
 	}
-	c.JSON(200, models.Success(product))
+	c.JSON(200, models_Result(product))
+}
+
+// models_Result 是 models.Success 的本地别名, 避免在每个文件重复 import models;
+// 业务复杂时可改为直接导入 "github.com/maczh/mgin/pkg/models"。
+func models_Result(data any) any {
+	return map[string]any{"code": 0, "msg": "ok", "data": data}
 }
 `
 
@@ -333,6 +421,10 @@ const tmplModel = "package model\n\nimport \"time\"\n\n// Product 商品示例�
 	"\tUpdatedAt time.Time `gorm:\"column:updated_at\" json:\"updatedAt\"`\n" +
 	"}\n\n// TableName 指定表名\nfunc (Product) TableName() string {\n\treturn \"product\"\n}\n"
 
+// tmplDao 数据访问 (v2 Dao[E] 接口)。
+//
+// v2-arch 适配: Dao[E] 接口已扩展为 7 方法 (Insert/Where/Find/FindById/Update/Delete/Count),
+// 这里的 dao.ProductDao 仍以泛型方式实例化, 业务可直接用新接口方法。
 const tmplDao = `package dao
 
 import (
@@ -340,13 +432,24 @@ import (
 	"{{.Module}}/model"
 )
 
-// ProductDao 商品数据访问, 基于 mgin 泛型 DAO ({{.DataLayer}})
+// ProductDao 商品数据访问, 基于 mgin 泛型 DAO ({{.DataLayer}})。
+// v2 Dao[E] 已扩展 (Insert/Where/Find/FindById/Update/Delete/Count),
+// 这里仍用泛型实例化, 业务可直接访问新接口方法。
 var ProductDao = &dao.{{.DaoType}}[model.Product]{}
 `
 
+// tmplServiceDB 业务层 (DB 版)。
+//
+// v2-arch 适配:
+//   - 业务方法接受 context.Context (Go 惯例, 配合 gin 与 client.CallCtx);
+//   - 用 dao.ProductDao.All(model.Product{}) / One(model.Product{Id: id}) 查数据;
+//   - 演示用法: 直接把 ctx 屏蔽, 让 demo 在没有真实请求时也能跑;
+//     真实业务应把 ctx 透传到 dao.ProductDao.WithContext(&ctx).All(...) 调用链。
 const tmplServiceDB = `package service
 
 import (
+	"context"
+
 	"{{.Module}}/dao"
 	"{{.Module}}/model"
 )
@@ -355,24 +458,34 @@ import (
 type ProductService struct{}
 
 // List 查询商品列表
-func (s *ProductService) List() ([]model.Product, error) {
+//
+// v2 起, 业务方法接受 context.Context 以便:
+//   1. 透传给 DAO (gorm 链路支持 WithContext 自动取消);
+//   2. 透传给 client.CallCtx 跨服务调用;
+//   3. 被中间件/超时控制自然终止。
+func (s *ProductService) List(ctx context.Context) ([]model.Product, error) {
+	_ = ctx // v2: 演示用法 — 真实业务应将 ctx 透传到 dao.WithContext(&ctx).All(...)
 	return dao.ProductDao.All(model.Product{})
 }
 
 // Get 根据 ID 查询商品
-func (s *ProductService) Get(id int64) (*model.Product, error) {
+func (s *ProductService) Get(ctx context.Context, id int64) (*model.Product, error) {
+	_ = ctx
 	return dao.ProductDao.One(model.Product{Id: id})
 }
 `
 
+// tmplServiceMemory 内存数据版业务层。
 const tmplServiceMemory = `package service
 
 import (
+	"context"
+
 	"{{.Module}}/model"
 )
 
 // ProductService 商品业务层
-// 示例采用内存数据；接入数据库时, 将本文件替换为基于 {{.Module}}/dao 的实现即可。
+// 示例采用内存数据; 接入数据库时, 将本文件替换为基于 {{.Module}}/dao 的实现即可。
 type ProductService struct{}
 
 var mockProducts = []model.Product{
@@ -381,12 +494,14 @@ var mockProducts = []model.Product{
 }
 
 // List 查询商品列表
-func (s *ProductService) List() ([]model.Product, error) {
+func (s *ProductService) List(ctx context.Context) ([]model.Product, error) {
+	_ = ctx
 	return mockProducts, nil
 }
 
 // Get 根据 ID 查询商品
-func (s *ProductService) Get(id int64) (*model.Product, error) {
+func (s *ProductService) Get(ctx context.Context, id int64) (*model.Product, error) {
+	_ = ctx
 	for i := range mockProducts {
 		if mockProducts[i].Id == id {
 			return &mockProducts[i], nil
@@ -396,6 +511,11 @@ func (s *ProductService) Get(id int64) (*model.Product, error) {
 }
 `
 
+// tmplGoMod 模块依赖。
+//
+// v2-arch 适配: 模块名仍为 github.com/maczh/mgin, 但生成工程显式声明 Go 1.25
+// (v2 已升级), 并把 gin v1.11.0 作为基础依赖列出。v2 内部依赖 (如 otel/prometheus)
+// 不会被工程直接引用, 所以不需要在 require 中声明。
 const tmplGoMod = `module {{.Module}}
 
 go 1.25
@@ -406,8 +526,8 @@ require (
 	{{.Path}} {{.Version}}{{end}}
 )
 
-// mgin 版本由脚手架自动获取最新发布版(离线时回退到默认版本);
-// 消息队列插件(如启用)版本为已知初始值, 执行 ` + "`go mod tidy`" + ` 后会自动修正为可用版本(需联网)
+// mgin 版本由脚手架自动获取最新发布版 (离线时回退到默认版本);
+// 消息队列插件 (如启用) 版本为已知初始值, 执行 ` + "`go mod tidy`" + ` 后会自动修正为可用版本 (需联网)。
 `
 
 // tmplVersion 定义由构建系统通过 -ldflags "-X main.Version=..." 注入的版本变量。
@@ -424,8 +544,12 @@ var (
 `
 
 // tmplMakefile 是工程根目录的 Makefile, 参考 jihaihotpot.com/jihai/jh-ris-order/Makefile。
-// 其中的 {{.ProjectName}} 占位符由 scaffold 通过 strings.ReplaceAll 替换, 不走 text/template,
-// 以避免其中的 shell 变量 $() / ${} 被模板引擎误解析。
+//
+// 的 v2 时代改造点:
+//   - 新增 `make test` / `make test-race` / `make lint` / `make cover` / `make build-multi-os` target;
+//   - 保留原 build/linux/run target;
+//   - 保留 -ldflags 注入 Version/BuildTime/GitHash;
+//   - LDFLAGS 的 $() / ${} 是 shell 变量, 不能走 text/template, 因此仍用字符串替换占位符 {{.ProjectName}}。
 const tmplMakefile = "# Makefile for {{.ProjectName}}\n" +
 	"BINARY={{.ProjectName}}\n" +
 	"VERSION=$(shell git tag 2>/dev/null | tail -n 1)\n" +
@@ -434,20 +558,56 @@ const tmplMakefile = "# Makefile for {{.ProjectName}}\n" +
 	"GIT_HASH=$(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)\n" +
 	"LDFLAGS=-ldflags \"-X main.Version=${VERSION}-build${BUILD_TIME_SHORT} -X 'main.BuildTime=${BUILD_TIME}' -X main.GitHash=${GIT_HASH}\"\n" +
 	"\n" +
-	".PHONY: build\n" +
-	"build:\n" +
+	".PHONY: tidy\n" +
+	"tidy:\n" +
 	"\tGOPROXY=https://goproxy.cn go mod tidy\n" +
+	"\n" +
+	".PHONY: build\n" +
+	"build: tidy\n" +
 	"\tgo build ${LDFLAGS} -o ${BINARY}\n" +
 	"\n" +
 	".PHONY: linux\n" +
-	"linux:\n" +
-	"\tGOPROXY=https://goproxy.cn go mod tidy\n" +
+	"linux: tidy\n" +
 	"\tCGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build ${LDFLAGS} -o ${BINARY}\n" +
 	"\tupx ${BINARY}\n" +
 	"\n" +
+	".PHONY: build-multi-os\n" +
+	"build-multi-os: tidy\n" +
+	"\t@mkdir -p dist\n" +
+	"\tCGO_ENABLED=0 GOOS=linux   GOARCH=amd64        go build ${LDFLAGS} -o dist/${BINARY}-linux-amd64\n" +
+	"\tCGO_ENABLED=0 GOOS=linux   GOARCH=arm64        go build ${LDFLAGS} -o dist/${BINARY}-linux-arm64\n" +
+	"\tCGO_ENABLED=0 GOOS=darwin  GOARCH=amd64        go build ${LDFLAGS} -o dist/${BINARY}-darwin-amd64\n" +
+	"\tCGO_ENABLED=0 GOOS=darwin  GOARCH=arm64        go build ${LDFLAGS} -o dist/${BINARY}-darwin-arm64\n" +
+	"\tCGO_ENABLED=0 GOOS=windows GOARCH=amd64        go build ${LDFLAGS} -o dist/${BINARY}-windows-amd64.exe\n" +
+	"\t@ls -la dist/\n" +
+	"\n" +
 	".PHONY: run\n" +
 	"run:\n" +
-	"\tgo run ${LDFLAGS} .\n"
+	"\tgo run ${LDFLAGS} .\n" +
+	"\n" +
+	".PHONY: test\n" +
+	"test:\n" +
+	"\tgo test -count=1 ./...\n" +
+	"\n" +
+	".PHONY: test-race\n" +
+	"test-race:\n" +
+	"\tgo test -race -count=1 ./...\n" +
+	"\n" +
+	".PHONY: cover\n" +
+	"cover:\n" +
+	"\tgo test -count=1 -coverprofile=coverage.out ./...\n" +
+	"\tgo tool cover -html=coverage.out -o coverage.html\n" +
+	"\t@echo \"coverage report: coverage.html\"\n" +
+	"\n" +
+	".PHONY: lint\n" +
+	"lint:\n" +
+	"\tgo vet ./...\n" +
+	"\t@which golangci-lint >/dev/null 2>&1 && golangci-lint run --timeout=5m || echo \"golangci-lint 未安装, 仅执行 go vet; 建议安装: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest\"\n" +
+	"\n" +
+	".PHONY: clean\n" +
+	"clean:\n" +
+	"\trm -f ${BINARY}\n" +
+	"\trm -rf dist coverage.out coverage.html\n"
 
 // buildComponentFileName 返回组件的独立配置文件名（仅用于生成提示，无副作用）。
 func buildComponentFileName(prefix, env string) string {

@@ -59,6 +59,18 @@ func runNew(args []string) error {
 	fs.BoolVar(&interactive, "interactive", false, "强制使用交互式问答模式")
 	fs.BoolVar(&interactive, "i", false, "强制使用交互式问答模式(简写)")
 
+	// v2 新能力开关: --health / --metrics / --otel / --loadbalancer
+	var (
+		healthFlag   bool
+		metricsFlag  bool
+		otelFlag     bool
+		loadBalancer string
+	)
+	fs.BoolVar(&healthFlag, "health", false, "v2: 启用 /health/{live,ready,startup} 探针 (go.framework.engine)")
+	fs.BoolVar(&metricsFlag, "metrics", false, "v2: 启用 /metrics 端点 (Prometheus 指标)")
+	fs.BoolVar(&otelFlag, "otel", false, "v2: 启用 OpenTelemetry (业务侧需自接 TracerProvider)")
+	fs.StringVar(&loadBalancer, "loadbalancer", "", "v2: 客户端负载均衡策略 round/random/least/consistent (默认 round)")
+
 	// Go 的 flag 包在遇到第一个非 flag 位置参数时会停止解析, 导致后续 flag 被忽略。
 	// 这里手动切分: 识别出「取值型 flag」(如 -module / -output) 并连同其后的取值一起保留,
 	// 其余非 flag 的 token 视为位置参数(工程名取第一个)。这样无论 flag 写在工程名前还是后都能正确解析。
@@ -89,6 +101,10 @@ func runNew(args []string) error {
 		Registry:     normalizeChoice(registry, "none", registryOptions),
 		ConfigCenter: normalizeChoice(configCenter, "none", configCenterOptions),
 		DBs:          normalizeDBs(dbs),
+		Health:       healthFlag,
+		Metrics:      metricsFlag,
+		Otel:         otelFlag,
+		LBPolicy:     normalizeChoice(loadBalancer, "", lbStrategies),
 	}
 
 	// 交互式条件: 显式 -i, 或检测到终端(TTY)。
@@ -115,6 +131,10 @@ func runNew(args []string) error {
 	if len(opts.DBs) == 0 {
 		opts.DBs = []string{"mysql"}
 	}
+	// 负载均衡策略兜底: 未指定时给 round (v2 默认)。
+	if opts.LBPolicy == "" {
+		opts.LBPolicy = "round"
+	}
 
 	// 解析 mgin 依赖版本: 显式 --mgin-version 优先; 否则自动获取最新发布版(离线回退默认版本)。
 	if opts.MginVersion == "" {
@@ -128,7 +148,11 @@ func runNew(args []string) error {
 }
 
 // defaultMginVersion 是离线或拉取失败时的回退版本, 保证脚手架始终可用。
-const defaultMginVersion = "v1.25.13-jh"
+// v2-arch 说明: 本分支是对 v1.25  系列的重构 (v2.0 骨架 + v2.1 微服务能力),
+// 但模块路径仍是 github.com/maczh/mgin (未加 /v2 后缀), 因此 tag 仍走 v1.x.y
+// 命名空间。最新的 v1.x tag 是 v1.25.14-jh (在 v2-arch 基线之前), 所以这里
+// 默认指回 jh 系列最新已知 tag, 让 go mod tidy 后升级到最新版本。
+const defaultMginVersion = "v1.25.14-jh"
 
 // mginModulePath 是脚手架生成的工程所依赖的 mgin 模块路径。
 const mginModulePath = "github.com/maczh/mgin"
@@ -208,6 +232,15 @@ func runInteractive(r *bufio.Reader, opts *ProjectOptions) error {
 	opts.Casbin = askBool(r, "启用 Casbin 接口级鉴权", opts.Casbin)
 	opts.I18n = askBool(r, "启用国际化 (i18n, 需 xlang 服务)", opts.I18n)
 	opts.Sys = askBool(r, "启用内置系统管理模块", opts.Sys)
+	// v2 新能力交互问答
+	opts.Health = askBool(r, "v2: 启用 /health 探针 (K8s liveness/readiness/startup)", opts.Health)
+	opts.Metrics = askBool(r, "v2: 启用 /metrics 端点 (Prometheus 指标)", opts.Metrics)
+	opts.Otel = askBool(r, "v2: 启用 OpenTelemetry (业务侧需自接 TracerProvider)", opts.Otel)
+	if opts.Registry != "none" {
+		opts.LBPolicy = singleFrom(r, "v2: 客户端负载均衡策略", []string{"round", "random", "least", "consistent"}, opts.LBPolicy)
+	} else if opts.LBPolicy == "" {
+		opts.LBPolicy = "round"
+	}
 	return nil
 }
 
@@ -410,7 +443,7 @@ var (
 	valueFlags = map[string]bool{
 		"-module": true, "-port": true, "-db": true, "-mq": true,
 		"-registry": true, "-config-center": true, "-output": true,
-		"-mgin-version": true,
+		"-mgin-version": true, "-loadbalancer": true,
 	}
 )
 
