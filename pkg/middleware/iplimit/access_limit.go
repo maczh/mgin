@@ -1,7 +1,7 @@
 package iplimit
 
 import (
-	"github.com/maczh/mgin/pkg/models"
+	"github.com/maczh/mgin/v2/pkg/models"
 	"log"
 	"net"
 	"net/http"

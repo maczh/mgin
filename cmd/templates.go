@@ -29,9 +29,9 @@ type ProjectOptions struct {
 	MginVersion  string // 生成工程所依赖的 mgin 版本 (自动获取最新, 可 --mgin-version 覆盖)
 
 	// v2 新能力开关
-	Health   bool // 启用 /health/{live,ready,startup} 探针
-	Metrics  bool // 启用 /metrics + Prometheus 指标
-	Otel     bool // 启用 OpenTelemetry (业务侧自接 SDK)
+	Health   bool   // 启用 /health/{live,ready,startup} 探针
+	Metrics  bool   // 启用 /metrics + Prometheus 指标
+	Otel     bool   // 启用 OpenTelemetry (业务侧自接 SDK)
 	LBPolicy string // 客户端负载均衡策略: round/random/least/consistent (默认 round)
 
 	// 以下为推导字段
@@ -235,8 +235,8 @@ const tmplMain = `package main
 import (
 	"{{.Module}}/router"
 
-	"github.com/maczh/mgin"
-	"github.com/maczh/mgin/pkg/health"
+	"github.com/maczh/mgin/v2"
+	"github.com/maczh/mgin/v2/pkg/health"
 )
 
 // @title {{.ProjectName}} API 文档
@@ -291,7 +291,7 @@ func main() {
 const tmplPlugins = `package main
 
 import (
-	"github.com/maczh/mgin"{{range .MQPlugins}}
+	"github.com/maczh/mgin/v2"{{range .MQPlugins}}
 	"{{.Path}}"{{end}}
 )
 
@@ -312,10 +312,10 @@ func registerMQPlugins(app *mgin.App) { {{- range .MQPlugins}}
 const tmplRouter = `package router
 
 import (
-	"github.com/maczh/mgin"
+	"github.com/maczh/mgin/v2"
 	"{{.Module}}/controller"
-{{if .JWT}}	"github.com/maczh/mgin/pkg/middleware/jwt"
-{{end}}{{if .Casbin}}	"github.com/maczh/mgin/pkg/middleware/casbin"
+{{if .JWT}}	"github.com/maczh/mgin/v2/pkg/middleware/jwt"
+{{end}}{{if .Casbin}}	"github.com/maczh/mgin/v2/pkg/middleware/casbin"
 {{end}})
 
 // RegisterRoutes 注册所有业务路由与全局中间件
@@ -346,8 +346,8 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/maczh/mgin/pkg/errcode"
-	"github.com/maczh/mgin/pkg/i18n"
+	"github.com/maczh/mgin/v2/pkg/errcode"
+	"github.com/maczh/mgin/v2/pkg/i18n"
 	"{{.Module}}/service"
 )
 
@@ -405,7 +405,7 @@ func GetProduct(c *gin.Context) {
 }
 
 // models_Result 是 models.Success 的本地别名, 避免在每个文件重复 import models;
-// 业务复杂时可改为直接导入 "github.com/maczh/mgin/pkg/models"。
+// 业务复杂时可改为直接导入 "github.com/maczh/mgin/v2/pkg/models"。
 func models_Result(data any) any {
 	return map[string]any{"code": 0, "msg": "ok", "data": data}
 }
@@ -428,7 +428,7 @@ const tmplModel = "package model\n\nimport \"time\"\n\n// Product 商品示例�
 const tmplDao = `package dao
 
 import (
-	"github.com/maczh/mgin/pkg/db/dao"
+	"github.com/maczh/mgin/v2/pkg/db/dao"
 	"{{.Module}}/model"
 )
 
@@ -513,7 +513,7 @@ func (s *ProductService) Get(ctx context.Context, id int64) (*model.Product, err
 
 // tmplGoMod 模块依赖。
 //
-// v2-arch 适配: 模块名仍为 github.com/maczh/mgin, 但生成工程显式声明 Go 1.25
+// v2-arch 适配: 模块名仍为 github.com/maczh/mgin/v2, 但生成工程显式声明 Go 1.25
 // (v2 已升级), 并把 gin v1.11.0 作为基础依赖列出。v2 内部依赖 (如 otel/prometheus)
 // 不会被工程直接引用, 所以不需要在 require 中声明。
 const tmplGoMod = `module {{.Module}}
@@ -522,7 +522,7 @@ go 1.25
 
 require (
 	github.com/gin-gonic/gin v1.11.0
-	github.com/maczh/mgin {{.MginVersion}}{{range .MQPlugins}}
+	github.com/maczh/mgin/v2 {{.MginVersion}}{{range .MQPlugins}}
 	{{.Path}} {{.Version}}{{end}}
 )
 

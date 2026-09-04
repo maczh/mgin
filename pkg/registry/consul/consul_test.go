@@ -3,7 +3,7 @@ package consul
 import (
 	"fmt"
 	"github.com/hashicorp/consul/api"
-	"github.com/maczh/mgin/pkg/config"
+	"github.com/maczh/mgin/v2/pkg/config"
 	"testing"
 )
 

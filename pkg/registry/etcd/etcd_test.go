@@ -2,7 +2,7 @@ package etcd
 
 import (
 	"fmt"
-	"github.com/maczh/mgin/pkg/config"
+	"github.com/maczh/mgin/v2/pkg/config"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"testing"
 )

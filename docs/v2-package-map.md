@@ -57,4 +57,4 @@ v2 生成的工程模板 import 已全部改为 `pkg/...`。
 ## 6. logs/ — 顶层别名壳（**下个 release 删除**）
 
 `logs/alias.go` 是 `pkg/logs` 的 re-export 别名壳，仅为存量项目平滑升级。
-新代码请直接 `import "github.com/maczh/mgin/pkg/logs"`。
+新代码请直接 `import "github.com/maczh/mgin/v2/pkg/logs"`。

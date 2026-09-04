@@ -6,15 +6,15 @@ import (
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/levigross/grequests"
-	"github.com/maczh/mgin/pkg/cache"
-	"github.com/maczh/mgin/pkg/config"
-	"github.com/maczh/mgin/pkg/loadbalancer"
-	"github.com/maczh/mgin/pkg/logs"
-	"github.com/maczh/mgin/pkg/middleware/trace"
-	"github.com/maczh/mgin/pkg/models"
-	"github.com/maczh/mgin/pkg/otel"
-	"github.com/maczh/mgin/pkg/registry"
-	"github.com/maczh/mgin/pkg/utils"
+	"github.com/maczh/mgin/v2/pkg/cache"
+	"github.com/maczh/mgin/v2/pkg/config"
+	"github.com/maczh/mgin/v2/pkg/loadbalancer"
+	"github.com/maczh/mgin/v2/pkg/logs"
+	"github.com/maczh/mgin/v2/pkg/middleware/trace"
+	"github.com/maczh/mgin/v2/pkg/models"
+	"github.com/maczh/mgin/v2/pkg/otel"
+	"github.com/maczh/mgin/v2/pkg/registry"
+	"github.com/maczh/mgin/v2/pkg/utils"
 	otelAttr "go.opentelemetry.io/otel/attribute"
 	otelTrace "go.opentelemetry.io/otel/trace"
 	"math/rand"
@@ -258,7 +258,7 @@ func getHostFromCache(serviceName string) (string, error) {
 //}
 
 // selectHostByLB 是 v2 负载均衡入口：先 GetServices 拿多实例，按 op.LoadBalancer 指定的策略
-//（为空则走 loadbalancer.Default()，即 RoundRobin）选 1 个 host，并跳过被熔断的实例（per-instance
+// （为空则走 loadbalancer.Default()，即 RoundRobin）选 1 个 host，并跳过被熔断的实例（per-instance
 // 熔断器：client.GetBreaker(service+"@"+host)）。
 //
 // 返回：

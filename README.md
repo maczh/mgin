@@ -1,8 +1,8 @@
 # MGin 微服务框架（v2）
 
-> 模块路径：`github.com/maczh/mgin` · Go 1.25+ · 当前分支：`v2`（基线：`v1.25.14-jh`）
+> 模块路径：`github.com/maczh/mgin/v2` · Go 1.25+ · 当前分支：`v2`（基线：`v1.25.14-jh`）
 >
-> v2 是**对 v1.25.14-jh 的内部架构重构**，**模块路径未升级**（仍为 `github.com/maczh/mgin`）。
+> v2 是**对 v1.25.14-jh 的内部架构重构**，**模块路径未升级**（仍为 `github.com/maczh/mgin/v2`）。
 > 它在保留 v1 所有对外 API 的同时，引入了统一的插件系统、客户端韧性、四类客户端负载均衡、
 > Prometheus 指标、统一错误码与 OpenTelemetry 接入；并把脚手架（`cmd/`）升级为对应的 v2 输出。
 >
@@ -30,7 +30,7 @@
 
 ```bash
 # 安装脚手架 CLI
-go install github.com/maczh/mgin/cmd/mgin@v2.0.0
+go install github.com/maczh/mgin/v2/cmd/mgin@v2.0.0
 # 或在 v2 分支本地构建：cd cmd && go build -o $(go env GOPATH)/bin/mgin .
 
 # 一步生成一个带健康检查、Prometheus 指标、负载均衡、注册中心的 Go 微服务工程
@@ -61,10 +61,10 @@ package main
 
 import (
     "github.com/gin-gonic/gin"
-    "github.com/maczh/mgin"
-    "github.com/maczh/mgin/pkg/client"
-    "github.com/maczh/mgin/pkg/health"
-    "github.com/maczh/mgin/pkg/metrics"
+    "github.com/maczh/mgin/v2"
+    "github.com/maczh/mgin/v2/pkg/client"
+    "github.com/maczh/mgin/v2/pkg/health"
+    "github.com/maczh/mgin/v2/pkg/metrics"
 )
 
 func main() {
@@ -168,7 +168,7 @@ v2 提交链（`v2` 分支，从旧到新）：
 
 ```bash
 cd cmd && go build -o $(go env GOPATH)/bin/mgin .
-# 或 go install github.com/maczh/mgin/cmd/mgin@<version>
+# 或 go install github.com/maczh/mgin/v2/cmd/mgin@<version>
 ```
 
 ### 非交互模式
@@ -285,7 +285,7 @@ curl http://localhost:8088/api/v1/...       # 你自己的业务接口
 ## v2 框架目录结构
 
 ```
-mgin/                                   # 框架仓库根 (github.com/maczh/mgin)
+mgin/                                   # 框架仓库根 (github.com/maczh/mgin/v2)
 ├── mgin.go                             # 框架入口：NewApp / Init / SafeExit (Plugin 驱动)
 ├── app.go                              # 进程生命周期 / HTTP+HTTPS / Health/Metrics 挂载点
 ├── application.example.yml             # v2 完整配置示例（含 go.framework.* 与 go.runtime.*）
@@ -362,7 +362,7 @@ mgin/                                   # 框架仓库根 (github.com/maczh/mgin
 | `client.GetBreaker(name)` | ✗ | ✓ 新增 | |
 | `loadbalancer.Default/Register/Get` | ✗ | ✓ 新增 | |
 | `config.Config.Framework` / `Runtime` | ✗ | ✓ 新增 | 旧 `App/Log/Logger` 100% 向后兼容 |
-| **import 路径（破坏）** | `github.com/maczh/mgin/client` 等顶层 | `github.com/maczh/mgin/pkg/client/...` | 14 个旧路径迁到 `pkg/`；`logs/` 保留顶层 1 release 的别名壳 |
+| **import 路径（破坏）** | `github.com/maczh/mgin/v2/client` 等顶层 | `github.com/maczh/mgin/v2/pkg/client/...` | 14 个旧路径迁到 `pkg/`；`logs/` 保留顶层 1 release 的别名壳 |
 | `app.NoRoute` / `recoveryHandler` 返 HTTP 状态 | 恒为 200 | 404 / 500 | 按 `Definition.HTTPStatus` |
 
 完整迁移指引（带 sed 一键替换脚本）见 [`docs/migration-v1-to-v2.md`](docs/migration-v1-to-v2.md)。
@@ -422,12 +422,12 @@ go:
 
 ```bash
 # 一键 sed（macOS / BSD）：把 14 个旧顶层包替换为 pkg/
-for f in $(grep -rl "github.com/maczh/mgin/\(client\|config\|errcode\|i18n\|health\|models\|registry\|middleware\|casbin\|utils\|logs\|job\|db\|storage\|cache\)" --include="*.go" .); do
-    sed -i '' 's|github.com/maczh/mgin/\(client\|config\|errcode\|i18n\|health\|models\|registry\|middleware\|casbin\|utils\|logs\|job\|db\|storage\|cache\)\([^a-zA-Z]\)|github.com/maczh/mgin/pkg/\1\2|g' "$f"
+for f in $(grep -rl "github.com/maczh/mgin/v2/\(client\|config\|errcode\|i18n\|health\|models\|registry\|middleware\|casbin\|utils\|logs\|job\|db\|storage\|cache\)" --include="*.go" .); do
+    sed -i '' 's|github.com/maczh/mgin/v2/\(client\|config\|errcode\|i18n\|health\|models\|registry\|middleware\|casbin\|utils\|logs\|job\|db\|storage\|cache\)\([^a-zA-Z]\)|github.com/maczh/mgin/v2/pkg/\1\2|g' "$f"
 done
 
 # Linux：
-# sed -i 's|github.com/maczh/mgin/\(client\|config\|errcode\|...\)\([^a-zA-Z]\)|github.com/maczh/mgin/pkg/\1\2|g'
+# sed -i 's|github.com/maczh/mgin/v2/\(client\|config\|errcode\|...\)\([^a-zA-Z]\)|github.com/maczh/mgin/v2/pkg/\1\2|g'
 ```
 
 或者用脚手架 `--mgin-version v1.25.14-jh`（默认值）保持兼容，单独开 v2 分支开新工程。

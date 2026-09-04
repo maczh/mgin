@@ -3,7 +3,7 @@ package jwt
 import (
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
-	"github.com/maczh/mgin/pkg/config"
+	"github.com/maczh/mgin/v2/pkg/config"
 	"net/http"
 	"strings"
 )

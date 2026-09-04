@@ -9,15 +9,15 @@ package mgin
 
 import (
 	"context"
-	goruntime "runtime"
 	"os"
+	goruntime "runtime"
 	"strings"
 	"time"
 
-	"github.com/maczh/mgin/pkg/config"
-	"github.com/maczh/mgin/pkg/logs"
-	"github.com/maczh/mgin/pkg/plugin"
-	"github.com/maczh/mgin/pkg/registry"
+	"github.com/maczh/mgin/v2/pkg/config"
+	"github.com/maczh/mgin/v2/pkg/logs"
+	"github.com/maczh/mgin/v2/pkg/plugin"
+	"github.com/maczh/mgin/v2/pkg/registry"
 	"github.com/sadlil/gologger"
 )
 

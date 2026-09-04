@@ -18,9 +18,9 @@ func newTestManager(rules ...Rule) *Manager {
 
 func TestConcurrencyLimiter(t *testing.T) {
 	m := newTestManager(Rule{
-		Name:         "c",
-		Algorithm:    AlgoConcurrency,
-		Dimension:    DimGlobal,
+		Name:          "c",
+		Algorithm:     AlgoConcurrency,
+		Dimension:     DimGlobal,
 		MaxConcurrent: 2,
 	})
 	key := "k"

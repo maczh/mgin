@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/maczh/mgin/pkg/models"
+	"github.com/maczh/mgin/v2/pkg/models"
 	"github.com/sadlil/gologger"
 )
 

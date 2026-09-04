@@ -1,7 +1,7 @@
 package logs
 
 import (
-	"github.com/maczh/mgin/pkg/config"
+	"github.com/maczh/mgin/v2/pkg/config"
 )
 
 const (

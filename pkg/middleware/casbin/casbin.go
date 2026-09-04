@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
-	"github.com/maczh/mgin/pkg/casbin"
-	"github.com/maczh/mgin/pkg/config"
-	"github.com/maczh/mgin/pkg/models"
+	"github.com/maczh/mgin/v2/pkg/casbin"
+	"github.com/maczh/mgin/v2/pkg/config"
+	"github.com/maczh/mgin/v2/pkg/models"
 	"net/http"
 	"strings"
 )

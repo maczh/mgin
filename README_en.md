@@ -1,8 +1,8 @@
 # MGin Microservice Framework — Application Documentation
 
-> Version: based on `github.com/maczh/mgin` (Go 1.25), latest features v1.20.x
+> Version: based on `github.com/maczh/mgin/v2` (Go 1.25), latest features v1.20.x
 > Audience: engineers building, developing, and operating RESTful microservices with MGin
-> Module path: `github.com/maczh/mgin`
+> Module path: `github.com/maczh/mgin/v2`
 
 ## Table of Contents
 
@@ -148,7 +148,7 @@ MGin is a Go framework for **quickly building RESTful microservice programs**, b
 ### 2.1 Install
 
 ```bash
-go get -u github.com/maczh/mgin
+go get -u github.com/maczh/mgin/v2
 ```
 
 ### 2.2 Minimal Runnable Example
@@ -158,8 +158,8 @@ package main
 
 import (
     "github.com/gin-gonic/gin"
-    "github.com/maczh/mgin"
-    "github.com/maczh/mgin/models"
+    "github.com/maczh/mgin/v2"
+    "github.com/maczh/mgin/v2/models"
 )
 
 func main() {
@@ -368,7 +368,7 @@ go:
 ### 4.5 Configuration Reading API
 
 ```go
-import "github.com/maczh/mgin/config"
+import "github.com/maczh/mgin/v2/config"
 
 config.Config.GetConfigString("go.application.name")   // string
 config.Config.GetConfigStringArray("go.config.used")   // []string
@@ -413,7 +413,7 @@ Each component's `<prefix>-<env>.yml` provides connection info; the framework pu
 
 ## 6. Databases and Message Middleware
 
-On startup the framework auto-initializes the following global clients (in `github.com/maczh/mgin/db`) per `go.config.used`:
+On startup the framework auto-initializes the following global clients (in `github.com/maczh/mgin/v2/db`) per `go.config.used`:
 
 | Global variable | Type | Description |
 |---|---|---|
@@ -678,7 +678,7 @@ Lower-level entry points: `GetProducer() / GetConsumer() / GetAdminClient() / Ge
 
 ## 7. DAO Generic Data Access Layer
 
-Type-safe CRUD for relational and document databases, in `github.com/maczh/mgin/db/dao`.
+Type-safe CRUD for relational and document databases, in `github.com/maczh/mgin/v2/db/dao`.
 
 | DAO | For | Construct |
 |---|---|---|
@@ -754,7 +754,7 @@ mgoDao.Pager(bson.M{}, "name", 1, 20)
 
 ## 8. Cache
 
-In `github.com/maczh/mgin/cache`, unified interface `ICache`:
+In `github.com/maczh/mgin/v2/cache`, unified interface `ICache`:
 
 ```go
 type ICache interface {
@@ -805,7 +805,7 @@ cache.CloseCache()                            // release all cache instances
 
 ## 9. Microservice Client
 
-In `github.com/maczh/mgin/client`. Under the hood it uses `registry.Registry.GetServiceURL` for service discovery and auto-propagates trace headers.
+In `github.com/maczh/mgin/v2/client`. Under the hood it uses `registry.Registry.GetServiceURL` for service discovery and auto-propagates trace headers.
 
 ### 9.1 Options and Protocols
 
@@ -1091,7 +1091,7 @@ func GetUser(c *gin.Context) {
 
 ## 13. Unified Response Structure (Result)
 
-In `github.com/maczh/mgin/models`. All endpoints should return `models.Result[T]` (output via `c.JSON(200, result)`):
+In `github.com/maczh/mgin/v2/models`. All endpoints should return `models.Result[T]` (output via `c.JSON(200, result)`):
 
 ```go
 type Result[T any] struct {
@@ -1233,7 +1233,7 @@ Common base `BaseModel` includes `DelFlag, CreateAt, UpdateAt, UpdateBy, CreateB
 
 ## 16. Utilities (utils)
 
-`github.com/maczh/mgin/utils` provides a large set of ready-to-use helper functions and generic data structures, covering cryptography, string/Chinese handling, date/time, serialization, map/struct conversion, collections, network/IP, file & compression, UUID/random, concurrency-safe structures, and validation. All are package-level exported functions, imported as needed, e.g.:
+`github.com/maczh/mgin/v2/utils` provides a large set of ready-to-use helper functions and generic data structures, covering cryptography, string/Chinese handling, date/time, serialization, map/struct conversion, collections, network/IP, file & compression, UUID/random, concurrency-safe structures, and validation. All are package-level exported functions, imported as needed, e.g.:
 
 ```go
 s  := utils.MD5Encode("hello")                    // "5d41402abc4b2a76b9719d911017c592"
@@ -1577,7 +1577,7 @@ The `jh` branch adds a read-cache for relational DB clients based on [go-gorm/ca
 
 ### 20.5 New: PostgreSQL Support
 
-- Global client: `db.Pg = &postgres.PostgresClient{}` (package `github.com/maczh/mgin/db/postgres`).
+- Global client: `db.Pg = &postgres.PostgresClient{}` (package `github.com/maczh/mgin/v2/db/postgres`).
 - Config prefix: `go.config.prefix.postgres` (optional; component-level keys under `go.data.postgres.*`).
 - Generic DAO: `PostgresDao[E schema.Tabler]`, API identical to `MySQLDao`: `Create / MultiCreate / Delete / Updates / Save / All / One / Exists / Count / Pager / Where / Debug / WithContext`.
 
@@ -1591,7 +1591,7 @@ The `jh` branch adds a read-cache for relational DB clients based on [go-gorm/ca
 
 ### 20.6 New: ClickHouse Support
 
-- Global client: `db.Clickhouse = &clickhouse.ClickhouseClient{}` (package `github.com/maczh/mgin/db/clickhouse`).
+- Global client: `db.Clickhouse = &clickhouse.ClickhouseClient{}` (package `github.com/maczh/mgin/v2/db/clickhouse`).
 - Generic DAO: `ClickhouseDao[E schema.Tabler]`, API identical to `MySQLDao`.
 - Config prefix: `go.config.prefix.clickhouse`; component DSN key `go.data.clickhouse` (single) or `go.data.clickhouse.<dbName>` (multi).
 
@@ -1686,7 +1686,7 @@ go:
 ### 21.3 Usage
 
 ```go
-import "github.com/maczh/mgin/middleware/ratelimit"
+import "github.com/maczh/mgin/v2/middleware/ratelimit"
 
 // Option 1: from yml config (effective when go.ratelimit.enabled is true)
 app.Router.Use(ratelimit.RateLimit())
@@ -1748,7 +1748,7 @@ Tables: `mgin_job_info` (definitions), `mgin_job_log` (execution logs).
 A handler is `func(*job.Context) error`, registered by `job.Register(name, handler)`; `name` must match the DB `handler_name` column:
 
 ```go
-import "github.com/maczh/mgin/job"
+import "github.com/maczh/mgin/v2/job"
 
 func init() {
     job.Register("syncUserJob", func(ctx *job.Context) error {
@@ -1850,7 +1850,7 @@ go:
 ### 23.2 Basic Usage
 
 ```go
-import "github.com/maczh/mgin/storage/s3"
+import "github.com/maczh/mgin/v2/storage/s3"
 
 b := s3.GetS3().Default()
 b = s3.GetS3().Get("public-assets")

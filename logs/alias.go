@@ -1,11 +1,11 @@
 // Package logs 是 pkg/logs 的向后兼容别名壳。
 //
-// v2.0 起日志包已迁至 github.com/maczh/mgin/pkg/logs，本包仅做 re-export，
-// 以便存量项目 `import "github.com/maczh/mgin/logs"` 仍可编译。该别名壳计划在
+// v2.0 起日志包已迁至 github.com/maczh/mgin/v2/pkg/logs，本包仅做 re-export，
+// 以便存量项目 `import "github.com/maczh/mgin/v2/logs"` 仍可编译。该别名壳计划在
 // 下一个 release 删除，新项目请直接使用 pkg/logs。
 package logs
 
-import pkglogs "github.com/maczh/mgin/pkg/logs"
+import pkglogs "github.com/maczh/mgin/v2/pkg/logs"
 
 // 类型别名：方法随类型自动带入（如 *Color.Set()、GoLogger.Info() 等）。
 type (

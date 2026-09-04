@@ -14,7 +14,7 @@ import (
 	"github.com/knadh/koanf"
 	"github.com/knadh/koanf/parsers/yaml"
 	"github.com/knadh/koanf/providers/rawbytes"
-	"github.com/maczh/mgin/pkg/config"
+	"github.com/maczh/mgin/v2/pkg/config"
 	"github.com/sadlil/gologger"
 )
 

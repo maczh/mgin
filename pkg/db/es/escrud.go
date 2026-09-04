@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"github.com/gofrs/uuid"
-	"github.com/maczh/mgin/pkg/logs"
-	"github.com/maczh/mgin/pkg/utils"
+	"github.com/maczh/mgin/v2/pkg/logs"
+	"github.com/maczh/mgin/v2/pkg/utils"
 	"github.com/olivere/elastic"
 	"strings"
 )

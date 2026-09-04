@@ -1,11 +1,11 @@
 package registry
 
 import (
-	"github.com/maczh/mgin/pkg/config"
-	"github.com/maczh/mgin/pkg/registry/consul"
-	"github.com/maczh/mgin/pkg/registry/etcd"
-	"github.com/maczh/mgin/pkg/registry/nacos"
-	"github.com/maczh/mgin/pkg/registry/polaris"
+	"github.com/maczh/mgin/v2/pkg/config"
+	"github.com/maczh/mgin/v2/pkg/registry/consul"
+	"github.com/maczh/mgin/v2/pkg/registry/etcd"
+	"github.com/maczh/mgin/v2/pkg/registry/nacos"
+	"github.com/maczh/mgin/v2/pkg/registry/polaris"
 )
 
 var Registry RegistryClient

@@ -12,7 +12,7 @@ import (
 	"encoding/hex"
 	"encoding/pem"
 	"errors"
-	"github.com/maczh/mgin/pkg/logs"
+	"github.com/maczh/mgin/v2/pkg/logs"
 	"io"
 	"io/ioutil"
 	"math/big"

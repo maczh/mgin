@@ -6,7 +6,7 @@ import (
 	"crypto/cipher"
 	"encoding/base64"
 	"errors"
-	"github.com/maczh/mgin/pkg/logs"
+	"github.com/maczh/mgin/v2/pkg/logs"
 )
 
 func PKCS5Padding(cipherText []byte, blockSize int) []byte {

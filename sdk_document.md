@@ -25,7 +25,7 @@ package main
 
 import (
     "github.com/gin-gonic/gin"
-    "github.com/maczh/mgin"
+    "github.com/maczh/mgin/v2"
 )
 
 func main() {
@@ -384,7 +384,7 @@ func (c *config) Init(cf string)
 package main
 
 import (
-    "github.com/maczh/mgin/config"
+    "github.com/maczh/mgin/v2/config"
 )
 
 func main() {
@@ -407,7 +407,7 @@ package main
 
 import (
     "fmt"
-    "github.com/maczh/mgin/config"
+    "github.com/maczh/mgin/v2/config"
 )
 
 func main() {
@@ -432,7 +432,7 @@ package main
 
 import (
     "fmt"
-    "github.com/maczh/mgin/config"
+    "github.com/maczh/mgin/v2/config"
 )
 
 func main() {
@@ -457,7 +457,7 @@ package main
 
 import (
     "fmt"
-    "github.com/maczh/mgin/config"
+    "github.com/maczh/mgin/v2/config"
 )
 
 func main() {
@@ -482,7 +482,7 @@ package main
 
 import (
     "fmt"
-    "github.com/maczh/mgin/config"
+    "github.com/maczh/mgin/v2/config"
 )
 
 func main() {
@@ -507,7 +507,7 @@ package main
 
 import (
     "fmt"
-    "github.com/maczh/mgin/config"
+    "github.com/maczh/mgin/v2/config"
 )
 
 func main() {
@@ -532,7 +532,7 @@ package main
 
 import (
     "fmt"
-    "github.com/maczh/mgin/config"
+    "github.com/maczh/mgin/v2/config"
 )
 
 func main() {
@@ -599,8 +599,8 @@ type RegistryClient interface {
 package main
 
 import (
-    "github.com/maczh/mgin/config"
-    "github.com/maczh/mgin/registry"
+    "github.com/maczh/mgin/v2/config"
+    "github.com/maczh/mgin/v2/registry"
 )
 
 func main() {
@@ -617,8 +617,8 @@ func main() {
 package main
 
 import (
-    "github.com/maczh/mgin/config"
-    "github.com/maczh/mgin/registry"
+    "github.com/maczh/mgin/v2/config"
+    "github.com/maczh/mgin/v2/registry"
 )
 
 func main() {
@@ -635,8 +635,8 @@ func main() {
 package main
 
 import (
-    "github.com/maczh/mgin/config"
-    "github.com/maczh/mgin/registry"
+    "github.com/maczh/mgin/v2/config"
+    "github.com/maczh/mgin/v2/registry"
 )
 
 func main() {
@@ -656,8 +656,8 @@ package main
 
 import (
     "fmt"
-    "github.com/maczh/mgin/config"
-    "github.com/maczh/mgin/registry"
+    "github.com/maczh/mgin/v2/config"
+    "github.com/maczh/mgin/v2/registry"
 )
 
 func main() {
@@ -677,8 +677,8 @@ func main() {
 package main
 
 import (
-    "github.com/maczh/mgin/config"
-    "github.com/maczh/mgin/registry"
+    "github.com/maczh/mgin/v2/config"
+    "github.com/maczh/mgin/v2/registry"
 )
 
 func main() {
@@ -781,8 +781,8 @@ package main
 
 import (
     "fmt"
-    "github.com/maczh/mgin/client"
-    "github.com/maczh/mgin/models"
+    "github.com/maczh/mgin/v2/client"
+    "github.com/maczh/mgin/v2/models"
 )
 
 func main() {
@@ -821,8 +821,8 @@ package main
 
 import (
     "fmt"
-    "github.com/maczh/mgin/client"
-    "github.com/maczh/mgin/models"
+    "github.com/maczh/mgin/v2/client"
+    "github.com/maczh/mgin/v2/models"
 )
 
 type ResponseData struct {
@@ -920,7 +920,7 @@ func OnGetCache(cachename string, persistent ...bool) ICache
 package main
 
 import (
-    "github.com/maczh/mgin/cache"
+    "github.com/maczh/mgin/v2/cache"
 )
 
 func main() {
@@ -950,7 +950,7 @@ func OnDiskCache(cachePath string) ICache
 package main
 
 import (
-    "github.com/maczh/mgin/cache"
+    "github.com/maczh/mgin/v2/cache"
 )
 
 func main() {
@@ -976,7 +976,7 @@ func OnMemCache(cachename string) ICache
 package main
 
 import (
-    "github.com/maczh/mgin/cache"
+    "github.com/maczh/mgin/v2/cache"
 )
 
 func main() {
@@ -998,7 +998,7 @@ func CloseCache()
 package main
 
 import (
-    "github.com/maczh/mgin/cache"
+    "github.com/maczh/mgin/v2/cache"
 )
 
 func main() {
@@ -1034,7 +1034,7 @@ package main
 
 import (
     "fmt"
-    "github.com/maczh/mgin/cache"
+    "github.com/maczh/mgin/v2/cache"
     "time"
 )
 
@@ -1068,7 +1068,7 @@ package main
 
 import (
     "fmt"
-    "github.com/maczh/mgin/cache"
+    "github.com/maczh/mgin/v2/cache"
 )
 
 func main() {
@@ -1108,7 +1108,7 @@ package main
 
 import (
     "fmt"
-    "github.com/maczh/mgin/cache"
+    "github.com/maczh/mgin/v2/cache"
 )
 
 func main() {
@@ -1142,7 +1142,7 @@ package main
 
 import (
     "fmt"
-    "github.com/maczh/mgin/cache"
+    "github.com/maczh/mgin/v2/cache"
 )
 
 func main() {
@@ -1174,7 +1174,7 @@ package main
 
 import (
     "fmt"
-    "github.com/maczh/mgin/cache"
+    "github.com/maczh/mgin/v2/cache"
 )
 
 func main() {
@@ -1213,7 +1213,7 @@ func (d *DiskCache) Set(key any, value any, duration time.Duration)
 package main
 
 import (
-    "github.com/maczh/mgin/cache"
+    "github.com/maczh/mgin/v2/cache"
     "time"
 )
 
@@ -1244,7 +1244,7 @@ package main
 
 import (
     "fmt"
-    "github.com/maczh/mgin/cache"
+    "github.com/maczh/mgin/v2/cache"
 )
 
 func main() {
@@ -1283,7 +1283,7 @@ func (d *DiskCache) Delete(key any)
 package main
 
 import (
-    "github.com/maczh/mgin/cache"
+    "github.com/maczh/mgin/v2/cache"
 )
 
 func main() {
@@ -1312,7 +1312,7 @@ func (d *DiskCache) Close()
 package main
 
 import (
-    "github.com/maczh/mgin/cache"
+    "github.com/maczh/mgin/v2/cache"
 )
 
 func main() {
@@ -1367,7 +1367,7 @@ package main
 
 import (
     "fmt"
-    "github.com/maczh/mgin/models"
+    "github.com/maczh/mgin/v2/models"
 )
 
 func main() {
@@ -1392,7 +1392,7 @@ package main
 
 import (
     "fmt"
-    "github.com/maczh/mgin/models"
+    "github.com/maczh/mgin/v2/models"
 )
 
 func main() {
@@ -1418,7 +1418,7 @@ package main
 
 import (
     "fmt"
-    "github.com/maczh/mgin/models"
+    "github.com/maczh/mgin/v2/models"
 )
 
 func main() {
@@ -1449,7 +1449,7 @@ package main
 
 import (
     "fmt"
-    "github.com/maczh/mgin/models"
+    "github.com/maczh/mgin/v2/models"
 )
 
 func main() {
@@ -1478,7 +1478,7 @@ package main
 
 import (
     "fmt"
-    "github.com/maczh/mgin/models"
+    "github.com/maczh/mgin/v2/models"
 )
 
 func main() {
@@ -1504,7 +1504,7 @@ package main
 
 import (
     "fmt"
-    "github.com/maczh/mgin/models"
+    "github.com/maczh/mgin/v2/models"
 )
 
 func main() {
@@ -1530,7 +1530,7 @@ package main
 
 import (
     "fmt"
-    "github.com/maczh/mgin/models"
+    "github.com/maczh/mgin/v2/models"
 )
 
 func main() {
@@ -1556,7 +1556,7 @@ package main
 
 import (
     "fmt"
-    "github.com/maczh/mgin/models"
+    "github.com/maczh/mgin/v2/models"
 )
 
 func main() {

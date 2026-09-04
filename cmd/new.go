@@ -148,14 +148,12 @@ func runNew(args []string) error {
 }
 
 // defaultMginVersion 是离线或拉取失败时的回退版本, 保证脚手架始终可用。
-// v2-arch 说明: 本分支是对 v1.25  系列的重构 (v2.0 骨架 + v2.1 微服务能力),
-// 但模块路径仍是 github.com/maczh/mgin (未加 /v2 后缀), 因此 tag 仍走 v1.x.y
-// 命名空间。最新的 v1.x tag 是 v1.25.14-jh (在 v2-arch 基线之前), 所以这里
-// 默认指回 jh 系列最新已知 tag, 让 go mod tidy 后升级到最新版本。
-const defaultMginVersion = "v1.25.14-jh"
+// v2-arch 说明: 本分支是对 v1.25 系列的重构 (v2.0 骨架 + v2.1 微服务能力),
+// 使用 /v2 模块路径和 v2 版本命名空间。
+const defaultMginVersion = "v2.0.0"
 
 // mginModulePath 是脚手架生成的工程所依赖的 mgin 模块路径。
-const mginModulePath = "github.com/maczh/mgin"
+const mginModulePath = "github.com/maczh/mgin/v2"
 
 // resolveMginVersion 通过 Go 模块代理获取 mgin 的最新发布版本号。
 // 优先使用 GOPROXY 环境变量中的第一个代理地址(忽略 direct/off),

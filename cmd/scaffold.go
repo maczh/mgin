@@ -320,7 +320,7 @@ func boolYAML(v bool) string {
 func buildReadme(o *ProjectOptions) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "# %s\n\n", o.ProjectName)
-	b.WriteString("基于 [MGin v2](https://github.com/maczh/mgin) 微服务框架生成的项目骨架。\n\n")
+	b.WriteString("基于 [MGin v2](https://github.com/maczh/mgin/v2) 微服务框架生成的项目骨架。\n\n")
 
 	b.WriteString("## 目录结构\n\n")
 	b.WriteString("```\n")
@@ -387,7 +387,7 @@ func buildReadme(o *ProjectOptions) string {
 	b.WriteString("```\n\n")
 
 	b.WriteString("> 提示: 启用数据库/消息队列/注册中心等组件后, 需先启动对应中间件, 否则框架会在启动时打印连接错误 (不影响进程启动)。\n\n")
-	b.WriteString("> 迁移指南: 旧 v1 工程升级到 v2 请参考 [mgin-v2 迁移文档](https://github.com/maczh/mgin/blob/v2-arch/docs/migration-v1-to-v2.md)。\n")
+	b.WriteString("> 迁移指南: 旧 v1 工程升级到 v2 请参考 [mgin-v2 迁移文档](https://github.com/maczh/mgin/v2/blob/v2-arch/docs/migration-v1-to-v2.md)。\n")
 	return b.String()
 }
 

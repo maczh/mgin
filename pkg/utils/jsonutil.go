@@ -3,7 +3,7 @@ package utils
 import (
 	"bytes"
 	"encoding/json"
-	"github.com/maczh/mgin/pkg/logs"
+	"github.com/maczh/mgin/v2/pkg/logs"
 	"strings"
 )
 

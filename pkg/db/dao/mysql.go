@@ -6,8 +6,8 @@ import (
 	"math"
 	"strings"
 
-	"github.com/maczh/mgin/pkg/db"
-	"github.com/maczh/mgin/pkg/models"
+	"github.com/maczh/mgin/v2/pkg/db"
+	"github.com/maczh/mgin/v2/pkg/models"
 	"github.com/sadlil/gologger"
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"

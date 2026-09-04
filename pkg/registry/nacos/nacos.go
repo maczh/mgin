@@ -12,7 +12,7 @@ import (
 
 	jsoniter "github.com/json-iterator/go"
 	"github.com/levigross/grequests"
-	"github.com/maczh/mgin/pkg/config"
+	"github.com/maczh/mgin/v2/pkg/config"
 	"github.com/sadlil/gologger"
 
 	"github.com/knadh/koanf"

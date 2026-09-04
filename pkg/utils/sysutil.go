@@ -2,7 +2,7 @@ package utils
 
 import (
 	"bytes"
-	"github.com/maczh/mgin/pkg/logs"
+	"github.com/maczh/mgin/v2/pkg/logs"
 	"os/exec"
 	"time"
 )

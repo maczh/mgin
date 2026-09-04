@@ -3,7 +3,7 @@ package session
 import (
 	"context"
 	"fmt"
-	"github.com/maczh/mgin/pkg/models"
+	"github.com/maczh/mgin/v2/pkg/models"
 	"net/http"
 
 	"github.com/gin-gonic/gin"

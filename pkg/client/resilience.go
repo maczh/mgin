@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/maczh/mgin/pkg/logs"
+	"github.com/maczh/mgin/v2/pkg/logs"
 )
 
 // 重试退避的默认值：在调用方未显式指定 BaseDelay / MaxDelay 时使用。
@@ -80,6 +80,7 @@ type callResult struct {
 // 返回值:
 //   - string: 成功时返回响应体，与原 client.Call 一致。
 //   - error: 失败时返回最后一次的错误；熔断打开时返回包装了 ErrCircuitOpen 的错误。
+//
 // CallResilient 是 Call 的"带韧性策略"版本，等价于 CallResilientCtx(context.Background(), service, uri, op, ro)。
 // 保留以兼容 v1 时代使用 CallResilient 的项目。
 func CallResilient(service, uri string, op *Options, ro *ResilienceOptions) (string, error) {

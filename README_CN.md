@@ -1,8 +1,8 @@
 # MGin 微服务框架 应用文档
 
-> 版本：基于 `github.com/maczh/mgin`（Go 1.25），最新特性 v1.20.x
+> 版本：基于 `github.com/maczh/mgin/v2`（Go 1.25），最新特性 v1.20.x
 > 适用：使用 MGin 从零搭建、开发与运维 RESTful 微服务的工程人员
-> 模块路径：`github.com/maczh/mgin`
+> 模块路径：`github.com/maczh/mgin/v2`
 >
 > [[英文版](README_en.md)]
 
@@ -150,7 +150,7 @@ MGin 是一个用于**快速创建基于 RESTful 的微服务程序**的 Go 框�
 ### 2.1 安装
 
 ```bash
-go get -u github.com/maczh/mgin
+go get -u github.com/maczh/mgin/v2
 ```
 
 ### 2.2 最小可运行示例
@@ -160,8 +160,8 @@ package main
 
 import (
     "github.com/gin-gonic/gin"
-    "github.com/maczh/mgin"
-    "github.com/maczh/mgin/models"
+    "github.com/maczh/mgin/v2"
+    "github.com/maczh/mgin/v2/models"
 )
 
 func main() {
@@ -370,7 +370,7 @@ go:
 ### 4.5 配置读取 API
 
 ```go
-import "github.com/maczh/mgin/config"
+import "github.com/maczh/mgin/v2/config"
 
 config.Config.GetConfigString("go.application.name")   // string
 config.Config.GetConfigStringArray("go.config.used")  // []string
@@ -415,7 +415,7 @@ config.Config.Exists("go.sys.enabled")                 // bool
 
 ## 6. 数据库与消息中间件
 
-框架启动时按 `go.config.used` 自动初始化下列全局客户端（位于 `github.com/maczh/mgin/db`）：
+框架启动时按 `go.config.used` 自动初始化下列全局客户端（位于 `github.com/maczh/mgin/v2/db`）：
 
 | 全局变量 | 类型 | 说明 |
 |---|---|---|
@@ -680,7 +680,7 @@ err := db.Kafka.MessageListener("my_group_id", "my_topic", func(msg string) erro
 
 ## 7. DAO 泛型数据访问层
 
-为关系型与文档型数据库提供类型安全的 CRUD。位于 `github.com/maczh/mgin/db/dao`。
+为关系型与文档型数据库提供类型安全的 CRUD。位于 `github.com/maczh/mgin/v2/db/dao`。
 
 | DAO | 适用 | 构造 |
 |---|---|---|
@@ -756,7 +756,7 @@ mgoDao.Pager(bson.M{}, "name", 1, 20)
 
 ## 8. 缓存（Cache）
 
-位于 `github.com/maczh/mgin/cache`，统一接口 `ICache`：
+位于 `github.com/maczh/mgin/v2/cache`，统一接口 `ICache`：
 
 ```go
 type ICache interface {
@@ -807,7 +807,7 @@ cache.CloseCache()                            // 释放所有缓存实例
 
 ## 9. 微服务调用（Client）
 
-位于 `github.com/maczh/mgin/client`。底层通过 `registry.Registry.GetServiceURL` 做服务发现，自动透传 trace header。
+位于 `github.com/maczh/mgin/v2/client`。底层通过 `registry.Registry.GetServiceURL` 做服务发现，自动透传 trace header。
 
 ### 9.1 Options 与协议
 
@@ -1092,7 +1092,7 @@ func GetUser(c *gin.Context) {
 
 ## 13. 统一返回结构（Result）
 
-位于 `github.com/maczh/mgin/models`，所有接口建议返回 `models.Result[T]`（由 Gin 以 `c.JSON(200, result)` 输出）：
+位于 `github.com/maczh/mgin/v2/models`，所有接口建议返回 `models.Result[T]`（由 Gin 以 `c.JSON(200, result)` 输出）：
 
 ```go
 type Result[T any] struct {
@@ -1234,7 +1234,7 @@ go:
 
 ## 16. 工具集（utils）
 
-`github.com/maczh/mgin/utils` 提供了大量开箱即用的工具函数与泛型数据结构，覆盖加解密、字符串/中文、时间日期、序列化、Map/Struct 转换、集合、网络/IP、文件与压缩、UUID/随机、并发安全结构与参数校验等。全部为包级导出函数，按需引用，例如：
+`github.com/maczh/mgin/v2/utils` 提供了大量开箱即用的工具函数与泛型数据结构，覆盖加解密、字符串/中文、时间日期、序列化、Map/Struct 转换、集合、网络/IP、文件与压缩、UUID/随机、并发安全结构与参数校验等。全部为包级导出函数，按需引用，例如：
 
 ```go
 s  := utils.MD5Encode("hello")                    // "5d41402abc4b2a76b9719d911017c592"
@@ -1579,7 +1579,7 @@ A：设 `go.application.debug=false`（或删掉），框架自动用 `gin.Relea
 
 ### 20.5 新增：PostgreSQL 支持
 
-- 全局客户端：`db.Pg = &postgres.PostgresClient{}`（包 `github.com/maczh/mgin/db/postgres`）。
+- 全局客户端：`db.Pg = &postgres.PostgresClient{}`（包 `github.com/maczh/mgin/v2/db/postgres`）。
 - 配置前缀：`go.config.prefix.postgres`（默认可不配，组件级配置键见 `go.data.postgres.*`）。
 - 泛型 DAO：`PostgresDao[E schema.Tabler]`，API 与 `MySQLDao` 完全一致：`Create / MultiCreate / Delete / Updates / Save / All / One / Exists / Count / Pager / Where / Debug / WithContext`。
 
@@ -1593,7 +1593,7 @@ A：设 `go.application.debug=false`（或删掉），框架自动用 `gin.Relea
 
 ### 20.6 新增：ClickHouse 支持
 
-- 全局客户端：`db.Clickhouse = &clickhouse.ClickhouseClient{}`（包 `github.com/maczh/mgin/db/clickhouse`）。
+- 全局客户端：`db.Clickhouse = &clickhouse.ClickhouseClient{}`（包 `github.com/maczh/mgin/v2/db/clickhouse`）。
 - 泛型 DAO：`ClickhouseDao[E schema.Tabler]`，API 与 `MySQLDao` 一致。
 - 配置前缀：`go.config.prefix.clickhouse`，组件级 DSN 键 `go.data.clickhouse`（单库）或 `go.data.clickhouse.<dbName>`（多库）。
 
@@ -1693,7 +1693,7 @@ go:
 ### 21.3 使用方式
 
 ```go
-import "github.com/maczh/mgin/middleware/ratelimit"
+import "github.com/maczh/mgin/v2/middleware/ratelimit"
 
 // 方式一：读取 yml 配置（go.ratelimit.enabled 为 true 时生效）
 app.Router.Use(ratelimit.RateLimit())
@@ -1758,7 +1758,7 @@ go:
 执行器即一个 `func(*job.Context) error`，通过 `job.Register(name, handler)` 注册，`name` 需与数据库 `handler_name` 字段一致：
 
 ```go
-import "github.com/maczh/mgin/job"
+import "github.com/maczh/mgin/v2/job"
 
 func init() {
     job.Register("syncUserJob", func(ctx *job.Context) error {
@@ -1862,7 +1862,7 @@ go:
 ### 23.2 基本使用
 
 ```go
-import "github.com/maczh/mgin/storage/s3"
+import "github.com/maczh/mgin/v2/storage/s3"
 
 b := s3.GetS3().Default()        // 默认桶（singleBucket 或 buckets[0]）
 b = s3.GetS3().Get("public-assets") // 指定桶

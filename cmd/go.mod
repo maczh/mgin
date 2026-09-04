@@ -1,4 +1,4 @@
-module github.com/maczh/mgin/cmd/mgin
+module github.com/maczh/mgin/v2/cmd/mgin
 
 go 1.25.7
 

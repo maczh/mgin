@@ -12,9 +12,9 @@ import (
 	"github.com/knadh/koanf"
 	"github.com/knadh/koanf/parsers/yaml"
 	"github.com/knadh/koanf/providers/rawbytes"
-	"github.com/maczh/mgin/pkg/cache"
-	"github.com/maczh/mgin/pkg/config"
-	"github.com/maczh/mgin/pkg/utils"
+	"github.com/maczh/mgin/v2/pkg/cache"
+	"github.com/maczh/mgin/v2/pkg/config"
+	"github.com/maczh/mgin/v2/pkg/utils"
 	"github.com/sadlil/gologger"
 	clientv3 "go.etcd.io/etcd/client/v3"
 )

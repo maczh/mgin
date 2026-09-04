@@ -3,7 +3,7 @@ package utils
 import (
 	"errors"
 	"github.com/levigross/grequests"
-	"github.com/maczh/mgin/pkg/logs"
+	"github.com/maczh/mgin/v2/pkg/logs"
 	"strings"
 )
 

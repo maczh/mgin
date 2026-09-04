@@ -31,10 +31,10 @@ func TestConfigNormalize(t *testing.T) {
 func TestBucketResolveContentType(t *testing.T) {
 	b := &Bucket{name: "test", defaultCT: ""}
 	cases := map[string]string{
-		"a.png":  "image/png",
-		"b.jpg":  "image/jpeg",
-		"c.pdf":  "application/pdf",
-		"d.json": "application/json",
+		"a.png":     "image/png",
+		"b.jpg":     "image/jpeg",
+		"c.pdf":     "application/pdf",
+		"d.json":    "application/json",
 		"e.unknown": "application/octet-stream",
 	}
 	for k, want := range cases {

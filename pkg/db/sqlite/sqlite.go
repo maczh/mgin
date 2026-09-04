@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/go-gorm/caches/v4"
-	"github.com/maczh/mgin/pkg/config"
-	"github.com/maczh/mgin/pkg/db/mysql"
-	"github.com/maczh/mgin/pkg/db/redis"
+	"github.com/maczh/mgin/v2/pkg/config"
+	"github.com/maczh/mgin/v2/pkg/db/mysql"
+	"github.com/maczh/mgin/v2/pkg/db/redis"
 	"github.com/sadlil/gologger"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"

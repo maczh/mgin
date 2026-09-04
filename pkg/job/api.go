@@ -4,10 +4,10 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/maczh/mgin/pkg/errcode"
-	"github.com/maczh/mgin/pkg/i18n"
-	"github.com/maczh/mgin/pkg/logs"
-	"github.com/maczh/mgin/pkg/models"
+	"github.com/maczh/mgin/v2/pkg/errcode"
+	"github.com/maczh/mgin/v2/pkg/i18n"
+	"github.com/maczh/mgin/v2/pkg/logs"
+	"github.com/maczh/mgin/v2/pkg/models"
 )
 
 // RouterGroup 返回可挂载到任意 Gin 路由组下的定时任务管理接口。
@@ -83,7 +83,7 @@ func listHandler(c *gin.Context) {
 		c.JSON(200, i18n.Error(errcode.JOB_ERROR, err.Error()))
 		return
 	}
-	page := &models.ResultPage{Count: int(total + int64(size) - 1) / size, Index: index, Size: size, Total: int(total)}
+	page := &models.ResultPage{Count: int(total+int64(size)-1) / size, Index: index, Size: size, Total: int(total)}
 	c.JSON(200, models.SuccessWithPage(list, page.Count, page.Index, page.Size, page.Total))
 }
 
@@ -284,6 +284,6 @@ func logHandler(c *gin.Context) {
 		c.JSON(200, i18n.Error(errcode.JOB_ERROR, err.Error()))
 		return
 	}
-	page := &models.ResultPage{Count: int(total + int64(size) - 1) / size, Index: index, Size: size, Total: int(total)}
+	page := &models.ResultPage{Count: int(total+int64(size)-1) / size, Index: index, Size: size, Total: int(total)}
 	c.JSON(200, models.SuccessWithPage(list, page.Count, page.Index, page.Size, page.Total))
 }

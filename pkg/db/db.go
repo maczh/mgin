@@ -1,14 +1,14 @@
 package db
 
 import (
-	"github.com/maczh/mgin/pkg/db/clickhouse"
-	"github.com/maczh/mgin/pkg/db/es"
-	"github.com/maczh/mgin/pkg/db/kafka"
-	"github.com/maczh/mgin/pkg/db/mongo"
-	"github.com/maczh/mgin/pkg/db/mysql"
-	"github.com/maczh/mgin/pkg/db/postgres"
-	"github.com/maczh/mgin/pkg/db/redis"
-	"github.com/maczh/mgin/pkg/db/sqlite"
+	"github.com/maczh/mgin/v2/pkg/db/clickhouse"
+	"github.com/maczh/mgin/v2/pkg/db/es"
+	"github.com/maczh/mgin/v2/pkg/db/kafka"
+	"github.com/maczh/mgin/v2/pkg/db/mongo"
+	"github.com/maczh/mgin/v2/pkg/db/mysql"
+	"github.com/maczh/mgin/v2/pkg/db/postgres"
+	"github.com/maczh/mgin/v2/pkg/db/redis"
+	"github.com/maczh/mgin/v2/pkg/db/sqlite"
 )
 
 var Mysql = &mysql.MysqlClient{}

@@ -4,8 +4,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/maczh/mgin/pkg/config"
-	"github.com/maczh/mgin/pkg/errcode"
+	"github.com/maczh/mgin/v2/pkg/config"
+	"github.com/maczh/mgin/v2/pkg/errcode"
 )
 
 // Algorithm 限流算法

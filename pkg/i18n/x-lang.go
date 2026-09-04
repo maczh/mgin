@@ -2,7 +2,7 @@ package i18n
 
 import (
 	"errors"
-	"github.com/maczh/mgin/pkg/client"
+	"github.com/maczh/mgin/v2/pkg/client"
 )
 
 const (

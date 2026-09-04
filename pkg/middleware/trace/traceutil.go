@@ -3,7 +3,7 @@ package trace
 import (
 	"bytes"
 	"github.com/gin-gonic/gin"
-	"github.com/maczh/mgin/pkg/cache"
+	"github.com/maczh/mgin/v2/pkg/cache"
 	"math/rand"
 	"runtime"
 	"strconv"

@@ -18,22 +18,22 @@ import (
 )
 
 type config struct {
-	Cnf       *koanf.Koanf
-	WorkDir   string    `json:"-" bson:"-"`
-	App       app       `json:"app" bson:"app"`
+	Cnf     *koanf.Koanf
+	WorkDir string `json:"-" bson:"-"`
+	App     app    `json:"app" bson:"app"`
 	// Framework v2 新增：框架自身元配置（go.framework.* 节点）。
 	// 用于把"框架开关"与"应用配置"分离，便于多套环境共用同一份 application.yml 时只切换 Framework。
 	Framework framework `json:"framework" bson:"framework"`
 	// Runtime v2 新增：运行时元数据（启动时间、commit hash、构建时间）。
 	// 不从 application.yml 读，由构建脚本通过 -ldflags 注入（参考 cmd/templates.go 中 tmplVersion 的方式）。
-	Runtime runtime `json:"runtime" bson:"runtime"`
-	Config  appConfig `json:"config" bson:"config"`
-	Log     appLog    `json:"log" bson:"log"`
-	Logger  appLogger `json:"logger" bson:"logger"`
+	Runtime   runtime   `json:"runtime" bson:"runtime"`
+	Config    appConfig `json:"config" bson:"config"`
+	Log       appLog    `json:"log" bson:"log"`
+	Logger    appLogger `json:"logger" bson:"logger"`
 	Discovery discovery `json:"discovery" bson:"discovery"`
-	Jwt      jwtConfig `json:"jwt" bson:"jwt"`
-	Sys      sys       `json:"sys" bson:"sys"`
-	Casbin   casbin    `json:"casbin" bson:"casbin"`
+	Jwt       jwtConfig `json:"jwt" bson:"jwt"`
+	Sys       sys       `json:"sys" bson:"sys"`
+	Casbin    casbin    `json:"casbin" bson:"casbin"`
 }
 
 // framework 是 mgin v2 新增的"框架元配置"层。

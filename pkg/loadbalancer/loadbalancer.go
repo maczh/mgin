@@ -36,7 +36,7 @@ type LoadBalancer interface {
 // 全局注册表 + 默认策略。
 var (
 	mu        sync.RWMutex
-	balancers = make(map[string]LoadBalancer)
+	balancers              = make(map[string]LoadBalancer)
 	def       LoadBalancer = RoundRobinLB
 )
 
@@ -128,7 +128,7 @@ func (l *LeastConnections) Pick(instances []string, _ string) (string, error) {
 	var (
 		best  string
 		minN  int64 = 1 << 62
-		first = true
+		first       = true
 	)
 	for _, ins := range instances {
 		v, _ := l.conns.LoadOrStore(ins, new(atomic.Int64))

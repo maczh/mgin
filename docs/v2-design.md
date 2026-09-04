@@ -5,7 +5,7 @@
 - **配套**：`docs/v2-prd.md`（许清楚）、`docs/mgin-architecture-options.md`
 - **范围边界**：本文件只做**设计 + 任务分解**，不含实现代码。所有 API / 包路径 / 配置项名均来自对 `v2-arch` 源码的实测，未编造。
 - **已拍板的决策**（来自上游）：
-  1. 单 module `github.com/maczh/mgin`，内部按 `pkg/`（对外可导入）与 `internal/`（框架私有）严格分层。
+  1. 单 module `github.com/maczh/mgin/v2`，内部按 `pkg/`（对外可导入）与 `internal/`（框架私有）严格分层。
   2. 允许引入 `go.opentelemetry.io/otel` 与 `prometheus/client_golang` 作为 direct 依赖；其余仍坚持最少依赖。
   3. `client.Call` 零破坏：`Call(ctx...)` 升级为新增 `CallCtx(ctx, service, uri, op)`，老 `Call` 内部委托 `CallCtx(context.Background(), ...)`。
   4. 本轮 P1 精选 **4 个**：客户端负载均衡、Prometheus 指标 + `/metrics`、统一错误码 + 国际化增强、OpenTelemetry 接入（详见 §11 结论）。
@@ -36,7 +36,7 @@
 ### 2.1 目录树
 
 ```text
-mgin/                                  # module github.com/maczh/mgin (根)
+mgin/                                  # module github.com/maczh/mgin/v2 (根)
 ├── go.mod                             # 单 module，不拆子 module
 ├── mgin.go                            # 框架入口（保留）：原 Init/SafeExit 下沉到 internal/bootstrap
 ├── app.go                             # App 结构、NewApp/Run 保留（Run 内部调用 bootstrap 生命周期）

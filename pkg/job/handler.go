@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/maczh/mgin/pkg/logs"
+	"github.com/maczh/mgin/v2/pkg/logs"
 )
 
 // HandlerFunc 定时任务执行体。

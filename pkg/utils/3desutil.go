@@ -5,7 +5,7 @@ import (
 	"crypto/cipher"
 	"crypto/des"
 	"errors"
-	"github.com/maczh/mgin/pkg/logs"
+	"github.com/maczh/mgin/v2/pkg/logs"
 )
 
 // 3DES加密

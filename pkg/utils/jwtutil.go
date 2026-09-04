@@ -2,7 +2,7 @@ package utils
 
 import (
 	"github.com/dgrijalva/jwt-go"
-	"github.com/maczh/mgin/pkg/config"
+	"github.com/maczh/mgin/v2/pkg/config"
 	"time"
 )
 

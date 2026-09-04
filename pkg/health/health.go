@@ -42,9 +42,9 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/maczh/mgin/pkg/config"
-	"github.com/maczh/mgin/pkg/db"
-	"github.com/maczh/mgin/pkg/logs"
+	"github.com/maczh/mgin/v2/pkg/config"
+	"github.com/maczh/mgin/v2/pkg/db"
+	"github.com/maczh/mgin/v2/pkg/logs"
 )
 
 // 响应体 status 字段的取值。

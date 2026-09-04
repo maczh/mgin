@@ -2,7 +2,7 @@ package utils
 
 import (
 	"github.com/henrylee2cn/mahonia"
-	"github.com/maczh/mgin/pkg/logs"
+	"github.com/maczh/mgin/v2/pkg/logs"
 	"golang.org/x/text/encoding/simplifiedchinese"
 	"io/ioutil"
 	"strings"

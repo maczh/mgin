@@ -12,15 +12,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/maczh/mgin/pkg/config"
-	"github.com/maczh/mgin/pkg/db"
-	"github.com/maczh/mgin/pkg/db/dao"
-	"github.com/maczh/mgin/pkg/models"
+	"github.com/maczh/mgin/v2/pkg/config"
+	"github.com/maczh/mgin/v2/pkg/db"
+	"github.com/maczh/mgin/v2/pkg/db/dao"
+	"github.com/maczh/mgin/v2/pkg/models"
 
 	"github.com/gin-gonic/gin"
-	"github.com/maczh/mgin/pkg/logs"
-	"github.com/maczh/mgin/pkg/middleware/trace"
-	"github.com/maczh/mgin/pkg/utils"
+	"github.com/maczh/mgin/v2/pkg/logs"
+	"github.com/maczh/mgin/v2/pkg/middleware/trace"
+	"github.com/maczh/mgin/v2/pkg/utils"
 )
 
 type bodyLogWriter struct {

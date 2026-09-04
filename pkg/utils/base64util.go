@@ -2,7 +2,7 @@ package utils
 
 import (
 	"encoding/base64"
-	"github.com/maczh/mgin/pkg/logs"
+	"github.com/maczh/mgin/v2/pkg/logs"
 )
 
 func Base64Encode(str string) string {

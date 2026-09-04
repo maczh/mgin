@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/maczh/mgin/pkg/config"
-	"github.com/maczh/mgin/pkg/middleware/trace"
+	"github.com/maczh/mgin/v2/pkg/config"
+	"github.com/maczh/mgin/v2/pkg/middleware/trace"
 )
 
 type Logger struct {

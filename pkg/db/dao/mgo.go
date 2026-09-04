@@ -4,8 +4,8 @@ import (
 	"errors"
 	"math"
 
-	"github.com/maczh/mgin/pkg/db"
-	"github.com/maczh/mgin/pkg/models"
+	"github.com/maczh/mgin/v2/pkg/db"
+	"github.com/maczh/mgin/v2/pkg/models"
 	"github.com/maczh/mgo"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"

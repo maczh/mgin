@@ -16,7 +16,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
-	"github.com/maczh/mgin/pkg/logs"
+	"github.com/maczh/mgin/v2/pkg/logs"
 )
 
 // S3 是 S3 存储插件，实现 mgin.MginPlugin 接口。
@@ -133,11 +133,11 @@ func (s *S3) newBucket(name string) *Bucket {
 		o.Region = s.cfg.Region
 	})
 	return &Bucket{
-		name:         name,
-		defaultCT:    defaultCT,
-		client:       client,
-		presign:      s3.NewPresignClient(client),
-		uploader:     manager.NewUploader(client, func(u *manager.Uploader) {
+		name:      name,
+		defaultCT: defaultCT,
+		client:    client,
+		presign:   s3.NewPresignClient(client),
+		uploader: manager.NewUploader(client, func(u *manager.Uploader) {
 			u.PartSize = s.cfg.UploadPartSize
 			u.MaxUploadParts = int32(s.cfg.MaxUploadParts)
 		}),
@@ -189,14 +189,14 @@ func (s *S3) Check() error {
 
 // Bucket 代表一个 S3 桶的客户端，提供上传/下载/删除/列举/预签名/分片上传等操作。
 type Bucket struct {
-	name      string
-	defaultCT string
-	client    *s3.Client
-	presign   *s3.PresignClient
-	uploader  *manager.Uploader
+	name       string
+	defaultCT  string
+	client     *s3.Client
+	presign    *s3.PresignClient
+	uploader   *manager.Uploader
 	downloader *manager.Downloader
-	partSize  int64
-	sem       chan struct{}
+	partSize   int64
+	sem        chan struct{}
 }
 
 // Name 返回桶名
@@ -301,9 +301,9 @@ func (b *Bucket) List(ctx context.Context, prefix string, max int32) ([]ObjectIn
 		max = 1000
 	}
 	out, err := b.client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
-		Bucket:    aws.String(b.name),
-		Prefix:    aws.String(prefix),
-		MaxKeys:   aws.Int32(max),
+		Bucket:  aws.String(b.name),
+		Prefix:  aws.String(prefix),
+		MaxKeys: aws.Int32(max),
 	})
 	if err != nil {
 		return nil, wrapErr(err)
@@ -407,9 +407,9 @@ func (b *Bucket) UploadMultipart(ctx context.Context, key, contentType string, b
 	}
 	// 2) 完成分片任务
 	res, cerr := b.client.CompleteMultipartUpload(ctx, &s3.CompleteMultipartUploadInput{
-		Bucket:   aws.String(b.name),
-		Key:      aws.String(key),
-		UploadId: aws.String(uploadID),
+		Bucket:          aws.String(b.name),
+		Key:             aws.String(key),
+		UploadId:        aws.String(uploadID),
 		MultipartUpload: &types.CompletedMultipartUpload{Parts: parts},
 	})
 	if cerr != nil {

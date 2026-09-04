@@ -13,8 +13,8 @@ import (
 
 	"github.com/araddon/dateparse"
 	goerr "github.com/go-errors/errors"
-	"github.com/maczh/mgin/pkg/config"
-	"github.com/maczh/mgin/pkg/logs"
+	"github.com/maczh/mgin/v2/pkg/config"
+	"github.com/maczh/mgin/v2/pkg/logs"
 	"github.com/robfig/cron/v3"
 )
 

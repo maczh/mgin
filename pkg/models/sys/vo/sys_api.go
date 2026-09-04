@@ -1,6 +1,6 @@
 package vo
 
-import "github.com/maczh/mgin/pkg/models/sys"
+import "github.com/maczh/mgin/v2/pkg/models/sys"
 
 type ListSysApiByGroupResp struct {
 	Group string       `json:"group"`

@@ -5,11 +5,11 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/maczh/mgin/pkg/config"
-	"github.com/maczh/mgin/pkg/db"
-	"github.com/maczh/mgin/pkg/job"
-	"github.com/maczh/mgin/pkg/registry"
-	"github.com/maczh/mgin/pkg/storage/s3"
+	"github.com/maczh/mgin/v2/pkg/config"
+	"github.com/maczh/mgin/v2/pkg/db"
+	"github.com/maczh/mgin/v2/pkg/job"
+	"github.com/maczh/mgin/v2/pkg/registry"
+	"github.com/maczh/mgin/v2/pkg/storage/s3"
 )
 
 // funcPlugin 是以函数字段实现 Plugin 接口的通用适配器，避免逐组件手写样板。
@@ -23,8 +23,8 @@ type funcPlugin struct {
 	enabledFn func() bool
 }
 
-func (p *funcPlugin) Name() string    { return p.name }
-func (p *funcPlugin) Order() int       { return p.order }
+func (p *funcPlugin) Name() string { return p.name }
+func (p *funcPlugin) Order() int   { return p.order }
 func (p *funcPlugin) Init(ctx context.Context) error {
 	if p.initFn != nil {
 		return p.initFn(ctx)
