@@ -44,7 +44,7 @@ func runNew(args []string) error {
 		mginVersion  string
 	)
 	fs.StringVar(&module, "module", "", "Go module 路径")
-	fs.IntVar(&port, "port", 0, "HTTP 端口")
+	fs.IntVar(&port, "port", 8080, "HTTP 端口")
 	fs.StringVar(&dbs, "db", "", "数据库列表, 逗号分隔")
 	fs.StringVar(&mq, "mq", "", "消息队列, 逗号分隔多选: nats/kafka/mqtt/rabbit/none")
 	fs.StringVar(&registry, "registry", "", "注册中心: nacos/consul/etcd/none")
