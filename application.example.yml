@@ -133,3 +133,37 @@ go:
     # autoStarted: true 时框架在监听启动后自动调用 health.MarkStarted()，
     # 使 /startup 立即返回 200；默认 false，由业务初始化完成后自行调用 health.MarkStarted()
     autoStarted: false
+
+  # ------------------------------------------------------------------
+  # 5) v2 框架元配置（go.framework.*）
+  #    描述"框架行为开关"，与 go.application.*（业务配置）解耦。
+  #    全部字段为可选，未配置时由各组件按合理默认回退。
+  #    老项目无需关心本节，框架不读时所有开关保持关闭。
+  # ------------------------------------------------------------------
+  framework:
+    # 是否在 NewApp 阶段默认挂载 /health/live /health/ready /health/startup 探针。
+    # 业务也可调用 App.EnableHealth() 在代码中显式启用。
+    healthEnabled: false
+    # 是否启用 xlang 国际化中间件（NewApp 的 xlang 参数也可控制）。
+    i18nEnabled: false
+    # 是否启用单例限流中间件（middleware/ratelimit）。
+    ratelimitEnabled: false
+    # 是否启用 panic 恢复中间件（gin-nice-recovery）。
+    recoverEnabled: true
+    # 是否启用接口日志（middleware/postlog）。
+    logRequests: true
+
+  # ------------------------------------------------------------------
+  # 6) v2 运行时元数据（go.runtime.*）
+  #    这些字段**不**从 application.yml 读取，由构建脚本通过 -ldflags 注入：
+  #      go build -ldflags "-X main.CommitHash=$(git rev-parse --short HEAD) \
+  #                        -X main.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  #    业务可通过 Config.Runtime 在 /health/ready 响应、metrics label、日志上下文等位置引用。
+  #    以下示例仅作字段名参考，不会被配置加载。
+  # ------------------------------------------------------------------
+  # runtime:
+  #   commitHash: "a1b2c3d"
+  #   buildTime: "2026-09-04T12:00:00Z"
+  #   goVersion: "go1.25.7"
+  #   startedAt: <框架在 NewApp 时填入>
+  #   pid: <框架在 NewApp 时填入>

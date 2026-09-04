@@ -250,8 +250,8 @@ const tmplRouter = `package router
 import (
 	"github.com/maczh/mgin"
 	"{{.Module}}/controller"
-{{if .JWT}}	"github.com/maczh/mgin/middleware/jwt"
-{{end}}{{if .Casbin}}	"github.com/maczh/mgin/middleware/casbin"
+{{if .JWT}}	"github.com/maczh/mgin/pkg/middleware/jwt"
+{{end}}{{if .Casbin}}	"github.com/maczh/mgin/pkg/middleware/casbin"
 {{end}})
 
 // RegisterRoutes 注册所有业务路由与全局中间件
@@ -276,7 +276,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/maczh/mgin/models"
+	"github.com/maczh/mgin/pkg/models"
 	"{{.Module}}/service"
 )
 
@@ -336,7 +336,7 @@ const tmplModel = "package model\n\nimport \"time\"\n\n// Product 商品示例�
 const tmplDao = `package dao
 
 import (
-	"github.com/maczh/mgin/db/dao"
+	"github.com/maczh/mgin/pkg/db/dao"
 	"{{.Module}}/model"
 )
 
