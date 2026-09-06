@@ -36,10 +36,22 @@ func IsNotBlank(text string) bool {
 }
 
 func Left(src string, size int) string {
+	if size < 0 {
+		size = 0
+	}
+	if size > len(src) {
+		size = len(src)
+	}
 	return src[:size]
 }
 
 func Right(src string, size int) string {
+	if size < 0 {
+		size = 0
+	}
+	if size > len(src) {
+		size = len(src)
+	}
 	return src[len(src)-size:]
 }
 
@@ -306,20 +318,25 @@ func runeIsUpperChar(c rune) bool {
 	return 'A' <= c && c <= 'Z'
 }
 
+// 正则统一在包初始化时编译一次，避免每次调用重复编译（原实现为每次调用 Compile/MustCompile）
+var (
+	punctSpaceRegexp  = regexp.MustCompile(`[\f\t\n\r\v\-\^\$\.\*+\?{}()\/\[\]\|]`)
+	multiSpaceRegexp  = regexp.MustCompile(`[\s\p{Zs}]{2,}`)
+	nonWordRegexp     = regexp.MustCompile(`[^\w一-龥]`)
+	nonWordStarRegexp = regexp.MustCompile(`[^\w一-龥]*`)
+)
+
 func ReplacePunctuationWithSpace(src string) string {
-	reg1 := regexp.MustCompile(`[\f\t\n\r\v\-\^\$\.\*+\?{}()\/\[\]\|]`)
-	reg2 := regexp.MustCompile(`[\s\p{Zs}]{2,}`)
-	txt := reg2.ReplaceAll(reg1.ReplaceAll([]byte(src), []byte(" ")), []byte(" "))
-	return string(txt)
+	return string(multiSpaceRegexp.ReplaceAll(punctSpaceRegexp.ReplaceAll([]byte(src), []byte(" ")), []byte(" ")))
 }
 
 func AddSpaceBetweenCharsAndNumbers(src string) string {
-	var result []rune
+	src = nonWordRegexp.ReplaceAllString(src, " ")
+	runes := []rune(src)
+	result := make([]rune, 0, len(runes)+8)
 	isNumber := false
 	isChinese := false
-	reg, _ := regexp.Compile("[^\\w\u4e00-\u9fa5]")
-	src = reg.ReplaceAllString(src, " ")
-	for i, s := range []rune(src) {
+	for i, s := range runes {
 		if s >= '0' && s <= '9' {
 			if !isNumber && i > 0 {
 				result = append(result, ' ')
@@ -335,13 +352,11 @@ func AddSpaceBetweenCharsAndNumbers(src string) string {
 		}
 		result = append(result, s)
 	}
-	reg = regexp.MustCompile(`[\s\p{Zs}]{2,}`)
-	return strings.TrimSpace(string(reg.ReplaceAll([]byte(string(result)), []byte(" "))))
+	return strings.TrimSpace(string(multiSpaceRegexp.ReplaceAll([]byte(string(result)), []byte(" "))))
 }
 
 func ReplacePunctuation(src, replaceWith string) string {
-	reg, _ := regexp.Compile("[^\\w\u4e00-\u9fa5]*")
-	return reg.ReplaceAllString(src, replaceWith)
+	return nonWordStarRegexp.ReplaceAllString(src, replaceWith)
 }
 
 func AnyToString(i any) (string, error) {

@@ -53,9 +53,11 @@ func (k *Kafka) getConfig() *sarama.Config {
 }
 
 func (k *Kafka) Init(kafkaConfigData []byte) {
-	if kafkaConfigData != nil {
-		k.confData = kafkaConfigData
+	if kafkaConfigData == nil || len(kafkaConfigData) == 0 {
+		logger.Error("Kafka 配置错误，无法获取配置地址")
+		return
 	}
+	k.confData = kafkaConfigData
 	//if k.confUrl == "" {
 	//	logger.Error("Kafka配置Url为空")
 	//	return
@@ -99,13 +101,18 @@ func (k *Kafka) Init(kafkaConfigData []byte) {
 		logger.Error("Kafka获取topic清单失败: " + err.Error())
 		k.topics = make([]string, 0)
 	}
-	if strings.Contains(client.Brokers()[0].Addr(), "127.0.0.1") {
-		logger.Error("Kafka服务器配置错误，请修改服务端侦听地址")
+	if brokers := client.Brokers(); len(brokers) > 0 {
+		if strings.Contains(brokers[0].Addr(), "127.0.0.1") {
+			logger.Error("Kafka服务器配置错误，请修改服务端侦听地址")
+		}
 	}
 	logger.Info("Kafka建立连接成功")
 }
 
 func (k *Kafka) Close() {
+	if k.client == nil {
+		return
+	}
 	err := k.client.Close()
 	if err != nil {
 		logger.Error("Kafka关闭连接失败: " + err.Error())
@@ -115,6 +122,12 @@ func (k *Kafka) Close() {
 }
 
 func (k *Kafka) Check() error {
+	if k.client == nil {
+		k.Init(k.confData)
+		if k.client == nil {
+			return fmt.Errorf("Kafka client not initialized")
+		}
+	}
 	if k.client.Closed() {
 		logger.Error("Kafka client has closed")
 		k.Init(k.confData)
@@ -126,21 +139,33 @@ func (k *Kafka) Check() error {
 }
 
 func (k *Kafka) GetProducer() (sarama.AsyncProducer, error) {
+	if k.client == nil {
+		return nil, errors.New("Kafka client not initialized")
+	}
 	producer, err := sarama.NewAsyncProducerFromClient(k.client)
 	return producer, err
 }
 
 func (k *Kafka) GetConsumer() (sarama.Consumer, error) {
+	if k.client == nil {
+		return nil, errors.New("Kafka client not initialized")
+	}
 	consumer, err := sarama.NewConsumer(k.servers, k.getConfig())
 	return consumer, err
 }
 
 func (k *Kafka) GetAdminClient() (sarama.ClusterAdmin, error) {
+	if k.client == nil {
+		return nil, errors.New("Kafka client not initialized")
+	}
 	admin, err := sarama.NewClusterAdminFromClient(k.client)
 	return admin, err
 }
 
 func (k *Kafka) GetConsumerGroup(id string) (sarama.ConsumerGroup, error) {
+	if k.client == nil {
+		return nil, errors.New("Kafka client not initialized")
+	}
 	consumerGroup, err := sarama.NewConsumerGroupFromClient(id, k.client)
 	return consumerGroup, err
 }

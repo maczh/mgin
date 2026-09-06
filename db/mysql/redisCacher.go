@@ -2,6 +2,7 @@ package mysql
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -17,6 +18,9 @@ type RedisCacher struct {
 
 // 2. 实现 Get 方法
 func (c *RedisCacher) Get(ctx context.Context, key string, q *caches.Query[any]) (*caches.Query[any], error) {
+	if c.Rdb == nil {
+		return nil, errors.New("redis cacher not initialized")
+	}
 	res, err := c.Rdb.Get(key).Result()
 	if err == redis.Nil {
 		return nil, nil
@@ -34,6 +38,9 @@ func (c *RedisCacher) Get(ctx context.Context, key string, q *caches.Query[any])
 }
 
 func (c *RedisCacher) Store(ctx context.Context, key string, val *caches.Query[any]) error {
+	if c.Rdb == nil {
+		return errors.New("redis cacher not initialized")
+	}
 	res, err := val.Marshal()
 	if err != nil {
 		return err
@@ -44,6 +51,9 @@ func (c *RedisCacher) Store(ctx context.Context, key string, val *caches.Query[a
 }
 
 func (c *RedisCacher) Invalidate(ctx context.Context) error {
+	if c.Rdb == nil {
+		return errors.New("redis cacher not initialized")
+	}
 	var (
 		cursor uint64
 		keys   []string

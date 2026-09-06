@@ -139,15 +139,21 @@ func (m *MysqlClient) Init(mysqlConfigData []byte) {
 
 func (m *MysqlClient) Close() {
 	if m.multi {
-		for k, _ := range m.mysqls {
-			sqldb, _ := m.mysqls[k].DB()
-			sqldb.Close()
+		for k := range m.mysqls {
+			if conn := m.mysqls[k]; conn != nil {
+				if sqldb, err := conn.DB(); err == nil && sqldb != nil {
+					sqldb.Close()
+				}
+			}
 			delete(m.mysqls, k)
 		}
 	} else {
-		sqldb, _ := m.mysql.DB()
-		sqldb.Close()
-		m.mysql = nil
+		if m.mysql != nil {
+			if sqldb, err := m.mysql.DB(); err == nil && sqldb != nil {
+				sqldb.Close()
+			}
+			m.mysql = nil
+		}
 	}
 }
 
@@ -162,8 +168,16 @@ func mySqlsCheck(m *MysqlClient) error {
 		}
 	}
 	for k, _ := range m.mysqls {
-		sqldb, _ := m.mysqls[k].DB()
-		err := sqldb.Ping()
+		sqldb, err := m.mysqls[k].DB()
+		if err != nil || sqldb == nil {
+			m.Close()
+			m.Init(m.confData)
+			if len(m.mysqls) == 0 {
+				return errors.New("mySQL connection error")
+			}
+			continue
+		}
+		err = sqldb.Ping()
 		if err != nil {
 			m.Close()
 			m.Init(m.confData)
@@ -182,8 +196,19 @@ func mySqlCheck(m *MysqlClient) (*gorm.DB, error) {
 			return nil, errors.New("mySQL connection error")
 		}
 	}
-	sqldb, _ := m.mysql.DB()
-	err := sqldb.Ping()
+	sqldb, err := m.mysql.DB()
+	if err != nil || sqldb == nil {
+		m.Close()
+		m.Init(m.confData)
+		if m.mysql == nil {
+			return nil, errors.New("mySQL connection error")
+		}
+		sqldb, err = m.mysql.DB()
+		if err != nil || sqldb == nil {
+			return nil, errors.New("mySQL connection error")
+		}
+	}
+	err = sqldb.Ping()
 	if err != nil {
 		m.Close()
 		m.Init(m.confData)
@@ -239,6 +264,9 @@ func (m *MysqlClient) ListConnNames() []string {
 }
 
 func (m *MysqlClient) UseCache() bool {
+	if m.conf == nil {
+		return false
+	}
 	if !m.conf.Bool("go.data.mysql_cache") {
 		return false
 	}

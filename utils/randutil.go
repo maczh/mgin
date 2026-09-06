@@ -3,7 +3,6 @@ package utils
 import (
 	"github.com/gofrs/uuid"
 	"math/rand"
-	"time"
 )
 
 func GetRandomString(l int) string {
@@ -26,12 +25,15 @@ func GetRandomIntString(l int) string {
 	return GenerateRandString(str, l)
 }
 
+// randSource 全局随机源，避免每次调用都新建 Source（math/rand 全局函数已内置并发安全锁）
 func GenerateRandString(source string, l int) string {
+	if l <= 0 || source == "" {
+		return ""
+	}
 	bytes := []byte(source)
-	result := []byte{}
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	result := make([]byte, 0, l)
 	for i := 0; i < l; i++ {
-		result = append(result, bytes[r.Intn(len(bytes))])
+		result = append(result, bytes[rand.Intn(len(bytes))])
 	}
 	return string(result)
 }

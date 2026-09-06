@@ -18,6 +18,9 @@ func StringArrayContains(src []string, dst string) bool {
 }
 
 func StringArrayDelete(src []string, index int) []string {
+	if src == nil || index < 0 || index >= len(src) {
+		return src
+	}
 	dst := append(src[:index], src[index+1:]...)
 	return dst
 }
@@ -35,6 +38,9 @@ func IntArrayContains(src []int, dst int) bool {
 }
 
 func IntArrayDelete(src []int, index int) []int {
+	if src == nil || index < 0 || index >= len(src) {
+		return src
+	}
 	dst := append(src[:index], src[index+1:]...)
 	return dst
 }
@@ -52,6 +58,9 @@ func Float64ArrayContains(src []float64, dst float64) bool {
 }
 
 func Float64ArrayDelete(src []float64, index int) []float64 {
+	if src == nil || index < 0 || index >= len(src) {
+		return src
+	}
 	dst := append(src[:index], src[index+1:]...)
 	return dst
 }
@@ -205,6 +214,9 @@ func SliceSumFloat64(intslice []float64) (sum float64) {
 
 // 删除数组
 func DeleteArray(src []any, index int) (result []any) {
+	if src == nil || index < 0 || index >= len(src) {
+		return src
+	}
 	result = append(src[:index], src[(index+1):]...)
 	return
 }
@@ -290,60 +302,68 @@ func Int64Unique(a []int64) []int64 {
 	return out
 }
 
+// UnSplitString 等价于 strings.Join，原实现为 O(n^2) 拼接且 sep 为空时会误删末字符
 func UnSplitString(src []string, sep string) string {
-	dst := ""
-	for _, item := range src {
-		dst = dst + item + sep
-	}
-	return dst[:len(dst)-1]
+	return strings.Join(src, sep)
 }
 
 func UnionStringSlice(slice1, slice2 []string) []string {
-	m := make(map[string]int)
+	m := make(map[string]struct{}, len(slice1))
+	out := make([]string, 0, len(slice1)+len(slice2))
 	for _, v := range slice1 {
-		m[v]++
+		if _, ok := m[v]; ok {
+			continue
+		}
+		m[v] = struct{}{}
+		out = append(out, v)
 	}
 
 	for _, v := range slice2 {
-		times, _ := m[v]
-		if times == 0 {
-			slice1 = append(slice1, v)
+		if _, ok := m[v]; ok {
+			continue
 		}
+		m[v] = struct{}{}
+		out = append(out, v)
 	}
-	return slice1
+	return out
 }
 
 // 求交集
 func IntersectStringSlice(slice1, slice2 []string) []string {
-	m := make(map[string]int)
-	nn := make([]string, 0)
+	m := make(map[string]struct{}, len(slice1))
 	for _, v := range slice1 {
-		m[v]++
+		m[v] = struct{}{}
 	}
 
+	nn := make([]string, 0, len(slice2))
+	seen := make(map[string]struct{}, len(slice2))
 	for _, v := range slice2 {
-		times, _ := m[v]
-		if times == 1 {
-			nn = append(nn, v)
+		if _, ok := m[v]; !ok {
+			continue
 		}
+		if _, dup := seen[v]; dup {
+			continue
+		}
+		seen[v] = struct{}{}
+		nn = append(nn, v)
 	}
 	return nn
 }
 
 // 求差集 slice1-并集
 func DifferenceStringSlice(slice1, slice2 []string) []string {
-	m := make(map[string]int)
-	nn := make([]string, 0)
-	inter := IntersectStringSlice(slice1, slice2)
-	for _, v := range inter {
-		m[v]++
+	// 直接在 slice2 的集合上过滤，避免额外求一次交集
+	set := make(map[string]struct{}, len(slice2))
+	for _, v := range slice2 {
+		set[v] = struct{}{}
 	}
 
+	nn := make([]string, 0, len(slice1))
 	for _, value := range slice1 {
-		times, _ := m[value]
-		if times == 0 {
-			nn = append(nn, value)
+		if _, ok := set[value]; ok {
+			continue
 		}
+		nn = append(nn, value)
 	}
 	return nn
 }

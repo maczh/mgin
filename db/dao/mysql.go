@@ -255,15 +255,15 @@ func (receiver *MySQLDao[E]) Exists(entity E) bool {
 		logger.Error("数据库连接失败: " + err.Error())
 		return false
 	}
-	var result *E
+	var result E
 	if receiver.debug {
 		conn = conn.Debug()
 	}
 	if receiver.ctx != nil {
 		conn = conn.WithContext(*receiver.ctx)
 	}
-	_ = conn.Where(entity).First(result).Error
-	return result != nil
+	err = conn.Where(entity).First(&result).Error
+	return err == nil
 }
 
 // Count mysql统计记录数
@@ -296,6 +296,9 @@ func (receiver *MySQLDao[E]) Count(entity E) (int64, error) {
 
 // Pager mysql简单分页查询数据
 func (receiver *MySQLDao[E]) Pager(conn *gorm.DB, page, size int) ([]E, *models.ResultPage, error) {
+	if conn == nil {
+		return nil, nil, errors.New("数据库连接失败")
+	}
 	// 默认分页大小为20条
 	if size == 0 {
 		size = 20

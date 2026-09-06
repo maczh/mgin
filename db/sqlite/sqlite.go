@@ -28,19 +28,24 @@ func (m *Sqlite) Init(dbFileName string) {
 	path, _ := filepath.Abs(filepath.Dir(os.Args[0]))
 	if dbFileName == "" {
 		dbFileName = fmt.Sprintf("%s/%s.db", path, config.Config.App.Name)
-	} else if !(dbFileName[:1] == "/" || dbFileName[1:2] == ":") {
+	} else if len(dbFileName) < 2 || !(dbFileName[0] == '/' || dbFileName[1] == ':') {
 		dbFileName = fmt.Sprintf("%s/%s", path, dbFileName)
 	}
 	m.dbFile = dbFileName
 	if m.sqlite == nil {
-		m.sqlite, _ = gorm.Open(sqlite.Open(m.dbFile), &gorm.Config{})
+		var err error
+		m.sqlite, err = gorm.Open(sqlite.Open(m.dbFile), &gorm.Config{})
+		if err != nil {
+			logger.Error("SQLite打开失败: " + err.Error())
+		}
 	}
 }
 
 func (m *Sqlite) Close() {
 	if m.sqlite != nil {
-		db, _ := m.sqlite.DB()
-		db.Close()
+		if db, err := m.sqlite.DB(); err == nil && db != nil {
+			db.Close()
+		}
 		m.sqlite = nil
 	}
 }

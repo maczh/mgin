@@ -48,6 +48,8 @@ func (c *Map[T]) Delete(name string) {
 }
 
 func (c *Map[T]) DeleteDirectly(name string) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
 	if c.container == nil {
 		return
 	}
@@ -55,8 +57,8 @@ func (c *Map[T]) DeleteDirectly(name string) {
 }
 
 func (c *Map[T]) LoadAndStore(name string, value *T) *T {
-	c.lock.RLock()
-	defer c.lock.RUnlock()
+	c.lock.Lock()
+	defer c.lock.Unlock()
 	if c.container == nil {
 		c.container = make(map[string]*T)
 	}
@@ -66,8 +68,8 @@ func (c *Map[T]) LoadAndStore(name string, value *T) *T {
 }
 
 func (c *Map[T]) LoadAndDelete(name string) *T {
-	c.lock.RLock()
-	defer c.lock.RUnlock()
+	c.lock.Lock()
+	defer c.lock.Unlock()
 	if c.container == nil {
 		return nil
 	}
@@ -77,15 +79,24 @@ func (c *Map[T]) LoadAndDelete(name string) *T {
 }
 
 func (c *Map[T]) Len() int {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
 	return len(c.container)
 }
 
+// Map 返回内部 map 的浅拷贝，避免调用方遍历时触发 concurrent map read and map write
 func (c *Map[T]) Map() map[string]*T {
-	return c.container
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	cp := make(map[string]*T, len(c.container))
+	for k, v := range c.container {
+		cp[k] = v
+	}
+	return cp
 }
 
 func (c *Map[T]) Clear() {
-	c.lock.RLock()
-	defer c.lock.RUnlock()
+	c.lock.Lock()
+	defer c.lock.Unlock()
 	c.container = nil
 }

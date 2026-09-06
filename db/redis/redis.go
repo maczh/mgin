@@ -29,9 +29,11 @@ var Redis = &RedisClient{}
 var logger = gologger.GetLogger()
 
 func (r *RedisClient) Init(redisConfigData []byte) {
-	if redisConfigData != nil {
-		r.confData = redisConfigData
+	if redisConfigData == nil || len(redisConfigData) == 0 {
+		logger.Error("Redis 配置错误，无法获取配置地址")
+		return
 	}
+	r.confData = redisConfigData
 	//if r.confUrl == "" {
 	//	logger.Error("Redis配置Url为空")
 	//	return
@@ -76,8 +78,11 @@ func (r *RedisClient) Init(redisConfigData []byte) {
 					} else if r.conf.Exists(fmt.Sprintf("go.data.redis.%s.host", dbName)) {
 						hosts := strings.Split(r.conf.String(fmt.Sprintf("go.data.redis.%s.host", dbName)), ",")
 						ports := strings.Split(r.conf.String(fmt.Sprintf("go.data.redis.%s.port", dbName)), ",")
-						addrs := make([]string, 0)
+						addrs := make([]string, 0, len(hosts))
 						for i, addr := range hosts {
+							if i >= len(ports) {
+								break
+							}
 							addrs = append(addrs, fmt.Sprintf("%s:%s", addr, ports[i]))
 						}
 						uo.Addrs = addrs
@@ -104,8 +109,11 @@ func (r *RedisClient) Init(redisConfigData []byte) {
 			} else if r.conf.Exists("go.data.redis.host") {
 				hosts := strings.Split(r.conf.String("go.data.redis.host"), ",")
 				ports := strings.Split(r.conf.String("go.data.redis.port"), ",")
-				addrs := make([]string, 0)
+				addrs := make([]string, 0, len(hosts))
 				for i, addr := range hosts {
+					if i >= len(ports) {
+						break
+					}
 					addrs = append(addrs, fmt.Sprintf("%s:%s", addr, ports[i]))
 				}
 				uo.Addrs = addrs

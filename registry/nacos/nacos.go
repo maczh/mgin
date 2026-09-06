@@ -63,9 +63,11 @@ func (w *nacosHeartbeatWorker) Start(nc *NacosClient) {
 }
 
 func (n *NacosClient) Register(nacosConfigData []byte) {
-	if nacosConfigData != nil {
-		n.confData = nacosConfigData
+	if nacosConfigData == nil || len(nacosConfigData) == 0 {
+		logger.Error("Nacos 配置错误，无法获取配置地址")
+		return
 	}
+	n.confData = nacosConfigData
 	if n.conf == nil {
 		var err error
 		n.conf = koanf.New(".")
@@ -89,7 +91,11 @@ func (n *NacosClient) Register(nacosConfigData []byte) {
 		if n.group == "" {
 			n.group = "DEFAULT_GROUP"
 		}
-		localip, _ := localIPv4s(n.lan, n.lanNetwork)
+		localip, err := localIPv4s(n.lan, n.lanNetwork)
+		if err != nil || len(localip) == 0 {
+			logger.Error("Nacos注册中心获取本机IP失败")
+			return
+		}
 		ip := localip[0]
 		if config.Config.App.IpAddr != "" {
 			ip = config.Config.App.IpAddr
@@ -216,8 +222,10 @@ func (n *NacosClient) DeRegister() {
 	if err != nil {
 		logger.Error("Nacos注销服务失败:" + err.Error())
 	}
-	n.worker.quit <- struct{}{}
-	n.worker.wg.Wait()
+	if n.worker != nil {
+		n.worker.quit <- struct{}{}
+		n.worker.wg.Wait()
+	}
 	logger.Info("Nacos注销服务成功")
 }
 

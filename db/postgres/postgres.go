@@ -116,14 +116,20 @@ func (p *PostgresClient) Init(postgresConfigData []byte) {
 func (p *PostgresClient) Close() {
 	if p.multi {
 		for k, _ := range p.postgreses {
-			sqldb, _ := p.postgreses[k].DB()
-			sqldb.Close()
+			if conn := p.postgreses[k]; conn != nil {
+				if sqldb, err := conn.DB(); err == nil && sqldb != nil {
+					sqldb.Close()
+				}
+			}
 			delete(p.postgreses, k)
 		}
 	} else {
-		sqldb, _ := p.postgres.DB()
-		sqldb.Close()
-		p.postgres = nil
+		if p.postgres != nil {
+			if sqldb, err := p.postgres.DB(); err == nil && sqldb != nil {
+				sqldb.Close()
+			}
+			p.postgres = nil
+		}
 	}
 }
 
@@ -138,8 +144,16 @@ func postgresesCheck(p *PostgresClient) error {
 		}
 	}
 	for k, _ := range p.postgreses {
-		sqldb, _ := p.postgreses[k].DB()
-		err := sqldb.Ping()
+		sqldb, err := p.postgreses[k].DB()
+		if err != nil || sqldb == nil {
+			p.Close()
+			p.Init(p.confData)
+			if len(p.postgreses) == 0 {
+				return errors.New("postgres connection error")
+			}
+			continue
+		}
+		err = sqldb.Ping()
 		if err != nil {
 			p.Close()
 			p.Init(p.confData)
@@ -158,8 +172,19 @@ func postgresCheck(p *PostgresClient) (*gorm.DB, error) {
 			return nil, errors.New("postgres connection error")
 		}
 	}
-	sqldb, _ := p.postgres.DB()
-	err := sqldb.Ping()
+	sqldb, err := p.postgres.DB()
+	if err != nil || sqldb == nil {
+		p.Close()
+		p.Init(p.confData)
+		if p.postgres == nil {
+			return nil, errors.New("postgres connection error")
+		}
+		sqldb, err = p.postgres.DB()
+		if err != nil || sqldb == nil {
+			return nil, errors.New("postgres connection error")
+		}
+	}
+	err = sqldb.Ping()
 	if err != nil {
 		p.Close()
 		p.Init(p.confData)

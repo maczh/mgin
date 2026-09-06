@@ -4,6 +4,7 @@ import (
 	"database/sql/driver"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -17,8 +18,16 @@ func (t Timestamp) MarshalJSON() ([]byte, error) {
 }
 
 func (t *Timestamp) UnmarshalJSON(data []byte) (err error) {
+	s := strings.TrimSpace(string(data))
+	// 兼容带引号的字符串与 null
+	if len(s) >= 2 && s[0] == '"' && s[len(s)-1] == '"' {
+		s = s[1 : len(s)-1]
+	}
+	if s == "null" || s == "" {
+		return nil
+	}
 	var ts int64
-	ts, err = strconv.ParseInt(string(data), 10, 64)
+	ts, err = strconv.ParseInt(s, 10, 64)
 	if err != nil {
 		return err
 	}

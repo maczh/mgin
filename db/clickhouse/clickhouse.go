@@ -98,18 +98,20 @@ func (m *ClickhouseClient) Init(clickhouseConfigData []byte) {
 				lifetime = 60
 			}
 			if !m.multi {
-				sqldb, _ := m.db.DB()
-				sqldb.SetConnMaxIdleTime(time.Duration(idleTimeout) * time.Second)
-				sqldb.SetMaxIdleConns(idle)
-				sqldb.SetMaxOpenConns(max)
-				sqldb.SetConnMaxLifetime(time.Duration(lifetime) * time.Minute)
-			} else {
-				for k := range m.dbs {
-					sqldb, _ := m.dbs[k].DB()
+				if sqldb, err := m.db.DB(); err == nil && sqldb != nil {
 					sqldb.SetConnMaxIdleTime(time.Duration(idleTimeout) * time.Second)
 					sqldb.SetMaxIdleConns(idle)
 					sqldb.SetMaxOpenConns(max)
 					sqldb.SetConnMaxLifetime(time.Duration(lifetime) * time.Minute)
+				}
+			} else {
+				for k := range m.dbs {
+					if sqldb, err := m.dbs[k].DB(); err == nil && sqldb != nil {
+						sqldb.SetConnMaxIdleTime(time.Duration(idleTimeout) * time.Second)
+						sqldb.SetMaxIdleConns(idle)
+						sqldb.SetMaxOpenConns(max)
+						sqldb.SetConnMaxLifetime(time.Duration(lifetime) * time.Minute)
+					}
 				}
 			}
 		}
@@ -119,13 +121,17 @@ func (m *ClickhouseClient) Init(clickhouseConfigData []byte) {
 func (m *ClickhouseClient) Close() {
 	if m.multi {
 		for k := range m.dbs {
-			sqldb, _ := m.dbs[k].DB()
-			sqldb.Close()
+			if conn := m.dbs[k]; conn != nil {
+				if sqldb, err := conn.DB(); err == nil && sqldb != nil {
+					sqldb.Close()
+				}
+			}
 			delete(m.dbs, k)
 		}
 	} else if m.db != nil {
-		sqldb, _ := m.db.DB()
-		sqldb.Close()
+		if sqldb, err := m.db.DB(); err == nil && sqldb != nil {
+			sqldb.Close()
+		}
 		m.db = nil
 	}
 }
@@ -141,8 +147,16 @@ func clickhousesCheck(m *ClickhouseClient) error {
 		}
 	}
 	for k := range m.dbs {
-		sqldb, _ := m.dbs[k].DB()
-		err := sqldb.Ping()
+		sqldb, err := m.dbs[k].DB()
+		if err != nil || sqldb == nil {
+			m.Close()
+			m.Init(m.confData)
+			if len(m.dbs) == 0 {
+				return errors.New("ClickHouse connection error")
+			}
+			continue
+		}
+		err = sqldb.Ping()
 		if err != nil {
 			m.Close()
 			m.Init(m.confData)

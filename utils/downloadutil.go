@@ -25,8 +25,12 @@ func DownloadFile(fileUrl, localPath string) (string, error) {
 		strs := strings.Split(disposition, ";")
 		for _, str := range strs {
 			if strings.Contains(str, "filename=") {
-				ext := str[strings.LastIndex(str, "."):]
-				fileName = fileName[:strings.LastIndex(fileName, ".")] + ext
+				if idx := strings.LastIndex(str, "."); idx >= 0 {
+					ext := str[idx:]
+					if fIdx := strings.LastIndex(fileName, "."); fIdx >= 0 {
+						fileName = fileName[:fIdx] + ext
+					}
+				}
 			}
 		}
 	}

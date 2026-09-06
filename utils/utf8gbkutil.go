@@ -26,12 +26,10 @@ func GbkToUtf8(gbkStr string) (string, error) {
 
 func ClearUtf8BOM(bomStr string) string {
 	dat := []byte(bomStr)
-	out := ""
-	if len(dat) > 3 && (dat[0] == 0xef || dat[1] == 0xbb || dat[2] == 0xbf) {
-		out = bomStr[3:]
-		out = strings.ReplaceAll(out, "\r", "")
-	} else {
-		out = bomStr
+	// 必须三个字节同时匹配才算 UTF-8 BOM，且长度判断应为 >= 3
+	if len(dat) >= 3 && dat[0] == 0xef && dat[1] == 0xbb && dat[2] == 0xbf {
+		out := bomStr[3:]
+		return strings.ReplaceAll(out, "\r", "")
 	}
-	return out
+	return bomStr
 }

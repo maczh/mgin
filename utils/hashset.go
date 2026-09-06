@@ -9,23 +9,38 @@ func NewHashSet() *HashSet {
 }
 
 func (set *HashSet) Add(i string) bool {
+	if set == nil {
+		return false
+	}
+	if set.set == nil {
+		set.set = make(map[string]bool)
+	}
 	_, found := set.set[i]
 	set.set[i] = true
 	return !found //False if it existed already
 }
 
 func (set *HashSet) Exists(i string) bool {
+	if set == nil || set.set == nil {
+		return false
+	}
 	_, found := set.set[i]
 	return found //true if it existed already
 }
 
 func (set *HashSet) Remove(i string) {
+	if set == nil || set.set == nil {
+		return
+	}
 	delete(set.set, i)
 }
 
 func (set *HashSet) Members() []string {
-	var members []string
-	for k, _ := range set.set {
+	if set == nil || set.set == nil {
+		return nil
+	}
+	members := make([]string, 0, len(set.set))
+	for k := range set.set {
 		members = append(members, k)
 	}
 	return members

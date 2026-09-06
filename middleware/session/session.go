@@ -87,7 +87,9 @@ func NewWithConfig(config Config, opt ...session.Option) gin.HandlerFunc {
 func FromContext(ctx *gin.Context) session.Store {
 	v, ok := ctx.Get(storeKey)
 	if ok {
-		return v.(session.Store)
+		if s, ok := v.(session.Store); ok {
+			return s
+		}
 	}
 	return nil
 }
@@ -98,7 +100,11 @@ func Destroy(ctx *gin.Context) error {
 	if !ok {
 		return fmt.Errorf("invalid session manager")
 	}
-	return v.(*session.Manager).Destroy(nil, ctx.Writer, ctx.Request)
+	m, ok := v.(*session.Manager)
+	if !ok {
+		return fmt.Errorf("invalid session manager")
+	}
+	return m.Destroy(nil, ctx.Writer, ctx.Request)
 }
 
 // Refresh a session and return to session storage
@@ -107,5 +113,9 @@ func Refresh(ctx *gin.Context) (session.Store, error) {
 	if !ok {
 		return nil, fmt.Errorf("invalid session manager")
 	}
-	return v.(*session.Manager).Refresh(nil, ctx.Writer, ctx.Request)
+	m, ok := v.(*session.Manager)
+	if !ok {
+		return nil, fmt.Errorf("invalid session manager")
+	}
+	return m.Refresh(nil, ctx.Writer, ctx.Request)
 }

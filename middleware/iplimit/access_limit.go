@@ -25,11 +25,12 @@ func CIDR(CIDRs string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// retreieve user's connection origin from request remote addr
 		// need to split the host because original remoteAddr contains port
-		remoteAddr, _, splitErr := net.SplitHostPort(c.Request.RemoteAddr)
-
-		if splitErr != nil {
-			c.AbortWithStatusJSON(http.StatusInternalServerError, models.Error(500, splitErr.Error()))
-			return
+		remoteAddr := c.Request.RemoteAddr
+		if remoteAddr != "" {
+			if host, _, splitErr := net.SplitHostPort(remoteAddr); splitErr == nil {
+				remoteAddr = host
+			}
+			// splitErr != nil 说明是裸 IP（没有端口），保留原值继续校验，而不是直接返回 500
 		}
 
 		// if we have Trusted Header Field, and it exists, use it

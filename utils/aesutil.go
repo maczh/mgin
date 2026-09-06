@@ -6,6 +6,7 @@ import (
 	"crypto/cipher"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"github.com/maczh/mgin/logs"
 )
 
@@ -17,7 +18,13 @@ func PKCS5Padding(cipherText []byte, blockSize int) []byte {
 
 func PKCS5UnPadding(origData []byte) ([]byte, error) {
 	length := len(origData)
+	if length == 0 {
+		return origData, errors.New("解密错误: 数据为空")
+	}
 	unPadding := int(origData[length-1])
+	if unPadding < 1 || unPadding > length {
+		return origData, errors.New("解密错误: 填充长度非法")
+	}
 	if (length - unPadding) < 0 {
 		return origData, errors.New("解密错误")
 	} else {
@@ -31,8 +38,11 @@ func AESBase64Encrypt(origin_data string, key string, iv []byte) (base64_result 
 		logs.Error("AES加密错误:{}", err.Error())
 		return
 	}
+	if len(iv) != block.BlockSize() {
+		return "", fmt.Errorf("AES加密错误: IV长度必须为%d字节", block.BlockSize())
+	}
 	encrypt := cipher.NewCBCEncrypter(block, iv)
-	var source []byte = PKCS5Padding([]byte(origin_data), 16)
+	var source []byte = PKCS5Padding([]byte(origin_data), block.BlockSize())
 	var dst []byte = make([]byte, len(source))
 	encrypt.CryptBlocks(dst, source)
 	base64_result = base64.StdEncoding.EncodeToString(dst)
@@ -45,6 +55,9 @@ func AESBase64Decrypt(encrypt_data string, key string, iv []byte) (string, error
 	if block, err = aes.NewCipher([]byte(key)); err != nil {
 		logs.Error("AES加密错误:{}", err.Error())
 		return "", err
+	}
+	if len(iv) != block.BlockSize() {
+		return "", fmt.Errorf("AES解密错误: IV长度必须为%d字节", block.BlockSize())
 	}
 	encrypt := cipher.NewCBCDecrypter(block, iv)
 
@@ -92,6 +105,9 @@ func AesDecrypt(encrypted []byte, key []byte) ([]byte, error) {
 	}
 
 	blockSize := block.BlockSize()
+	if len(encrypted) == 0 || len(encrypted)%blockSize != 0 {
+		return nil, errors.New("解密错误: 密文长度非法")
+	}
 	blockMode := cipher.NewCBCDecrypter(block, key[:blockSize])
 	origData := make([]byte, len(encrypted))
 	blockMode.CryptBlocks(origData, encrypted)

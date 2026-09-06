@@ -24,8 +24,15 @@ func (p *Values) Get(id string) any {
 	return p.data[id]
 }
 
+// GetAll 返回内部 map 的浅拷贝，避免外部并发写入导致 concurrent map read and map write
 func (p *Values) GetAll() any {
-	return p.data
+	p.lock.RLock()
+	defer p.lock.RUnlock()
+	cp := make(map[string]any, len(p.data))
+	for k, v := range p.data {
+		cp[k] = v
+	}
+	return cp
 }
 
 func (p *Values) Merge(props map[string]any) {
@@ -42,5 +49,7 @@ func (p *Values) Merge(props map[string]any) {
 }
 
 func (p *Values) Clear() {
+	p.lock.Lock()
+	defer p.lock.Unlock()
 	p.data = make(map[string]any)
 }

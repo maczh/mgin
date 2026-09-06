@@ -57,15 +57,15 @@ func SetHeader(key, value string) {
 func GetHeaders() map[string]string {
 	headers, found := cache.OnGetCache("Header").Value(GetGoroutineID())
 	if found {
-		h := headers.(map[string]string)
-		headersMap := make(map[string]string)
-		for k, v := range h {
-			headersMap[k] = v
+		if h, ok := headers.(map[string]string); ok {
+			headersMap := make(map[string]string)
+			for k, v := range h {
+				headersMap[k] = v
+			}
+			return headersMap
 		}
-		return headersMap
-	} else {
-		return map[string]string{}
 	}
+	return map[string]string{}
 }
 
 func generateRandString(source string, l int) string {
@@ -87,7 +87,11 @@ func GetGoroutineID() uint64 {
 	b := make([]byte, 64)
 	b = b[:runtime.Stack(b, false)]
 	b = bytes.TrimPrefix(b, []byte("goroutine "))
-	b = b[:bytes.IndexByte(b, ' ')]
+	if i := bytes.IndexByte(b, ' '); i >= 0 {
+		b = b[:i]
+	} else {
+		return 0
+	}
 	n, _ := strconv.ParseUint(string(b), 10, 64)
 	return n
 }

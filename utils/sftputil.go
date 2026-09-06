@@ -13,8 +13,12 @@ import (
 )
 
 func SftpClose(sftpClient *sftp.Client, sshClient *ssh.Client) {
-	sftpClient.Close()
-	sshClient.Close()
+	if sftpClient != nil {
+		sftpClient.Close()
+	}
+	if sshClient != nil {
+		sshClient.Close()
+	}
 }
 
 func SftpConnect(user, password, host string, port int) (*sftp.Client, *ssh.Client, error) {
@@ -57,9 +61,14 @@ func SftpConnect(user, password, host string, port int) (*sftp.Client, *ssh.Clie
 }
 
 func SftpUploadFile(sftpClient *sftp.Client, localFilePath string, remotePath string) {
+	if sftpClient == nil {
+		logs.Error("sftp客户端为nil，无法上传文件{}", localFilePath)
+		return
+	}
 	srcFile, err := os.Open(localFilePath)
 	if err != nil {
 		logs.Error("本地文件{}打开错误:{}", localFilePath, err.Error())
+		return
 	}
 	defer srcFile.Close()
 
@@ -68,13 +77,14 @@ func SftpUploadFile(sftpClient *sftp.Client, localFilePath string, remotePath st
 	dstFile, err := sftpClient.Create(path.Join(remotePath, remoteFileName))
 	if err != nil {
 		logs.Error("远程文件:{}{}创建错误:{}", remotePath, remoteFileName, err.Error())
-
+		return
 	}
 	defer dstFile.Close()
 
 	ff, err := ioutil.ReadAll(srcFile)
 	if err != nil {
 		logs.Error("读取本地文件{}错误:{}", localFilePath, err.Error())
+		return
 	}
 	dstFile.Write(ff)
 	logs.Debug("文件{}上传成功!", localFilePath)

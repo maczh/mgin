@@ -17,8 +17,9 @@ func GetLocalIpAddress() (ip string) {
 		return
 	}
 	for _, value := range addrs {
-		if ipnet, ok := value.(*net.IPNet); ok && !ipnet.IP.IsLoopback() && ipnet.IP.String()[:7] != "169.254" {
-			if ipnet.IP.To4() != nil {
+		// 必须先判 To4()，短格式 IPv6（如 "::1"）字符串长度可能不足 7，直接切片会越界
+		if ipnet, ok := value.(*net.IPNet); ok && ipnet.IP.To4() != nil && !ipnet.IP.IsLoopback() {
+			if !strings.HasPrefix(ipnet.IP.String(), "169.254") {
 				ip = ipnet.IP.String()
 				return
 			}
@@ -112,7 +113,7 @@ func IsPortUse(port int) bool {
 	}
 
 	if len(output) > 0 {
-		return false
+		return true
 	}
-	return true
+	return false
 }

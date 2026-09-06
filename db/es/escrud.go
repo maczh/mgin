@@ -17,14 +17,12 @@ func (e *ElasticSearch) AddDocument(database, table string, doc map[string]any, 
 		indexName = database
 	}
 	if _, ok := doc["id"]; !ok {
-		uuid, _ := uuid.NewV1()
-		doc["id"] = uuid.String()
+		uid, _ := uuid.NewV1()
+		doc["id"] = uid.String()
 	} else {
-		switch doc["id"].(type) {
-		case float64, int64:
-			doc["id"] = fmt.Sprintf("%v", doc["id"])
-		}
+		doc["id"] = fmt.Sprintf("%v", doc["id"])
 	}
+	id, _ := doc["id"].(string)
 	if exists, _ := elastic.NewIndicesExistsService(e.Elastic).Index([]string{indexName}).Do(context.TODO()); !exists {
 		//新建Index
 		settings := buildIKPinyinSettings()
@@ -37,13 +35,13 @@ func (e *ElasticSearch) AddDocument(database, table string, doc map[string]any, 
 			return "", err
 		}
 	}
-	resp, err := e.Elastic.Index().Index(indexName).Type("_doc").Id(doc["id"].(string)).BodyJson(doc).Do(context.TODO())
+	resp, err := e.Elastic.Index().Index(indexName).Type("_doc").Id(id).BodyJson(doc).Do(context.TODO())
 	logs.Debug("插入文档结果:{}", resp)
 	if err != nil {
 		return "", err
 	}
 	if resp.Result == "created" || resp.Result == "updated" {
-		return doc["id"].(string), nil
+		return id, nil
 	} else {
 		return "", errors.New(resp.Result)
 	}
@@ -60,11 +58,12 @@ func (e *ElasticSearch) AddDocuments(database, table string, docs []map[string]a
 			docs[i]["id"] = uid.String()
 			doc["id"] = uid.String()
 		} else {
-			switch doc["id"].(type) {
-			case float64, int64:
-				doc["id"] = fmt.Sprintf("%v", doc["id"])
-			}
+			docs[i]["id"] = fmt.Sprintf("%v", doc["id"])
+			doc["id"] = docs[i]["id"]
 		}
+	}
+	if len(docs) == 0 {
+		return []string{}, nil
 	}
 	if exists, _ := elastic.NewIndicesExistsService(e.Elastic).Index([]string{indexName}).Do(context.TODO()); !exists {
 		//新建Index
@@ -81,8 +80,9 @@ func (e *ElasticSearch) AddDocuments(database, table string, docs []map[string]a
 	bulk := e.Elastic.Bulk()
 	ids := make([]string, len(docs))
 	for i, doc := range docs {
-		ids[i] = doc["id"].(string)
-		bulk.Add(elastic.NewBulkIndexRequest().Index(indexName).Id(doc["id"].(string)).Doc(doc))
+		id, _ := doc["id"].(string)
+		ids[i] = id
+		bulk.Add(elastic.NewBulkIndexRequest().Index(indexName).Id(id).Doc(doc))
 	}
 	resp, err := bulk.Do(context.Background())
 	logs.Debug("批量插入返回结果:{}", resp)
@@ -238,7 +238,16 @@ func buildMappings(doc map[string]any, serachFields []string) map[string]any {
 		case bool:
 			fieldMapping["type"] = "boolean"
 		case []any:
-			vv := v.([]any)[0]
+			arr := v.([]any)
+			if len(arr) == 0 {
+				fieldMapping["type"] = "text"
+				subFieldMapping := make(map[string]any)
+				subFieldMapping["keyword"] = map[string]any{"type": "keyword"}
+				fieldMapping["fields"] = subFieldMapping
+				properties[k] = fieldMapping
+				continue
+			}
+			vv := arr[0]
 			switch vv.(type) {
 			case string:
 				fieldMapping["type"] = "text"

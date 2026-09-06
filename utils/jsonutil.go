@@ -35,7 +35,7 @@ func ToJSONPretty(o any) string {
 }
 
 func FromJSON(j string, o any) *any {
-	err := json.Unmarshal([]byte(j), &o)
+	err := json.Unmarshal([]byte(j), o)
 	if err != nil {
 		logs.Error("数据转换错误:{}", err.Error())
 		return nil

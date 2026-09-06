@@ -34,9 +34,11 @@ var logger = gologger.GetLogger()
 // Register 方法用于向 Consul 注册服务
 // etcdConfigData 是包含 Consul 配置的字节切片
 func (c *ConsulClient) Register(etcdConfigData []byte) {
-	if etcdConfigData != nil {
-		c.confData = etcdConfigData
+	if etcdConfigData == nil || len(etcdConfigData) == 0 {
+		logger.Error("Consul 配置错误，无法获取配置地址")
+		return
 	}
+	c.confData = etcdConfigData
 	if c.conf == nil {
 		c.conf = koanf.New(".")
 		err := c.conf.Load(rawbytes.Provider(c.confData), yaml.Parser())
@@ -61,7 +63,13 @@ func (c *ConsulClient) Register(etcdConfigData []byte) {
 		ports := strings.Split(portstr, ",")
 		consul_urls := make([]string, 0)
 		for i, ip := range ips {
-			consul_urls = append(consul_urls, fmt.Sprintf("%s:%s", ip, ports[i]))
+			if i < len(ports) {
+				consul_urls = append(consul_urls, fmt.Sprintf("%s:%s", ip, ports[i]))
+			}
+		}
+		if len(consul_urls) == 0 {
+			logger.Error("Consul 注册中心地址配置为空")
+			return
 		}
 		serverConfig := api.DefaultConfig()
 		serverConfig.Address = consul_urls[0]
@@ -70,7 +78,11 @@ func (c *ConsulClient) Register(etcdConfigData []byte) {
 			logger.Error("Consul 服务连接失败:" + err.Error())
 			return
 		}
-		localip, _ := localIPv4s(c.lan, c.lanNetwork)
+		localip, err := localIPv4s(c.lan, c.lanNetwork)
+		if err != nil || len(localip) == 0 {
+			logger.Error("Consul 注册中心获取本机IP失败")
+			return
+		}
 		ip := localip[0]
 		if config.Config.App.IpAddr != "" {
 			ip = config.Config.App.IpAddr
@@ -100,7 +112,12 @@ func (c *ConsulClient) Register(etcdConfigData []byte) {
 // servicename 是要查询的服务名称
 // groupName 是可选的服务组名称
 func (c *ConsulClient) GetServiceURL(servicename string, groupName ...string) (string, string) {
-	if groupName[0] == "" {
+	if c.client == nil {
+		return "", c.group
+	}
+	if len(groupName) == 0 {
+		groupName = []string{c.group}
+	} else if groupName[0] == "" {
 		groupName[0] = c.group
 	}
 	currentGroup := groupName[0]
@@ -116,7 +133,11 @@ func (c *ConsulClient) GetServiceURL(servicename string, groupName ...string) (s
 		//fmt.Printf("服务查询结果: %s\n", toJSON(services))
 		r := rand.New(rand.NewSource(time.Now().UnixNano()))
 		service := services[r.Intn(len(services))]
-		address := fmt.Sprintf("%s%s:%d", service.Service.Tags[2], service.Service.Address, service.Service.Port)
+		protocol := "http://"
+		if len(service.Service.Tags) >= 3 {
+			protocol = service.Service.Tags[2]
+		}
+		address := fmt.Sprintf("%s%s:%d", protocol, service.Service.Address, service.Service.Port)
 		return address, currentGroup
 	}
 	return "", currentGroup
@@ -124,7 +145,11 @@ func (c *ConsulClient) GetServiceURL(servicename string, groupName ...string) (s
 
 // DeRegister 方法用于从 Consul 注销服务
 func (c *ConsulClient) DeRegister() {
-	localip, _ := localIPv4s(c.lan, c.lanNetwork)
+	localip, err := localIPv4s(c.lan, c.lanNetwork)
+	if err != nil || len(localip) == 0 {
+		logger.Error("Consul 注销服务获取本机IP失败")
+		return
+	}
 	ip := localip[0]
 	if config.Config.App.IpAddr != "" {
 		ip = config.Config.App.IpAddr
@@ -133,7 +158,7 @@ func (c *ConsulClient) DeRegister() {
 	if port == 0 || config.Config.App.PortSSL != 0 {
 		port = uint64(config.Config.App.PortSSL)
 	}
-	err := c.client.Agent().ServiceDeregister(getInstanceId(ip, port))
+	err = c.client.Agent().ServiceDeregister(getInstanceId(ip, port))
 	if err != nil {
 		logger.Error("Consul 取消注册服务失败:" + err.Error())
 		return

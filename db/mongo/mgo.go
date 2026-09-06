@@ -31,9 +31,11 @@ type connection struct {
 var logger = gologger.GetLogger()
 
 func (m *Mongodb) Init(mongodbConfigData []byte) {
-	if mongodbConfigData != nil {
-		m.confData = mongodbConfigData
+	if mongodbConfigData == nil || len(mongodbConfigData) == 0 {
+		logger.Error("Mongodb 配置错误，无法获取配置地址")
+		return
 	}
+	m.confData = mongodbConfigData
 	//if m.confUrl == "" {
 	//	logger.Error("MongoDB配置Url为空")
 	//	return

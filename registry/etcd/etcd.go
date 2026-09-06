@@ -36,9 +36,11 @@ type EtcdClient struct {
 var logger = gologger.GetLogger()
 
 func (c *EtcdClient) Register(etcdConfigData []byte) {
-	if etcdConfigData != nil {
-		c.confData = etcdConfigData
+	if etcdConfigData == nil || len(etcdConfigData) == 0 {
+		logger.Error("Etcd 配置错误，无法获取配置地址")
+		return
 	}
+	c.confData = etcdConfigData
 	//if c.confUrl == "" {
 	//	logger.Error("Etcd配置Url为空")
 	//	return
@@ -85,7 +87,13 @@ func (c *EtcdClient) Register(etcdConfigData []byte) {
 		ports := strings.Split(portstr, ",")
 		etcd_urls := make([]string, 0)
 		for i, ip := range ips {
-			etcd_urls = append(etcd_urls, fmt.Sprintf("http://%s:%s", ip, ports[i]))
+			if i < len(ports) {
+				etcd_urls = append(etcd_urls, fmt.Sprintf("http://%s:%s", ip, ports[i]))
+			}
+		}
+		if len(etcd_urls) == 0 {
+			logger.Error("Etcd 注册中心地址配置为空")
+			return
 		}
 		serverConfig := clientv3.Config{Endpoints: etcd_urls, DialTimeout: 5 * time.Second}
 		logger.Debug("Etcd客户端配置: " + toJSON(serverConfig))
@@ -94,7 +102,11 @@ func (c *EtcdClient) Register(etcdConfigData []byte) {
 			logger.Error("Etcd服务连接失败:" + err.Error())
 			return
 		}
-		localip, _ := localIPv4s(c.lan, c.lanNetwork)
+		localip, err := localIPv4s(c.lan, c.lanNetwork)
+		if err != nil || len(localip) == 0 {
+			logger.Error("Etcd 注册中心获取本机IP失败")
+			return
+		}
 		ip := localip[0]
 		if config.Config.App.IpAddr != "" {
 			ip = config.Config.App.IpAddr
@@ -119,7 +131,9 @@ func (c *EtcdClient) Register(etcdConfigData []byte) {
 		if len(resp.Kvs) > 0 {
 			for _, kv := range resp.Kvs {
 				if string(kv.Value) == apiUrl {
-					instanceIds = append(instanceIds, string(kv.Key)[len(prefix):])
+					if len(kv.Key) > len(prefix) {
+						instanceIds = append(instanceIds, string(kv.Key)[len(prefix):])
+					}
 				}
 			}
 		}
@@ -158,11 +172,16 @@ func (c *EtcdClient) Register(etcdConfigData []byte) {
 }
 
 func (c *EtcdClient) GetServiceURL(servicename string, groupName ...string) (string, string) {
-	if groupName[0] == "" {
+	if len(groupName) == 0 {
+		groupName = []string{c.group}
+	} else if groupName[0] == "" {
 		groupName[0] = c.group
 	}
 	currentGroup := groupName[0]
 	logger.Debug(fmt.Sprintf("groupName=%s, etcdClient=%s", toJSON(groupName), toJSON(c)))
+	if c.client == nil {
+		return "", currentGroup
+	}
 	for _, group := range groupName {
 		prefix := fmt.Sprintf("%s/%s/%s/", c.prefix, group, servicename)
 		logger.Debug("查询前缀: " + prefix)
@@ -178,13 +197,21 @@ func (c *EtcdClient) GetServiceURL(servicename string, groupName ...string) (str
 		r := rand.New(rand.NewSource(time.Now().UnixNano()))
 		kv := resp.Kvs[r.Intn(len(resp.Kvs))]
 		//将当前服务实例对应的instanceId保存到缓存当中
-		cache.OnMemCache("etcd_service").Set(fmt.Sprintf("etcd_%s_%s", servicename, string(kv.Value)), string(kv.Key)[len(prefix):], 5*time.Second)
+		instanceId := ""
+		if len(kv.Key) > len(prefix) {
+			instanceId = string(kv.Key)[len(prefix):]
+		}
+		cache.OnMemCache("etcd_service").Set(fmt.Sprintf("etcd_%s_%s", servicename, string(kv.Value)), instanceId, 5*time.Second)
 		return string(kv.Value), currentGroup
 	}
 	return "", currentGroup
 }
 
 func (c *EtcdClient) DeRegister() {
+	if c.client == nil {
+		logger.Error("Etcd 未初始化，无法注销服务")
+		return
+	}
 	//localip, _ := localIPv4s(c.lan, c.lanNetwork)
 	//ip := localip[0]
 	//if config.Config.App.IpAddr != "" {

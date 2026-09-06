@@ -289,6 +289,10 @@ func (c *config) GetConfigData(prefix string) []byte {
 		if err != nil {
 			return nil
 		}
+		if len(resp.Kvs) == 0 {
+			logger.Error("无法获取配置文件: " + prefix + "-" + c.Config.Env + ".yml (etcd 中不存在该配置键)")
+			return nil
+		}
 		return resp.Kvs[0].Value
 	case "polaris":
 		resp, err := grequests.Get(c.GetConfigUrl(prefix), grequests.FromRequestOptions(&grequests.RequestOptions{

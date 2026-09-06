@@ -356,29 +356,26 @@ func (mw *XssMw) HandleXFormEncoded(c *gin.Context) error {
 func (mw *XssMw) HandleMultiPartFormData(c *gin.Context, ctHdr string) error {
 	var ioreader io.Reader = c.Request.Body
 
-	boundary := ctHdr[strings.Index(ctHdr, "boundary=")+9 : len(ctHdr)]
+	idx := strings.Index(ctHdr, "boundary=")
+	if idx < 0 {
+		return errors.New("missing boundary in content-type")
+	}
+	boundary := ctHdr[idx+9:]
+	boundary = strings.Trim(boundary, "\"")
 
 	reader := multipart.NewReader(ioreader, boundary)
 
 	var multiPrtFrm bytes.Buffer
-	// unknown, so make up some param limit - 100 max should be enough
-	for i := 0; i < 100; i++ {
+	for {
 		part, err := reader.NextPart()
 		if err != nil {
-			//fmt.Println("didn't get a part")
 			break
 		}
 
 		var buf bytes.Buffer
-		n, err := io.Copy(&buf, part)
+		_, err = io.Copy(&buf, part)
 		if err != nil {
-			//fmt.Println("error reading part: %v\nread so far: %q", err, buf.String())
 			return err
-		}
-		// XXX needed?
-		if n <= 0 {
-			//fmt.Println("read %d bytes; expected >0", n)
-			return errors.New("error recreating Multipart form Request")
 		}
 		// https://golang.org/src/mime/multipart/multipart_test.go line 230
 		multiPrtFrm.WriteString(`--` + boundary + "\r\n")
@@ -496,13 +493,25 @@ func (mw *XssMw) jsonToStringMap(buff bytes.Buffer, jsonBod interface{}) (bytes.
 		multiRec.WriteByte('[')
 		for _, n := range jbt {
 			//fmt.Printf("Item: %v= %v\n", i, n)
-			xmj := n.(map[string]interface{})
+			xmj, ok := n.(map[string]interface{})
+			if !ok {
+				// 非对象元素（标量/数组）按原值序列化写入，避免类型断言 panic 与数据丢失
+				b, err := json.Marshal(n)
+				if err != nil {
+					continue
+				}
+				multiRec.Write(b)
+				multiRec.WriteByte(',')
+				continue
+			}
 			var sbuff bytes.Buffer
 			buff = mw.ConstructJson(xmj, sbuff)
 			multiRec.WriteString(buff.String())
 			multiRec.WriteByte(',')
 		}
-		multiRec.Truncate(multiRec.Len() - 1) // remove last ','
+		if multiRec.Len() > 1 {
+			multiRec.Truncate(multiRec.Len() - 1) // remove last ','
+		}
 		multiRec.WriteByte(']')
 		return multiRec, nil
 	default:
@@ -622,12 +631,33 @@ func (mw *XssMw) unravelSlice(slce []interface{}, p *bluemonday.Policy) bytes.Bu
 			scnd := mw.ConstructJson(nn, sbuff)
 			buff.WriteString(scnd.String())
 			buff.WriteByte(',')
+		case []interface{}:
+			scnd := mw.unravelSlice(nn, p)
+			buff.WriteString(scnd.String())
+			buff.WriteByte(',')
 		case string:
 			buff.WriteString(fmt.Sprintf("%q", p.Sanitize(nn)))
 			buff.WriteByte(',')
+		case float64, float32:
+			buff.WriteString(fmt.Sprintf("%v", nn))
+			buff.WriteByte(',')
+		case int, int64:
+			buff.WriteString(fmt.Sprintf("%v", nn))
+			buff.WriteByte(',')
+		case bool:
+			buff.WriteString(fmt.Sprintf("%v", nn))
+			buff.WriteByte(',')
+		case nil:
+			buff.WriteString("null")
+			buff.WriteByte(',')
+		default:
+			buff.WriteString(fmt.Sprintf("%q", p.Sanitize(fmt.Sprintf("%v", nn))))
+			buff.WriteByte(',')
 		}
 	}
-	buff.Truncate(buff.Len() - 1) // remove last ','
+	if buff.Len() > 1 {
+		buff.Truncate(buff.Len() - 1) // remove last ','
+	}
 	buff.WriteByte(']')
 	return buff
 }

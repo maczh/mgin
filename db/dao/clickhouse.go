@@ -79,7 +79,7 @@ func (receiver *ClickhouseDao[E]) MultiCreate(entities []*E) error {
 	if receiver.Tag == nil {
 		receiver.Tag = notag
 	}
-	conn, err := db.Mysql.GetConnection(receiver.Tag())
+	conn, err := db.Clickhouse.GetConnection(receiver.Tag())
 	if err != nil {
 		logger.Error("数据库连接失败: " + err.Error())
 		return errors.New("数据库连接失败")
@@ -247,15 +247,15 @@ func (receiver *ClickhouseDao[E]) Exists(entity E) bool {
 		logger.Error("数据库连接失败: " + err.Error())
 		return false
 	}
-	var result *E
+	var result E
 	if receiver.debug {
 		conn = conn.Debug()
 	}
 	if receiver.ctx != nil {
 		conn = conn.WithContext(*receiver.ctx)
 	}
-	_ = conn.Where(entity).First(result).Error
-	return result != nil
+	err = conn.Where(entity).First(&result).Error
+	return err == nil
 }
 
 // Count clickhouse统计记录数
@@ -288,6 +288,9 @@ func (receiver *ClickhouseDao[E]) Count(entity E) (int64, error) {
 
 // Pager clickhouse简单分页查询数据
 func (receiver *ClickhouseDao[E]) Pager(conn *gorm.DB, page, size int) ([]E, *models.ResultPage, error) {
+	if conn == nil {
+		return nil, nil, errors.New("数据库连接失败")
+	}
 	// 默认分页大小为20条
 	if size == 0 {
 		size = 20

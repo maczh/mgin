@@ -39,10 +39,19 @@ func (r Result[T]) ToAny() Result[any] {
 
 // 从any转指定泛型，必须明确Data的类型一致，否则断言可能panic
 func ToAny[T any](result Result[any]) Result[T] {
+	var zero T
+	if data, ok := result.Data.(T); ok {
+		return Result[T]{
+			Status: result.Status,
+			Msg:    result.Msg,
+			Data:   data,
+			Page:   result.Page,
+		}
+	}
 	return Result[T]{
 		Status: result.Status,
 		Msg:    result.Msg,
-		Data:   result.Data.(T),
+		Data:   zero,
 		Page:   result.Page,
 	}
 }

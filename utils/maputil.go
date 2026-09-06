@@ -13,7 +13,11 @@ import (
 func MapItoS(src map[string]any) map[string]string {
 	dst := make(map[string]string)
 	for k, v := range src {
-		dst[k] = v.(string)
+		if s, ok := v.(string); ok {
+			dst[k] = s
+		} else {
+			dst[k] = fmt.Sprintf("%v", v)
+		}
 	}
 	return dst
 }
@@ -45,9 +49,16 @@ type Pair struct {
 
 type PairList []Pair
 
-func (p PairList) Len() int           { return len(p) }
-func (p PairList) Less(i, j int) bool { return p[i].Value.(float64) < p[j].Value.(float64) }
-func (p PairList) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
+func (p PairList) Len() int { return len(p) }
+func (p PairList) Less(i, j int) bool {
+	vi, ok1 := p[i].Value.(float64)
+	vj, ok2 := p[j].Value.(float64)
+	if !ok1 || !ok2 {
+		return fmt.Sprintf("%v", p[i].Value) < fmt.Sprintf("%v", p[j].Value)
+	}
+	return vi < vj
+}
+func (p PairList) Swap(i, j int) { p[i], p[j] = p[j], p[i] }
 
 func SortMapByValue(src map[string]any) PairList {
 	list := make(PairList, len(src))
@@ -81,7 +92,7 @@ func Map2Struct(input interface{}, output interface{}) error {
 			mapstructure.StringToTimeDurationHookFunc()),
 		WeaklyTypedInput: true,
 		Metadata:         nil,
-		Result:           &output,
+		Result:           output,
 	}
 	if d, err := mapstructure.NewDecoder(cfg); err != nil {
 		return err
@@ -125,6 +136,9 @@ func MapGet(input interface{}, fieldName string) interface{} {
 func Struct2StringMap(input any) (map[string]string, error) {
 	result := make(map[string]string)
 	inputVal := reflect.ValueOf(input)
+	if !inputVal.IsValid() {
+		return nil, fmt.Errorf("input is nil")
+	}
 	inputType := inputVal.Type()
 
 	if inputVal.Kind() == reflect.Ptr {
@@ -142,6 +156,10 @@ func Struct2StringMap(input any) (map[string]string, error) {
 	for i := 0; i < inputVal.NumField(); i++ {
 		field := inputType.Field(i)
 		value := inputVal.Field(i)
+		// 未导出字段无法调用 Interface()，必须跳过，否则 panic
+		if !field.IsExported() {
+			continue
+		}
 
 		// 获取字段名，优先使用json tag
 		key := field.Name
@@ -162,6 +180,10 @@ func Struct2StringMap(input any) (map[string]string, error) {
 
 // valueToString 将反射值转换为字符串
 func valueToString(value reflect.Value) string {
+	// 不可导出/零值 Value 无法取 Interface()，直接返回空串避免 panic
+	if !value.IsValid() || !value.CanInterface() {
+		return ""
+	}
 	switch value.Kind() {
 	case reflect.String:
 		return value.String()

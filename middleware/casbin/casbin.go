@@ -36,8 +36,13 @@ func CasbinHandler() gin.HandlerFunc {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, models.Error(401, "用户未登录"))
 			return
 		}
-		userId := fmt.Sprintf("%d", uint(claims.(jwt.MapClaims)["userId"].(float64)))
-		roleId := fmt.Sprintf("%d", uint(claims.(jwt.MapClaims)["roleId"].(float64)))
+		mc, ok := claims.(jwt.MapClaims)
+		if !ok {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, models.Error(401, "无效令牌"))
+			return
+		}
+		userId := claimID(mc["userId"])
+		roleId := claimID(mc["roleId"])
 		// 获取请求方法
 		act := c.Request.Method
 		casbin.Casbin.GetEnforcer().LoadPolicy()
@@ -48,5 +53,23 @@ func CasbinHandler() gin.HandlerFunc {
 			return
 		}
 		c.Next()
+	}
+}
+
+// claimID 从 JWT 声明中提取用户/角色ID，兼容 float64 与 string 两种常见类型，避免类型断言 panic
+func claimID(v any) string {
+	switch val := v.(type) {
+	case float64:
+		return fmt.Sprintf("%d", uint(val))
+	case float32:
+		return fmt.Sprintf("%d", uint(val))
+	case int:
+		return fmt.Sprintf("%d", val)
+	case int64:
+		return fmt.Sprintf("%d", val)
+	case string:
+		return val
+	default:
+		return ""
 	}
 }

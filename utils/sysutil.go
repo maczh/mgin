@@ -25,8 +25,11 @@ func CmdRunWithTimeout(cmd *exec.Cmd, timeout time.Duration) (error, bool) {
 	select {
 	case <-time.After(timeout):
 		//timeout
-		if err = cmd.Process.Kill(); err != nil {
-			logs.Error("failed to kill: {}, error: {}", cmd.Path, err)
+		// 进程未 Start 时 Process 为 nil，直接 Kill 会 panic
+		if cmd.Process != nil {
+			if err = cmd.Process.Kill(); err != nil {
+				logs.Error("failed to kill: {}, error: {}", cmd.Path, err)
+			}
 		}
 		go func() {
 			<-done // allow goroutine to exit

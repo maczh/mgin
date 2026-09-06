@@ -17,7 +17,8 @@ func CheckSqlValidate(content string) (bool, string) {
 	arr := strings.Split(filterString, "|")
 
 	for _, s := range arr {
-		if index := strings.Index(content, s); index > 0 {
+		// 命中首字符也算命中，必须用 >= 0
+		if index := strings.Index(content, s); index >= 0 {
 			return true, s
 		}
 	}

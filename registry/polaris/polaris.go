@@ -33,9 +33,11 @@ type PolarisClient struct {
 var logger = gologger.GetLogger()
 
 func (c *PolarisClient) Register(registryConfigData []byte) {
-	if registryConfigData != nil {
-		c.confData = registryConfigData
+	if registryConfigData == nil || len(registryConfigData) == 0 {
+		logger.Error("Polaris 配置错误，无法获取配置地址")
+		return
 	}
+	c.confData = registryConfigData
 	if c.conf == nil {
 		c.conf = koanf.New(".")
 		err := c.conf.Load(rawbytes.Provider(c.confData), yaml.Parser())
@@ -54,7 +56,11 @@ func (c *PolarisClient) Register(registryConfigData []byte) {
 		if c.namespace == "" {
 			c.namespace = "default"
 		}
-		localip, _ := localIPv4s(c.lan, c.lanNetwork)
+		localip, err := localIPv4s(c.lan, c.lanNetwork)
+		if err != nil || len(localip) == 0 {
+			logger.Error("Polaris 注册中心获取本机IP失败")
+			return
+		}
 		ip := localip[0]
 		if config.Config.App.IpAddr != "" {
 			ip = config.Config.App.IpAddr
@@ -120,6 +126,10 @@ func (c *PolarisClient) Register(registryConfigData []byte) {
 			logger.Error("Polaris 服务实例注册失败:" + toJSON(res1))
 			return
 		}
+		if len(res1.Responses) == 0 {
+			logger.Error("Polaris 服务实例注册响应为空")
+			return
+		}
 		serviceId := res1.Responses[0].Instance.Id
 		cache.OnGetCache("polaris").Set("serviceId", serviceId, 0)
 		logger.Info(fmt.Sprintf("%s服务注册成功", config.Config.App.Name))
@@ -176,10 +186,16 @@ func (c *PolarisClient) DeRegister() {
 	query := DeregisterInstanceRequest{}
 	serviceId, exists := cache.OnGetCache("polaris").Get("serviceId")
 	if exists {
-		query.ID = serviceId.(string)
+		if sid, ok := serviceId.(string); ok {
+			query.ID = sid
+		}
 	} else {
 
-		localip, _ := localIPv4s(c.lan, c.lanNetwork)
+		localip, err := localIPv4s(c.lan, c.lanNetwork)
+		if err != nil || len(localip) == 0 {
+			logger.Error("Polaris 注册中心获取本机IP失败")
+			return
+		}
 		ip := localip[0]
 		if config.Config.App.IpAddr != "" {
 			ip = config.Config.App.IpAddr

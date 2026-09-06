@@ -120,7 +120,7 @@ func CallT[T any](service, uri string, op *Options) models.Result[T] {
 	if err != nil {
 		return models.ErrorT[T](-1, err.Error())
 	}
-	if resp[:1] != "{" {
+	if len(resp) == 0 || resp[:1] != "{" {
 		return models.ErrorT[T](-1, "Service error")
 	}
 	var result models.Result[T]
@@ -129,15 +129,25 @@ func CallT[T any](service, uri string, op *Options) models.Result[T] {
 }
 
 func getHostFromCache(serviceName string) (string, error) {
-	h, _ := cache.OnGetCache("service", false).Value(serviceName)
+	c := cache.OnGetCache("service", false)
+	if c == nil {
+		return "", errors.New("无此服务缓存")
+	}
+	h, _ := c.Value(serviceName)
 	if h == nil {
 		logs.Debug("{} 服务无缓存", serviceName)
 		return "", errors.New("无此服务缓存")
-	} else {
-		hosts := strings.Split(h.(string), ",")
-		r := rand.New(rand.NewSource(time.Now().UnixNano()))
-		return hosts[r.Intn(len(hosts))], nil
 	}
+	hostStr, ok := h.(string)
+	if !ok {
+		return "", errors.New("服务缓存格式错误")
+	}
+	hosts := strings.Split(hostStr, ",")
+	if len(hosts) == 0 {
+		return "", errors.New("无此服务缓存")
+	}
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	return hosts[r.Intn(len(hosts))], nil
 }
 
 //func subscribeNacos(serviceName, groupName string) {

@@ -22,9 +22,11 @@ type ElasticSearch struct {
 var logger = gologger.GetLogger()
 
 func (e *ElasticSearch) Init(elasticConfigData []byte) {
-	if elasticConfigData != nil {
-		e.confData = elasticConfigData
+	if elasticConfigData == nil || len(elasticConfigData) == 0 {
+		logger.Error("ElasticSearch 配置错误，无法获取配置地址")
+		return
 	}
+	e.confData = elasticConfigData
 	//if e.confUrl == "" {
 	//	logger.Error("ElasticSearch配置Url为空")
 	//	return

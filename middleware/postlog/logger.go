@@ -10,6 +10,7 @@ import (
 	"mime"
 	"path"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/maczh/mgin/config"
@@ -54,6 +55,8 @@ func (m *mongo[E]) Set(mgodao dao.Dao[E], isMultiDBFunc func() bool) {
 }
 
 var accessChannel = make(chan string, 100)
+
+var accessChannelOnce sync.Once
 
 var fileResponseFormats = map[string]string{
 	"application/zip":    "zip",
@@ -138,7 +141,9 @@ func RequestLogger() gin.HandlerFunc {
 	}
 	Mgo.mgodao = &postlogDao
 
-	go handleAccessChannel()
+	accessChannelOnce.Do(func() {
+		go handleAccessChannel()
+	})
 
 	return func(c *gin.Context) {
 		bodyLogWriter := &bodyLogWriter{body: bytes.NewBufferString(""), ResponseWriter: c.Writer}
@@ -177,13 +182,15 @@ func RequestLogger() gin.HandlerFunc {
 			r, err := gzip.NewReader(bytes.NewBufferString(responseBody))
 			if err != nil {
 				logs.Error("gzip.NewReader error:", err.Error())
+			} else {
+				defer r.Close()
+				rBody, err := io.ReadAll(r)
+				if err != nil {
+					logs.Error("io.ReadAll error:", err.Error())
+				} else {
+					responseBody = string(rBody)
+				}
 			}
-			defer r.Close()
-			rBody, err := io.ReadAll(r)
-			if err != nil {
-				logs.Error("io.ReadAll error:", err.Error())
-			}
-			responseBody = string(rBody)
 		}
 		responseDatabaseBody := responseBody
 		responseLogBody := responseBody
@@ -260,7 +267,10 @@ func handleAccessChannel() {
 	}
 	for accessLog := range accessChannel {
 		var postLog models.PostLog
-		json.Unmarshal([]byte(accessLog), &postLog)
+		if err := json.Unmarshal([]byte(accessLog), &postLog); err != nil {
+			logs.Error("接口日志解析错误:{}", err.Error())
+			continue
+		}
 		dbName := ""
 		if config.Config.Log.DbName != "" {
 			dbName = config.Config.Log.DbName
@@ -287,16 +297,10 @@ func handleAccessChannel() {
 		}
 		switch config.Config.Log.LogDb {
 		case "mongodb":
-			//conn, err := db.Mongo.GetConnection(dbName)
-			//if err != nil {
-			//	logs.Error("MongoDB连接失败:{}", err.Error())
-			//	continue
-			//}
-			//err = conn.C(config.Config.Log.RequestTableName).insert(postLog)
-			//if err != nil {
-			//	logs.Error("MongoDB写入错误:" + err.Error())
-			//}
-			//db.Mongo.ReturnConnection(conn)
+			if Mgo.mgodao == nil {
+				logs.Error("MongoDB日志DAO未初始化，跳过日志写入")
+				continue
+			}
 			err := Mgo.mgodao.Insert(&postLog)
 			if err != nil {
 				logs.Error("MongoDB写入错误:" + err.Error())

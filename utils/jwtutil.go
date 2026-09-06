@@ -8,6 +8,10 @@ import (
 
 // GenerateToken 生成JWT token
 func GenerateToken(claims jwt.MapClaims) (string, error) {
+	// claims 可能为 nil，直接写入会触发 assignment to entry in nil map
+	if claims == nil {
+		claims = jwt.MapClaims{}
+	}
 	// 设置过期时间
 	claims["exp"] = time.Now().Add(time.Hour * 24).Unix()
 

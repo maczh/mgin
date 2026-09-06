@@ -45,9 +45,12 @@ func (receiver *safeGo) SetCallBeforeHandler(callBeforeF func(params map[string]
 	return receiver
 }
 
-// Run 运行
+// Run 运行。所有回调均在 goroutine 内执行并受 recover 保护，
+// 任一回调未设置时跳过而非 panic。
 func (receiver *safeGo) Run(args ...any) {
-	preRoutineId := receiver.goBeforeF()
+	if receiver.argsF == nil {
+		return
+	}
 	go func() {
 		defer func() {
 			if err := recover(); err != nil {
@@ -57,7 +60,13 @@ func (receiver *safeGo) Run(args ...any) {
 					goErr.Error(), goErr.Stack(), reset)
 			}
 		}()
-		receiver.callBeforeF(preRoutineId)
+		var params map[string]any
+		if receiver.goBeforeF != nil {
+			params = receiver.goBeforeF()
+		}
+		if receiver.callBeforeF != nil {
+			receiver.callBeforeF(params)
+		}
 		receiver.argsF(args...)
 	}()
 }

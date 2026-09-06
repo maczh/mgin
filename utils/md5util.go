@@ -43,8 +43,16 @@ func MapMD5(m map[string]string) string {
 	}
 	signtext := ""
 	sortmap.Each(func(key any, value any) {
-		if key.(string) != "sign" && m[key.(string)] != "" {
-			signtext = signtext + key.(string) + "=" + value.(string) + "&"
+		ks, ok := key.(string)
+		if !ok {
+			return
+		}
+		vs, ok := value.(string)
+		if !ok {
+			return
+		}
+		if ks != "sign" && m[ks] != "" {
+			signtext = signtext + ks + "=" + vs + "&"
 		}
 	})
 	signtext = strings.TrimRight(signtext, "&")
