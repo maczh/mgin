@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/knadh/koanf"
 	"github.com/knadh/koanf/parsers/yaml"
@@ -87,8 +88,10 @@ type appLog struct {
 }
 
 type discovery struct {
-	Registry string `json:"registry" bson:"registry"`
-	CallType string `json:"callType" bson:"callType"`
+	Registry     string        `json:"registry" bson:"registry"`
+	CallType     string        `json:"callType" bson:"callType"`
+	CacheTTL     time.Duration `json:"cacheTTL" bson:"cacheTTL"`
+	CacheRefresh time.Duration `json:"cacheRefresh" bson:"cacheRefresh"`
 }
 
 type sys struct {
@@ -170,6 +173,14 @@ func (c *config) Init(cf string) {
 	c.Discovery.CallType = c.Cnf.String("go.discovery.callType")
 	if c.Discovery.CallType == "" {
 		c.Discovery.CallType = "x-form"
+	}
+	c.Discovery.CacheTTL = time.Duration(c.Cnf.Int("go.discovery.cacheTTL")) * time.Second
+	if c.Discovery.CacheTTL == 0 {
+		c.Discovery.CacheTTL = 60 * time.Second
+	}
+	c.Discovery.CacheRefresh = time.Duration(c.Cnf.Int("go.discovery.cacheRefresh")) * time.Second
+	if c.Discovery.CacheRefresh == 0 {
+		c.Discovery.CacheRefresh = 60 * time.Second
 	}
 	c.Jwt.Secret = c.Cnf.String("go.jwt.secret")
 	c.Sys.Enabled = c.Cnf.Bool("go.sys.enabled")

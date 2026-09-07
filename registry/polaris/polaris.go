@@ -28,6 +28,7 @@ type PolarisClient struct {
 	conf       *koanf.Koanf
 	confUrl    string
 	confData   []byte
+	instanceId string
 }
 
 var logger = gologger.GetLogger()
@@ -131,6 +132,7 @@ func (c *PolarisClient) Register(registryConfigData []byte) {
 			return
 		}
 		serviceId := res1.Responses[0].Instance.Id
+		c.instanceId = serviceId
 		cache.OnGetCache("polaris").Set("serviceId", serviceId, 0)
 		logger.Info(fmt.Sprintf("%s服务注册成功", config.Config.App.Name))
 	}
@@ -184,30 +186,34 @@ func (c *PolarisClient) GetServiceURL(servicename string, namespaces ...string) 
 
 func (c *PolarisClient) DeRegister() {
 	query := DeregisterInstanceRequest{}
-	serviceId, exists := cache.OnGetCache("polaris").Get("serviceId")
-	if exists {
-		if sid, ok := serviceId.(string); ok {
-			query.ID = sid
-		}
+	if c.instanceId != "" {
+		query.ID = c.instanceId
 	} else {
+		serviceId, exists := cache.OnGetCache("polaris").Get("serviceId")
+		if exists {
+			if sid, ok := serviceId.(string); ok {
+				query.ID = sid
+			}
+		} else {
 
-		localip, err := localIPv4s(c.lan, c.lanNetwork)
-		if err != nil || len(localip) == 0 {
-			logger.Error("Polaris 注册中心获取本机IP失败")
-			return
+			localip, err := localIPv4s(c.lan, c.lanNetwork)
+			if err != nil || len(localip) == 0 {
+				logger.Error("Polaris 注册中心获取本机IP失败")
+				return
+			}
+			ip := localip[0]
+			if config.Config.App.IpAddr != "" {
+				ip = config.Config.App.IpAddr
+			}
+			query.Service = config.Config.App.Name
+			query.Namespace = c.namespace
+			query.Host = ip
+			port := int64(config.Config.App.Port)
+			if port == 0 || config.Config.App.PortSSL != 0 {
+				port = int64(config.Config.App.PortSSL)
+			}
+			query.Port = port
 		}
-		ip := localip[0]
-		if config.Config.App.IpAddr != "" {
-			ip = config.Config.App.IpAddr
-		}
-		query.Service = config.Config.App.Name
-		query.Namespace = c.namespace
-		query.Host = ip
-		port := int64(config.Config.App.Port)
-		if port == 0 || config.Config.App.PortSSL != 0 {
-			port = int64(config.Config.App.PortSSL)
-		}
-		query.Port = port
 	}
 	_, err := grequests.Post(fmt.Sprintf("%s/naming/v1/instances/delete", c.apiBaseUrl), grequests.FromRequestOptions(&grequests.RequestOptions{
 		Headers: map[string]string{

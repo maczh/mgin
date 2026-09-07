@@ -1,6 +1,7 @@
 package consul
 
 import (
+	"context"
 	"crypto/md5"
 	"fmt"
 	"io"
@@ -27,6 +28,9 @@ type ConsulClient struct {
 	lanNetwork string
 	conf       *koanf.Koanf
 	confData   []byte
+	instanceID string
+	ctx        context.Context
+	cancel     context.CancelFunc
 }
 
 var logger = gologger.GetLogger()
@@ -93,18 +97,26 @@ func (c *ConsulClient) Register(etcdConfigData []byte) {
 			port = uint64(config.Config.App.PortSSL)
 			protocol = "https://"
 		}
+		c.instanceID = getInstanceId(ip, port)
 		registration := &api.AgentServiceRegistration{
-			ID:      getInstanceId(ip, port),
+			ID:      c.instanceID,
 			Name:    config.Config.App.Name,
 			Address: ip,
 			Port:    int(port),
 			Tags:    []string{c.group, c.cluster, protocol},
+			Check: &api.AgentServiceCheck{
+				DeregisterCriticalServiceAfter: "10m",
+				TLSSkipVerify:                  false,
+				TTL:                            "30s",
+			},
 		}
 		err = c.client.Agent().ServiceRegister(registration)
 		if err != nil {
 			logger.Error("Consul 注册服务失败:" + err.Error())
 			return
 		}
+		c.ctx, c.cancel = context.WithCancel(context.Background())
+		go c.passTTL()
 	}
 }
 
@@ -145,23 +157,57 @@ func (c *ConsulClient) GetServiceURL(servicename string, groupName ...string) (s
 
 // DeRegister 方法用于从 Consul 注销服务
 func (c *ConsulClient) DeRegister() {
-	localip, err := localIPv4s(c.lan, c.lanNetwork)
-	if err != nil || len(localip) == 0 {
-		logger.Error("Consul 注销服务获取本机IP失败")
+	if c.cancel != nil {
+		c.cancel()
+	}
+	if c.client == nil {
+		logger.Error("Consul 未初始化，无法注销服务")
 		return
 	}
-	ip := localip[0]
-	if config.Config.App.IpAddr != "" {
-		ip = config.Config.App.IpAddr
+	id := c.instanceID
+	if id == "" {
+		// 兜底：按本机 IP/Port 重新计算实例ID
+		localip, err := localIPv4s(c.lan, c.lanNetwork)
+		if err == nil && len(localip) > 0 {
+			ip := localip[0]
+			if config.Config.App.IpAddr != "" {
+				ip = config.Config.App.IpAddr
+			}
+			port := uint64(config.Config.App.Port)
+			if port == 0 || config.Config.App.PortSSL != 0 {
+				port = uint64(config.Config.App.PortSSL)
+			}
+			id = getInstanceId(ip, port)
+		}
 	}
-	port := uint64(config.Config.App.Port)
-	if port == 0 || config.Config.App.PortSSL != 0 {
-		port = uint64(config.Config.App.PortSSL)
+	if id == "" {
+		logger.Error("Consul 无法确定实例ID，无法注销服务")
+		return
 	}
-	err = c.client.Agent().ServiceDeregister(getInstanceId(ip, port))
+	err := c.client.Agent().ServiceDeregister(id)
 	if err != nil {
 		logger.Error("Consul 取消注册服务失败:" + err.Error())
 		return
+	}
+}
+
+// passTTL 周期性向 Consul 上报 TTL 健康检查通过，避免实例被自动反注册。
+func (c *ConsulClient) passTTL() {
+	if c.client == nil || c.instanceID == "" {
+		return
+	}
+	ticker := time.NewTicker(25 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-c.ctx.Done():
+			return
+		case <-ticker.C:
+			err := c.client.Agent().UpdateTTL(c.instanceID, "", api.HealthPassing)
+			if err != nil {
+				logger.Error("Consul TTL健康检查更新失败: " + err.Error())
+			}
+		}
 	}
 }
 

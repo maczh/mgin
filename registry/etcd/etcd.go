@@ -30,7 +30,11 @@ type EtcdClient struct {
 	conf       *koanf.Koanf
 	confUrl    string
 	confData   []byte
-	instanceId string
+	instanceId    string
+	registeredKey string
+	apiUrl        string
+	ctx           context.Context
+	cancel        context.CancelFunc
 }
 
 var logger = gologger.GetLogger()
@@ -158,16 +162,10 @@ func (c *EtcdClient) Register(etcdConfigData []byte) {
 		}
 		//cache.OnMemCache("etcd_service").Set("instance_id", c.instanceId, 5*time.Second)
 		logger.Debug("etcd服务注册结果: " + toJSON(res))
-		go func() {
-			respKeepAlive, err := c.client.KeepAlive(context.Background(), c.leaseID)
-			if err != nil {
-				logger.Error("Etcd注册服务自动续约失败:" + err.Error())
-				return
-			}
-			for {
-				<-respKeepAlive
-			}
-		}()
+		c.apiUrl = apiUrl
+		c.registeredKey = key
+		c.ctx, c.cancel = context.WithCancel(context.Background())
+		go c.keepAliveLoop()
 	}
 }
 
@@ -212,24 +210,86 @@ func (c *EtcdClient) DeRegister() {
 		logger.Error("Etcd 未初始化，无法注销服务")
 		return
 	}
-	//localip, _ := localIPv4s(c.lan, c.lanNetwork)
-	//ip := localip[0]
-	//if config.Config.App.IpAddr != "" {
-	//	ip = config.Config.App.IpAddr
-	//}
-	//port := uint64(config.Config.App.Port)
-	//if port == 0 || config.Config.App.PortSSL != 0 {
-	//	port = uint64(config.Config.App.PortSSL)
-	//}
-	fmt.Printf("注销服务: instanceId=%s", c.instanceId)
-	key := fmt.Sprintf("%s/%s/%s/%s", c.prefix, c.group, config.Config.App.Name, c.instanceId)
-	fmt.Println(key)
+	if c.cancel != nil {
+		c.cancel()
+	}
+	key := c.registeredKey
+	if key == "" {
+		// 兜底：按 instanceId 拼出 key（极端情况下 registeredKey 未记录）
+		key = fmt.Sprintf("%s/%s/%s/%s", c.prefix, c.group, config.Config.App.Name, c.instanceId)
+	}
 	resp, err := c.client.Delete(context.Background(), key)
 	if err != nil {
 		logger.Error("Etcd取消注册服务失败:" + err.Error())
 		return
 	}
-	fmt.Println(toJSON(resp))
+	logger.Debug("Etcd注销服务结果: " + toJSON(resp))
+}
+
+// keepAliveLoop 持续续约租约；当租约通道关闭或续约失败时自动重建租约并重新注册，
+// 避免连接抖动导致实例在 etcd 中“假死”（租约过期被摘除）。
+func (c *EtcdClient) keepAliveLoop() {
+	for {
+		select {
+		case <-c.ctx.Done():
+			return
+		default:
+		}
+		respKeepAlive, err := c.client.KeepAlive(c.ctx, c.leaseID)
+		if err != nil {
+			logger.Error("Etcd自动续约失败，尝试重新注册: " + err.Error())
+			if !c.reRegister() {
+				select {
+				case <-c.ctx.Done():
+					return
+				case <-time.After(time.Second):
+				}
+			}
+			continue
+		}
+	keepAlive:
+		for {
+			select {
+			case <-c.ctx.Done():
+				return
+			case _, ok := <-respKeepAlive:
+				if !ok {
+					logger.Warn("Etcd租约续约通道关闭，重新注册服务")
+					if !c.reRegister() {
+						select {
+						case <-c.ctx.Done():
+							return
+						case <-time.After(time.Second):
+						}
+					}
+					break keepAlive
+				}
+			}
+		}
+	}
+}
+
+// reRegister 吊销旧租约并重新申请租约、重新写入本实例，保持注册信息有效。
+func (c *EtcdClient) reRegister() bool {
+	if c.client == nil || c.apiUrl == "" || c.registeredKey == "" {
+		return false
+	}
+	if c.leaseID != clientv3.NoLease {
+		_, _ = c.client.Revoke(context.Background(), c.leaseID)
+	}
+	respGrant, err := c.client.Grant(context.Background(), 10000)
+	if err != nil {
+		logger.Error("Etcd重新申请租约失败: " + err.Error())
+		return false
+	}
+	c.leaseID = respGrant.ID
+	_, err = c.client.Put(context.Background(), c.registeredKey, c.apiUrl, clientv3.WithLease(c.leaseID))
+	if err != nil {
+		logger.Error("Etcd重新注册服务失败: " + err.Error())
+		return false
+	}
+	logger.Info("Etcd重新注册服务成功: " + c.registeredKey)
+	return true
 }
 
 func localIPv4s(lan bool, lanNetwork string) ([]string, error) {

@@ -37,9 +37,11 @@ type NacosClient struct {
 var logger = gologger.GetLogger()
 
 type nacosHeartbeatWorker struct {
-	ticker *time.Ticker
-	quit   chan struct{}
-	wg     *sync.WaitGroup
+	ticker    *time.Ticker
+	quit      chan struct{}
+	wg        *sync.WaitGroup
+	failCount int
+	maxFails  int
 }
 
 func (w *nacosHeartbeatWorker) Start(nc *NacosClient) {
@@ -47,6 +49,9 @@ func (w *nacosHeartbeatWorker) Start(nc *NacosClient) {
 	w.ticker = time.NewTicker(5 * time.Second)
 	defer w.ticker.Stop()
 	w.quit = make(chan struct{})
+	if w.maxFails <= 0 {
+		w.maxFails = 3
+	}
 	for {
 		select {
 		case <-w.quit:
@@ -56,8 +61,17 @@ func (w *nacosHeartbeatWorker) Start(nc *NacosClient) {
 				Params: nc.param,
 			})
 			if err != nil {
-				logger.Error("Nacos心跳失败:" + err.Error())
+				w.failCount++
+				logger.Error(fmt.Sprintf("Nacos心跳失败(%d/%d): %s", w.failCount, w.maxFails, err.Error()))
+				if w.failCount >= w.maxFails {
+					w.failCount = 0
+					if !nc.reRegister() {
+						logger.Error("Nacos心跳连续失败且重新注册失败")
+					}
+				}
+				continue
 			}
+			w.failCount = 0
 		}
 	}
 }
@@ -132,7 +146,8 @@ func (n *NacosClient) Register(nacosConfigData []byte) {
 		}
 		// 启动心跳线程
 		n.worker = &nacosHeartbeatWorker{
-			wg: &sync.WaitGroup{},
+			wg:       &sync.WaitGroup{},
+			maxFails: 3,
 		}
 		n.worker.wg.Add(1)
 		go n.worker.Start(n)
@@ -216,17 +231,43 @@ func (n *NacosClient) GetServiceURL(servicename string, groupName ...string) (st
 }
 
 func (n *NacosClient) DeRegister() {
+	if n.worker != nil {
+		select {
+		case <-n.worker.quit:
+			// 已经关闭，避免重复 close 导致 panic
+		default:
+			close(n.worker.quit)
+		}
+		n.worker.wg.Wait()
+	}
 	_, err := grequests.DoRegularRequest(http.MethodDelete, n.nsurl, &grequests.RequestOptions{
 		Params: n.param,
 	})
 	if err != nil {
 		logger.Error("Nacos注销服务失败:" + err.Error())
 	}
-	if n.worker != nil {
-		n.worker.quit <- struct{}{}
-		n.worker.wg.Wait()
-	}
 	logger.Info("Nacos注销服务成功")
+}
+
+// reRegister 在心跳连续失败（注册中心抖动/会话失效）时重新发起注册，
+// 保证实例不脱管。
+func (n *NacosClient) reRegister() bool {
+	if n.nsurl == "" || n.param == nil {
+		return false
+	}
+	resp, err := grequests.DoRegularRequest(http.MethodPost, n.nsurl, &grequests.RequestOptions{
+		Params: n.param,
+	})
+	if err != nil {
+		logger.Error("Nacos重新注册失败: " + err.Error())
+		return false
+	}
+	if resp.StatusCode != 200 {
+		logger.Error("Nacos重新注册失败: " + resp.String())
+		return false
+	}
+	logger.Info("Nacos心跳失败已重新注册成功")
+	return true
 }
 
 func localIPv4s(lan bool, lanNetwork string) ([]string, error) {
