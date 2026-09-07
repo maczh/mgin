@@ -31,6 +31,12 @@ type EtcdClient struct {
 	confUrl    string
 	confData   []byte
 	instanceId string
+
+	// 注册稳定性增强字段
+	registeredKey string             // 本实例在 etcd 上的完整 key，用于注销与重注册
+	apiUrl       string             // 本实例注册值（如 http://ip:port）
+	ctx          context.Context    // 续约/重注册协程的取消上下文
+	cancel       context.CancelFunc // 注销时取消续约协程
 }
 
 var logger = gologger.GetLogger()
@@ -42,28 +48,9 @@ func (c *EtcdClient) Register(etcdConfigData []byte) {
 	if etcdConfigData != nil {
 		c.confData = etcdConfigData
 	}
-	//if c.confUrl == "" {
-	//	logger.Error("Etcd配置Url为空")
-	//	return
-	//}
 	logger.Debug("etcd配置文件:\n" + string(c.confData))
 	if c.conf == nil {
-		//var confData []byte
 		var err error
-		//if strings.HasPrefix(c.confUrl, "http://") {
-		//	resp, err := grequests.Get(c.confUrl, nil)
-		//	if err != nil {
-		//		logger.Error("Etcd注册中心配置下载失败! " + err.Error())
-		//		return
-		//	}
-		//	confData = []byte(resp.String())
-		//} else {
-		//	confData, err = ioutil.ReadFile(c.confUrl)
-		//	if err != nil {
-		//		logger.Error(fmt.Sprintf("Etcd注册中心本地配置文件%s读取失败:%s", c.confUrl, err.Error()))
-		//		return
-		//	}
-		//}
 		c.conf = koanf.New(".")
 		err = c.conf.Load(rawbytes.Provider(c.confData), yaml.Parser())
 		if err != nil {
@@ -119,9 +106,6 @@ func (c *EtcdClient) Register(etcdConfigData []byte) {
 			protocol = "https://"
 		}
 		apiUrl := fmt.Sprintf("%s%s:%d", protocol, ip, port)
-		//if config.Config.App.Debug {
-		//	metadata["debug"] = "true"
-		//}
 		prefix := fmt.Sprintf("%s/%s/%s/", c.prefix, c.group, config.Config.App.Name)
 		resp, err := c.client.Get(context.Background(), prefix, clientv3.WithPrefix())
 		if err != nil {
@@ -158,18 +142,13 @@ func (c *EtcdClient) Register(etcdConfigData []byte) {
 			logger.Error("Etcd注册服务失败:" + regerr.Error())
 			return
 		}
-		//cache.OnMemCache("etcd_service").Set("instance_id", c.instanceId, 5*time.Second)
 		logger.Debug("etcd服务注册结果: " + toJSON(res))
-		go func() {
-			respKeepAlive, err := c.client.KeepAlive(context.Background(), c.leaseID)
-			if err != nil {
-				logger.Error("Etcd注册服务自动续约失败:" + err.Error())
-				return
-			}
-			for {
-				<-respKeepAlive
-			}
-		}()
+		c.registeredKey = key
+		c.apiUrl = apiUrl
+		// 启动带重注册的续约协程：etcd 连接抖动导致租约通道关闭时自动重新注册，
+		// 避免租约过期后本实例从发现列表消失（原实现在通道关闭后会静默退出，造成"假死"）。
+		c.ctx, c.cancel = context.WithCancel(context.Background())
+		go c.keepAliveLoop(c.ctx)
 	}
 }
 
@@ -239,28 +218,106 @@ func (c *EtcdClient) GetServices(servicename string, groupName ...string) ([]str
 	return nil, nil
 }
 
+// keepAliveLoop 持续为 etcd 租约续约。
+// 与原实现不同，本函数会在以下场景自动恢复，避免服务"假死"：
+//   - KeepAlive RPC 创建失败：退避后重试；
+//   - 续约通道被关闭（连接丢失 / 租约失效）：重新申请租约并重新 Put 本实例，再继续续约；
+//   - ctx 被取消（DeRegister）：立即退出。
+func (c *EtcdClient) keepAliveLoop(ctx context.Context) {
+	backoff := time.Second
+	for {
+		if ctx.Err() != nil {
+			return
+		}
+		respKeepAlive, err := c.client.KeepAlive(ctx, c.leaseID)
+		if err != nil {
+			logger.Error("Etcd租约续约失败:" + err.Error())
+			if !c.reRegister(ctx) {
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(backoff):
+					backoff = minDuration(backoff*2, 30*time.Second)
+					continue
+				}
+			}
+			backoff = time.Second
+			continue
+		}
+		backoff = time.Second
+		alive := true
+		for alive {
+			select {
+			case <-ctx.Done():
+				return
+			case _, ok := <-respKeepAlive:
+				if !ok {
+					logger.Warn("Etcd租约续约通道关闭，准备重新注册实例")
+					if !c.reRegister(ctx) {
+						select {
+						case <-ctx.Done():
+							return
+						case <-time.After(backoff):
+						}
+					}
+					alive = false
+				}
+			}
+		}
+	}
+}
+
+// reRegister 在租约失效/连接恢复后，重新申请租约并把本实例重新写入 etcd。
+// 使用固定的 instanceId 与 key，保证幂等（重复调用不会产生重复实例）。
+// 返回 true 表示重注册成功。
+func (c *EtcdClient) reRegister(ctx context.Context) bool {
+	if c.client == nil || c.apiUrl == "" {
+		return false
+	}
+	// 1) 申请新租约（与原注册保持一致：10 秒 TTL）
+	respGrant, err := c.client.Grant(ctx, 10000)
+	if err != nil {
+		logger.Error("Etcd重新注册失败,申请租约错误:" + err.Error())
+		return false
+	}
+	c.leaseID = respGrant.ID
+	// 2) 清理可能残留的旧 key（极端情况下旧租约已过期但 key 仍在）
+	c.client.Delete(ctx, c.registeredKey)
+	// 3) 重新写入本实例
+	_, err = c.client.Put(ctx, c.registeredKey, c.apiUrl, clientv3.WithLease(c.leaseID))
+	if err != nil {
+		logger.Error("Etcd重新注册失败,写入错误:" + err.Error())
+		return false
+	}
+	logger.Info("Etcd服务实例重新注册成功:" + c.registeredKey)
+	return true
+}
+
 func (c *EtcdClient) DeRegister() {
 	if c == nil || c.client == nil {
 		return
 	}
-	//localip, _ := localIPv4s(c.lan, c.lanNetwork)
-	//ip := localip[0]
-	//if config.Config.App.IpAddr != "" {
-	//	ip = config.Config.App.IpAddr
-	//}
-	//port := uint64(config.Config.App.Port)
-	//if port == 0 || config.Config.App.PortSSL != 0 {
-	//	port = uint64(config.Config.App.PortSSL)
-	//}
-	fmt.Printf("注销服务: instanceId=%s", c.instanceId)
-	key := fmt.Sprintf("%s/%s/%s/%s", c.prefix, c.group, config.Config.App.Name, c.instanceId)
-	fmt.Println(key)
-	resp, err := c.client.Delete(context.Background(), key)
-	if err != nil {
-		logger.Error("Etcd取消注册服务失败:" + err.Error())
-		return
+	// 1) 先取消续约协程，避免注销后又被心跳重新写入
+	if c.cancel != nil {
+		c.cancel()
 	}
-	fmt.Println(toJSON(resp))
+	// 2) 删除本实例在 etcd 上的 key
+	if c.registeredKey != "" {
+		resp, err := c.client.Delete(context.Background(), c.registeredKey)
+		if err != nil {
+			logger.Error("Etcd取消注册服务失败:" + err.Error())
+			return
+		}
+		logger.Debug("Etcd注销服务结果: " + toJSON(resp))
+	} else {
+		// 兜底：未记录 registeredKey（注册中途失败）时按拼接规则尝试删除
+		key := fmt.Sprintf("%s/%s/%s/%s", c.prefix, c.group, config.Config.App.Name, c.instanceId)
+		if _, err := c.client.Delete(context.Background(), key); err != nil {
+			logger.Error("Etcd取消注册服务失败:" + err.Error())
+			return
+		}
+	}
+	logger.Info("Etcd注销服务成功")
 }
 
 func localIPv4s(lan bool, lanNetwork string) ([]string, error) {
@@ -297,6 +354,14 @@ func localIPv4s(lan bool, lanNetwork string) ([]string, error) {
 }
 
 var json = jsoniter.ConfigCompatibleWithStandardLibrary
+
+// minDuration 返回 a、b 中较小的一个，用于续约重试退避的收敛。
+func minDuration(a, b time.Duration) time.Duration {
+	if a < b {
+		return a
+	}
+	return b
+}
 
 func toJSON(o any) string {
 	j, err := json.Marshal(o)

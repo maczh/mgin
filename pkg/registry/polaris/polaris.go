@@ -29,6 +29,9 @@ type PolarisClient struct {
 	conf       *koanf.Koanf
 	confUrl    string
 	confData   []byte
+
+	// serviceID 本实例注册后由 Polaris 返回，注销时优先使用，避免仅依赖缓存
+	serviceID string
 }
 
 var logger = gologger.GetLogger()
@@ -133,6 +136,7 @@ func (c *PolarisClient) Register(registryConfigData []byte) {
 		}
 		serviceId := res1.Responses[0].Instance.Id
 		cache.OnGetCache("polaris").Set("serviceId", serviceId, 0)
+		c.serviceID = serviceId
 		logger.Info(fmt.Sprintf("%s服务注册成功", config.Config.App.Name))
 	}
 }
@@ -244,14 +248,19 @@ func (c *PolarisClient) DeRegister() {
 		return
 	}
 	query := DeregisterInstanceRequest{}
-	serviceId, exists := cache.OnGetCache("polaris").Get("serviceId")
-	if exists {
-		id, ok := serviceId.(string)
-		if ok && id != "" {
-			query.ID = id
-		} else {
-			exists = false
+	// 优先使用本实例记录的 serviceID，缓存仅在异常时作为兜底
+	serviceId := c.serviceID
+	exists := serviceId != ""
+	if !exists {
+		if cached, ok := cache.OnGetCache("polaris").Get("serviceId"); ok {
+			if id, ok2 := cached.(string); ok2 && id != "" {
+				serviceId = id
+				exists = true
+			}
 		}
+	}
+	if exists {
+		query.ID = serviceId
 	}
 	if !exists {
 

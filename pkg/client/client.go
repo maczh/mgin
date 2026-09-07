@@ -120,7 +120,14 @@ func callInternal(ctx context.Context, service, uri string, op *Options) (string
 	var err error
 	// v2 路径：优先尝试 GetServices 多实例，配合 LoadBalancer + per-instance 熔断选 host。
 	host, err = selectHostByLB(service, op)
-	if err != nil || host == "" {
+	if err != nil {
+		// 全部实例熔断：快速失败，避免对已挂掉的下游继续施压（不再回退 v1 随机选实例）。
+		if errors.Is(err, ErrAllInstancesCircuitOpen) {
+			return "", err
+		}
+		// 其它情况（如 GetServices 无可用数据）回落到 v1 单实例路径
+		host, op.Group = registry.Registry.GetServiceURL(service, op.Group)
+	} else if host == "" {
 		// 回退 v1 路径：单实例 GetServiceURL（向后兼容：旧注册中心或单实例部署）。
 		host, op.Group = registry.Registry.GetServiceURL(service, op.Group)
 	}

@@ -44,5 +44,10 @@ func NewRegistry() RegistryClient {
 		client = &polaris.PolarisClient{}
 		break
 	}
-	return client
+	if client == nil {
+		return nil
+	}
+	// v2.1：用本地缓存层包裹真实客户端，提升发现性能与稳定性。
+	// 旧逻辑（每次调用都打注册中心）保留在各后端内部，缓存层仅做"读写加速 + 降级"。
+	return NewCachedRegistry(client)
 }

@@ -1,6 +1,7 @@
 package consul
 
 import (
+	"context"
 	"crypto/md5"
 	"fmt"
 	"io"
@@ -27,6 +28,10 @@ type ConsulClient struct {
 	lanNetwork string
 	conf       *koanf.Koanf
 	confData   []byte
+
+	// 注册稳定性增强字段
+	instanceID string             // 本实例注册 ID，注销时用它精确反注册（避免重新计算 IP 导致不匹配）
+	cancel     context.CancelFunc // 注销时取消 TTL 续活协程
 }
 
 var logger = gologger.GetLogger()
@@ -100,12 +105,25 @@ func (c *ConsulClient) Register(etcdConfigData []byte) {
 			Address: ip,
 			Port:    int(port),
 			Tags:    []string{c.group, c.cluster, protocol},
+			// TTL 健康检查：配合 client 侧的续活协程，进程崩溃/卡死时 Consul 能把本实例
+			// 标记为 critical（发现层 Health().Service(passingOnly=true) 会自动剔除），
+			// 超过 DeregisterCriticalServiceAfter 后自动反注册，避免留下"僵尸"实例。
+			Check: &api.AgentServiceCheck{
+				CheckID:                        "mgin:" + getInstanceId(ip, port),
+				TTL:                           "30s",
+				DeregisterCriticalServiceAfter: "1m",
+			},
 		}
 		err = c.client.Agent().ServiceRegister(registration)
 		if err != nil {
 			logger.Error("Consul 注册服务失败:" + err.Error())
 			return
 		}
+		// 注册成功：记录实例 ID 并启动 TTL 续活协程
+		c.instanceID = getInstanceId(ip, port)
+		var ctx context.Context
+		ctx, c.cancel = context.WithCancel(context.Background())
+		go c.passTTLLoop(ctx, c.instanceID)
 	}
 }
 
@@ -176,28 +194,58 @@ func (c *ConsulClient) GetServices(servicename string, groupName ...string) ([]s
 	return nil, nil
 }
 
+// passTTLLoop 周期性向 Consul 上报 TTL 检查为 passing，维持本实例健康。
+// ctx 被取消（DeRegister）时退出。
+func (c *ConsulClient) passTTLLoop(ctx context.Context, id string) {
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if err := c.client.Agent().UpdateTTL("mgin:"+id, "mgin health", api.HealthPassing); err != nil {
+				logger.Error("Consul TTL 续活失败:" + err.Error())
+			}
+		}
+	}
+}
+
 // DeRegister 方法用于从 Consul 注销服务
 func (c *ConsulClient) DeRegister() {
 	if c == nil || c.client == nil {
 		return
 	}
-	localip, _ := localIPv4s(c.lan, c.lanNetwork)
-	ip := "127.0.0.1"
-	if len(localip) > 0 {
-		ip = localip[0]
+	// 1) 取消 TTL 续活协程，避免注销过程中仍上报健康
+	if c.cancel != nil {
+		c.cancel()
 	}
-	if config.Config.App.IpAddr != "" {
-		ip = config.Config.App.IpAddr
+	// 2) 用注册时记录的实例 ID 精确反注册（不再重新计算 IP，规避 IP 不一致导致反注册失败）
+	if c.instanceID != "" {
+		if err := c.client.Agent().ServiceDeregister(c.instanceID); err != nil {
+			logger.Error("Consul 取消注册服务失败:" + err.Error())
+			return
+		}
+	} else {
+		// 兜底：未记录 ID 时回退到原"按 IP 计算"的方式
+		localip, _ := localIPv4s(c.lan, c.lanNetwork)
+		ip := "127.0.0.1"
+		if len(localip) > 0 {
+			ip = localip[0]
+		}
+		if config.Config.App.IpAddr != "" {
+			ip = config.Config.App.IpAddr
+		}
+		port := uint64(config.Config.App.Port)
+		if port == 0 || config.Config.App.PortSSL != 0 {
+			port = uint64(config.Config.App.PortSSL)
+		}
+		if err := c.client.Agent().ServiceDeregister(getInstanceId(ip, port)); err != nil {
+			logger.Error("Consul 取消注册服务失败:" + err.Error())
+			return
+		}
 	}
-	port := uint64(config.Config.App.Port)
-	if port == 0 || config.Config.App.PortSSL != 0 {
-		port = uint64(config.Config.App.PortSSL)
-	}
-	err := c.client.Agent().ServiceDeregister(getInstanceId(ip, port))
-	if err != nil {
-		logger.Error("Consul 取消注册服务失败:" + err.Error())
-		return
-	}
+	logger.Info("Consul注销服务成功")
 }
 
 // localIPv4s 函数用于获取本地 IPv4 地址

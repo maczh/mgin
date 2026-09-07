@@ -130,8 +130,10 @@ type appLog struct {
 }
 
 type discovery struct {
-	Registry string `json:"registry" bson:"registry"`
-	CallType string `json:"callType" bson:"callType"`
+	Registry     string `json:"registry" bson:"registry"`
+	CallType     string `json:"callType" bson:"callType"`
+	CacheTTL     int    `json:"cacheTTL" bson:"cacheTTL"`         // 服务发现结果本地缓存TTL(秒)，默认3
+	CacheRefresh int    `json:"cacheRefresh" bson:"cacheRefresh"` // 后台刷新间隔(秒)，默认1
 }
 
 type sys struct {
@@ -229,6 +231,8 @@ func (c *config) Init(cf string) {
 	if c.Discovery.CallType == "" {
 		c.Discovery.CallType = "x-form"
 	}
+	c.Discovery.CacheTTL = c.Cnf.Int("go.discovery.cacheTTL")
+	c.Discovery.CacheRefresh = c.Cnf.Int("go.discovery.cacheRefresh")
 	c.Jwt.Secret = c.Cnf.String("go.jwt.secret")
 	c.Sys.Enabled = c.Cnf.Bool("go.sys.enabled")
 	c.Sys.Initdb = c.Cnf.Bool("go.sys.initdb")

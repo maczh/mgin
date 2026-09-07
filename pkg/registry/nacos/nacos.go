@@ -47,6 +47,7 @@ func (w *nacosHeartbeatWorker) Start(nc *NacosClient) {
 	w.ticker = time.NewTicker(5 * time.Second)
 	defer w.ticker.Stop()
 	w.quit = make(chan struct{})
+	failCount := 0
 	for {
 		select {
 		case <-w.quit:
@@ -57,7 +58,17 @@ func (w *nacosHeartbeatWorker) Start(nc *NacosClient) {
 			})
 			if err != nil {
 				logger.Error("Nacos心跳失败:" + err.Error())
+				failCount++
+				// 连续失败达到阈值：本实例可能已被 Nacos 摘除（心跳长期失败），
+				// 主动重新注册以恢复，避免"假死"（注册中心里没有、但进程还活着）。
+				if failCount >= 3 {
+					if rerr := nc.reRegister(); rerr == nil {
+						failCount = 0
+					}
+				}
+				continue
 			}
+			failCount = 0
 		}
 	}
 }
@@ -296,15 +307,39 @@ func (n *NacosClient) GetServices(servicename string, groupName ...string) ([]st
 	return urls, nil
 }
 
-func (n *NacosClient) DeRegister() {
-	_, err := grequests.DoRegularRequest(http.MethodDelete, n.nsurl, &grequests.RequestOptions{
+// reRegister 在心跳连续失败后主动重新注册本实例，恢复其在 Nacos 中的可用状态。
+// 依赖 Register 阶段已填充的 nsurl / param（含 ip、port、serviceName 等），可安全重复调用。
+func (n *NacosClient) reRegister() error {
+	resp, err := grequests.DoRegularRequest(http.MethodPost, n.nsurl, &grequests.RequestOptions{
 		Params: n.param,
 	})
 	if err != nil {
-		logger.Error("Nacos注销服务失败:" + err.Error())
+		logger.Error("Nacos重新注册失败:" + err.Error())
+		return err
 	}
-	n.worker.quit <- struct{}{}
-	n.worker.wg.Wait()
+	if resp.StatusCode != 200 {
+		logger.Error("Nacos重新注册失败:" + resp.String())
+		return fmt.Errorf("nacos re-register status %d", resp.StatusCode)
+	}
+	logger.Info("Nacos服务实例重新注册成功")
+	return nil
+}
+
+func (n *NacosClient) DeRegister() {
+	// 1) 先停止心跳协程，避免注销后又被心跳 PUT 重新写入（复活实例）。
+	if n.worker != nil {
+		n.worker.quit <- struct{}{}
+		n.worker.wg.Wait()
+	}
+	// 2) 显式 DELETE，立即从 Nacos 摘除本实例（否则需等待心跳超时）。
+	if n.nsurl != "" && len(n.param) > 0 {
+		_, err := grequests.DoRegularRequest(http.MethodDelete, n.nsurl, &grequests.RequestOptions{
+			Params: n.param,
+		})
+		if err != nil {
+			logger.Error("Nacos注销服务失败:" + err.Error())
+		}
+	}
 	logger.Info("Nacos注销服务成功")
 }
 
