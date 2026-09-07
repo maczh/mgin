@@ -263,28 +263,12 @@ func RequestLogger() gin.HandlerFunc {
 }
 
 func handleAccessChannel() {
-	if config.Config.Log.LogDb == "" {
-		config.Config.Log.LogDb = "mongodb"
-	}
 	for accessLog := range accessChannel {
 		var postLog models.PostLog
 		json.Unmarshal([]byte(accessLog), &postLog)
 		dbName := ""
 		if config.Config.Log.DbName != "" {
 			dbName = config.Config.Log.DbName
-		}
-		//是否写入到kafka
-		if config.Config.Log.Kafka.Use {
-			topics := strings.Split(config.Config.Log.Kafka.Topic, ",")
-			for _, topic := range topics {
-				if dbName != "" {
-					topic = fmt.Sprintf("%s_%s", topic, dbName)
-				}
-				err := db.Kafka.Send(topic, accessLog)
-				if err != nil {
-					logs.Error("接口日志发送到kafka的{}主题失败:{}", topic, err.Error())
-				}
-			}
 		}
 		if dbName == "" && Mgo.isMultiDB() {
 			logs.Error("日志多库header配置{}错误，请求头中无此参数值", config.Config.Log.DbName)
@@ -293,31 +277,9 @@ func handleAccessChannel() {
 		if config.Config.Log.RequestTableName == "" {
 			continue
 		}
-		switch config.Config.Log.LogDb {
-		case "mongodb":
-			//conn, err := db.Mongo.GetConnection(dbName)
-			//if err != nil {
-			//	logs.Error("MongoDB连接失败:{}", err.Error())
-			//	continue
-			//}
-			//err = conn.C(config.Config.Log.RequestTableName).insert(postLog)
-			//if err != nil {
-			//	logs.Error("MongoDB写入错误:" + err.Error())
-			//}
-			//db.Mongo.ReturnConnection(conn)
-			err := Mgo.mgodao.Insert(&postLog)
-			if err != nil {
-				logs.Error("MongoDB写入错误:" + err.Error())
-			}
-		case "elasticsearch":
-			doc := make(map[string]any)
-			utils.FromJSON(utils.ToJSON(postLog), &doc)
-			resp, err := db.ElasticSearch.AddDocument(strings.ToLower(config.Config.App.Project), strings.ToLower(config.Config.Log.RequestTableName), doc, []string{})
-			if err != nil {
-				logs.Error("ElasticSearch写入日志失败:{}", err.Error())
-				continue
-			}
-			logs.Debug("日志写入ElasticSearch返回:{}", resp)
+		err := Mgo.mgodao.Insert(&postLog)
+		if err != nil {
+			logs.Error("MongoDB写入错误:" + err.Error())
 		}
 	}
 }

@@ -1,0 +1,10 @@
+[DBG] [2026-09-03 22:33:53] [github.com/maczh/mgin/middleware/postlog.RequestLogger::logger.go::func1] [157] [906c7de2e4ef9fcc] 请求 GET /api/v1/products
+[DBG] [2026-09-03 22:33:53] [github.com/maczh/mgin/middleware/postlog.RequestLogger::logger.go::func1] [162] [906c7de2e4ef9fcc] 请求参数:{ }
+[DBG] [2026-09-03 22:33:53] [github.com/maczh/mgin/middleware/postlog.RequestLogger::logger.go::func1] [165] [906c7de2e4ef9fcc] 请求头:{"Accept":"*/*","User-Agent":"curl/8.11.0"}
+[DBG] [2026-09-03 22:33:53] [github.com/maczh/mgin/middleware/postlog.RequestLogger::logger.go::func1] [246] [906c7de2e4ef9fcc] |GET|/api/v1/products|127.0.0.1|2026-09-03 22:33:53.093|0ms
+[DBG] [2026-09-03 22:33:53] [github.com/maczh/mgin/middleware/postlog.RequestLogger::logger.go::func1] [248] [906c7de2e4ef9fcc] 接口返回:{"status":1,"msg":"Success","data":[{"id":1,"name":"示例商品A","price":99.9,"stock":100,"createdAt":"0001-01-01T00:00:00Z","updatedAt":"0001-01-01T00:00:00Z"},{"id":2,"name":"示例商品B","price":199.9,"stock":50,"createdAt":"0001-01-01T00:00:00Z","updatedAt":"0001-01-01T00:00:00Z"}]}
+[DBG] [2026-09-03 22:33:53] [github.com/maczh/mgin/middleware/postlog.RequestLogger::logger.go::func1] [157] [9176626e87072b67] 请求 GET /api/v1/products/2
+[DBG] [2026-09-03 22:33:53] [github.com/maczh/mgin/middleware/postlog.RequestLogger::logger.go::func1] [162] [9176626e87072b67] 请求参数:{ }
+[DBG] [2026-09-03 22:33:53] [github.com/maczh/mgin/middleware/postlog.RequestLogger::logger.go::func1] [165] [9176626e87072b67] 请求头:{"Accept":"*/*","User-Agent":"curl/8.11.0"}
+[DBG] [2026-09-03 22:33:53] [github.com/maczh/mgin/middleware/postlog.RequestLogger::logger.go::func1] [246] [9176626e87072b67] |GET|/api/v1/products/2|127.0.0.1|2026-09-03 22:33:53.093|1ms
+[DBG] [2026-09-03 22:33:53] [github.com/maczh/mgin/middleware/postlog.RequestLogger::logger.go::func1] [248] [9176626e87072b67] 接口返回:{"status":1,"msg":"Success","data":{"id":2,"name":"示例商品B","price":199.9,"stock":50,"createdAt":"0001-01-01T00:00:00Z","updatedAt":"0001-01-01T00:00:00Z"}}

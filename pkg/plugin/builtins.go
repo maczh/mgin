@@ -2,14 +2,12 @@ package plugin
 
 import (
 	"context"
-	"errors"
 	"strings"
 
 	"github.com/maczh/mgin/v2/pkg/config"
 	"github.com/maczh/mgin/v2/pkg/db"
 	"github.com/maczh/mgin/v2/pkg/job"
 	"github.com/maczh/mgin/v2/pkg/registry"
-	"github.com/maczh/mgin/v2/pkg/storage/s3"
 )
 
 // funcPlugin 是以函数字段实现 Plugin 接口的通用适配器，避免逐组件手写样板。
@@ -75,19 +73,6 @@ func Mysql() Plugin {
 	}
 }
 
-func Postgres() Plugin {
-	return &funcPlugin{
-		name: "postgres", order: 10,
-		enabledFn: func() bool { return enabled("postgres") },
-		initFn: func(ctx context.Context) error {
-			db.Pg.Init(getCfg(config.Config.Config.Prefix.Postgres))
-			return nil
-		},
-		closeFn:  func(ctx context.Context) error { db.Pg.Close(); return nil },
-		healthFn: func() error { return db.Pg.Check() },
-	}
-}
-
 func Sqlite() Plugin {
 	return &funcPlugin{
 		name: "sqlite", order: 10,
@@ -125,64 +110,6 @@ func Redis() Plugin {
 		},
 		closeFn:  func(ctx context.Context) error { db.Redis.Close(); return nil },
 		healthFn: func() error { return db.Redis.Check() },
-	}
-}
-
-func Clickhouse() Plugin {
-	return &funcPlugin{
-		name: "clickhouse", order: 10,
-		enabledFn: func() bool { return enabled("clickhouse") },
-		initFn: func(ctx context.Context) error {
-			db.Clickhouse.Init(getCfg(config.Config.Config.Prefix.Clickhouse))
-			return nil
-		},
-		closeFn:  func(ctx context.Context) error { db.Clickhouse.Close(); return nil },
-		healthFn: func() error { return db.Clickhouse.Check() },
-	}
-}
-
-func Elasticsearch() Plugin {
-	return &funcPlugin{
-		name: "elasticsearch", order: 10,
-		enabledFn: func() bool { return enabled("elasticsearch") },
-		initFn: func(ctx context.Context) error {
-			db.ElasticSearch.Init(getCfg(config.Config.Config.Prefix.Elasticsearch))
-			return nil
-		},
-		closeFn:  func(ctx context.Context) error { db.ElasticSearch.Close(); return nil },
-		healthFn: func() error { return db.ElasticSearch.Check() },
-	}
-}
-
-func Kafka() Plugin {
-	return &funcPlugin{
-		name: "kafka", order: 20, // 消息队列在 DB/缓存之后、注册中心之前
-		enabledFn: func() bool { return enabled("kafka") },
-		initFn: func(ctx context.Context) error {
-			db.Kafka.Init(getCfg(config.Config.Config.Prefix.Kafka))
-			return nil
-		},
-		closeFn:  func(ctx context.Context) error { db.Kafka.Close(); return nil },
-		healthFn: func() error { return db.Kafka.Check() },
-	}
-}
-
-// ---- 对象存储 适配 ----
-
-func S3() Plugin {
-	return &funcPlugin{
-		name: "s3", order: 40,
-		enabledFn: func() bool { return enabled("s3") },
-		initFn: func(ctx context.Context) error {
-			s3Data := getCfg("go.s3")
-			if s3Data == nil {
-				return errors.New("s3 配置缺失(go.s3)")
-			}
-			s3.NewS3().Init(s3Data)
-			return nil
-		},
-		closeFn:  func(ctx context.Context) error { s3.NewS3().Close(); return nil },
-		healthFn: func() error { return s3.NewS3().Check() },
 	}
 }
 
@@ -241,14 +168,9 @@ func Job() Plugin {
 // 之后由 plugin.InitAll 统一驱动初始化。
 func RegisterBuiltins() {
 	Register(Mysql())
-	Register(Postgres())
 	Register(Sqlite())
 	Register(Mongodb())
 	Register(Redis())
-	Register(Clickhouse())
-	Register(Elasticsearch())
-	Register(Kafka())
-	Register(S3())
 	Register(Registry())
 	Register(Job())
 }

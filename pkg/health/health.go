@@ -123,10 +123,6 @@ func dependencies() []dependency {
 		logs.Info("正在检查mysql健康状态")
 		list = append(list, dependency{name: "mysql", check: db.Mysql.Check})
 	}
-	if strings.Contains(used, "postgres") {
-		logs.Info("正在检查postgres健康状态")
-		list = append(list, dependency{name: "postgres", check: db.Pg.Check})
-	}
 	if strings.Contains(used, "mongodb") {
 		logs.Info("正在检查mongodb健康状态")
 		list = append(list, dependency{name: "mongodb", check: db.Mongo.Check})
@@ -134,18 +130,6 @@ func dependencies() []dependency {
 	if strings.Contains(used, "redis") {
 		logs.Info("正在检查redis健康状态")
 		list = append(list, dependency{name: "redis", check: db.Redis.Check})
-	}
-	if strings.Contains(used, "clickhouse") {
-		logs.Info("正在检查clickhouse健康状态")
-		list = append(list, dependency{name: "clickhouse", check: db.Clickhouse.Check})
-	}
-	if strings.Contains(used, "elasticsearch") {
-		logs.Info("正在检查elasticsearch健康状态")
-		list = append(list, dependency{name: "elasticsearch", check: db.ElasticSearch.Check})
-	}
-	if strings.Contains(used, "kafka") {
-		logs.Info("正在检查kafka健康状态")
-		list = append(list, dependency{name: "kafka", check: db.Kafka.Check})
 	}
 	return list
 }

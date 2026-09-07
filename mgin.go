@@ -19,7 +19,6 @@ import (
 	"github.com/maczh/mgin/v2/pkg/logs"
 	"github.com/maczh/mgin/v2/pkg/plugin"
 	"github.com/maczh/mgin/v2/pkg/registry"
-	"github.com/sadlil/gologger"
 )
 
 type mgin struct {
@@ -44,7 +43,6 @@ type legacyPlugin struct {
 }
 
 // var MGin = &mgin{}
-var logger = gologger.GetLogger()
 
 type dbInitFunc func(configData []byte)
 type dbCloseFunc func()
