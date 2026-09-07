@@ -1,12 +1,8 @@
 package db
 
 import (
-	"github.com/maczh/mgin/db/clickhouse"
-	"github.com/maczh/mgin/db/es"
-	"github.com/maczh/mgin/db/kafka"
 	"github.com/maczh/mgin/db/mongo"
 	"github.com/maczh/mgin/db/mysql"
-	"github.com/maczh/mgin/db/postgres"
 	"github.com/maczh/mgin/db/redis"
 	"github.com/maczh/mgin/db/sqlite"
 )
@@ -14,8 +10,4 @@ import (
 var Mysql = &mysql.MysqlClient{}
 var Mongo = &mongo.Mongodb{}
 var Redis = redis.Redis
-var ElasticSearch = &es.ElasticSearch{}
-var Kafka = &kafka.Kafka{}
 var Sqlite = &sqlite.Sqlite{}
-var Clickhouse = &clickhouse.ClickhouseClient{}
-var Pg = &postgres.PostgresClient{}

@@ -10,7 +10,7 @@ import (
 
 	"github.com/go-gorm/caches/v4"
 	"github.com/maczh/mgin/config"
-	"github.com/maczh/mgin/db/mysql"
+	"github.com/maczh/mgin/db/cacher"
 	"github.com/maczh/mgin/db/redis"
 	"github.com/sadlil/gologger"
 	"gorm.io/driver/sqlite"
@@ -79,7 +79,7 @@ func (m *Sqlite) UseCache() bool {
 	}
 	cachesPlugin := &caches.Caches{
 		Conf: &caches.Config{
-			Cacher: &mysql.RedisCacher{
+			Cacher: &cacher.RedisCacher{
 				Rdb:        rds,
 				Expiration: 5 * time.Minute,
 			},

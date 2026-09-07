@@ -15,7 +15,6 @@ import (
 // 支持的存储驱动
 const (
 	DriverMysql    = "mysql"
-	DriverPostgres = "postgres"
 	DriverSqlite   = "sqlite"
 )
 
@@ -46,16 +45,6 @@ func newStore(dbName string) (*store, error) {
 		}
 		if err != nil {
 			errs = append(errs, "MySQL: "+err.Error())
-		}
-	}
-	if strings.Contains(used, DriverPostgres) {
-		conn, err := postgresConn(dbName)
-		if err == nil && conn != nil {
-			logs.Info("[Job] 定时任务存储使用 PostgreSQL")
-			return &store{db: conn, driver: DriverPostgres}, nil
-		}
-		if err != nil {
-			errs = append(errs, "PostgreSQL: "+err.Error())
 		}
 	}
 	if strings.Contains(used, DriverSqlite) {
@@ -89,20 +78,6 @@ func mysqlConn(dbName string) (*gorm.DB, error) {
 	return db.Mysql.GetConnection()
 }
 
-// postgresConn 获取 PostgreSQL 连接，兼容多库模式
-func postgresConn(dbName string) (*gorm.DB, error) {
-	if db.Pg.IsMultiDB() {
-		if dbName == "" {
-			names := db.Pg.ListConnNames()
-			if len(names) == 0 {
-				return nil, errors.New("多库模式下无可用连接")
-			}
-			dbName = names[0]
-		}
-		return db.Pg.GetConnection(dbName)
-	}
-	return db.Pg.GetConnection()
-}
 
 // Driver 返回当前使用的数据库驱动名
 func (s *store) Driver() string {
@@ -133,11 +108,11 @@ func (s *store) listEnabled() ([]JobInfo, error) {
 }
 
 // listAll 查询所有任务（含已停止）
-func (s *store) listAll() ([]JobInfo, error) {
-	var jobs []JobInfo
-	err := s.db.Find(&jobs).Error
-	return jobs, err
-}
+// func (s *store) listAll() ([]JobInfo, error) {
+// 	var jobs []JobInfo
+// 	err := s.db.Find(&jobs).Error
+// 	return jobs, err
+// }
 
 // page 分页查询任务
 func (s *store) page(group, keyword string, status, index, size int) ([]JobInfo, int64, error) {
@@ -180,14 +155,14 @@ func (s *store) getById(id int64) (*JobInfo, error) {
 }
 
 // getByName 按任务名查询任务
-func (s *store) getByName(name string) (*JobInfo, error) {
-	var j JobInfo
-	err := s.db.Where("job_name = ?", name).First(&j).Error
-	if err != nil {
-		return nil, err
-	}
-	return &j, nil
-}
+// func (s *store) getByName(name string) (*JobInfo, error) {
+// 	var j JobInfo
+// 	err := s.db.Where("job_name = ?", name).First(&j).Error
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	return &j, nil
+// }
 
 // create 新增任务
 func (s *store) create(j *JobInfo) error {

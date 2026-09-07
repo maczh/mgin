@@ -110,25 +110,25 @@ func (jr *jobRuntime) snapshot() JobInfo {
 }
 
 // computeNext 按调度类型计算 from 之后的下一次触发时间
-func (jr *jobRuntime) computeNext(from time.Time) time.Time {
-	jr.mu.RLock()
-	defer jr.mu.RUnlock()
-	switch jr.info.ScheduleType {
-	case ScheduleCron:
-		if jr.schedule == nil {
-			return time.Time{}
-		}
-		return jr.schedule.Next(from)
-	case ScheduleFixedRate, ScheduleFixedDelay:
-		if jr.interval <= 0 {
-			return time.Time{}
-		}
-		return from.Add(jr.interval)
-	default:
-		// once 类型执行后不再调度
-		return time.Time{}
-	}
-}
+// func (jr *jobRuntime) computeNext(from time.Time) time.Time {
+// 	jr.mu.RLock()
+// 	defer jr.mu.RUnlock()
+// 	switch jr.info.ScheduleType {
+// 	case ScheduleCron:
+// 		if jr.schedule == nil {
+// 			return time.Time{}
+// 		}
+// 		return jr.schedule.Next(from)
+// 	case ScheduleFixedRate, ScheduleFixedDelay:
+// 		if jr.interval <= 0 {
+// 			return time.Time{}
+// 		}
+// 		return from.Add(jr.interval)
+// 	default:
+// 		// once 类型执行后不再调度
+// 		return time.Time{}
+// 	}
+// }
 
 // Manager 定时任务管理器（类 xxl-job）。
 //

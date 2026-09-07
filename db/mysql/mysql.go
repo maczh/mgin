@@ -10,6 +10,7 @@ import (
 	"github.com/knadh/koanf/parsers/yaml"
 	"github.com/knadh/koanf/providers/rawbytes"
 	"github.com/maczh/mgin/config"
+	"github.com/maczh/mgin/db/cacher"
 	"github.com/maczh/mgin/db/redis"
 	"github.com/sadlil/gologger"
 	"gorm.io/driver/mysql"
@@ -297,7 +298,7 @@ func (m *MysqlClient) UseCache() bool {
 	}
 	cachesPlugin := &caches.Caches{
 		Conf: &caches.Config{
-			Cacher: &RedisCacher{
+			Cacher: &cacher.RedisCacher{
 				Rdb:        rds,
 				Expiration: exp,
 			},
