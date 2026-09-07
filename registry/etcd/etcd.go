@@ -45,28 +45,9 @@ func (c *EtcdClient) Register(etcdConfigData []byte) {
 		return
 	}
 	c.confData = etcdConfigData
-	//if c.confUrl == "" {
-	//	logger.Error("Etcd配置Url为空")
-	//	return
-	//}
 	logger.Debug("etcd配置文件:\n" + string(c.confData))
 	if c.conf == nil {
-		//var confData []byte
 		var err error
-		//if strings.HasPrefix(c.confUrl, "http://") {
-		//	resp, err := grequests.Get(c.confUrl, nil)
-		//	if err != nil {
-		//		logger.Error("Etcd注册中心配置下载失败! " + err.Error())
-		//		return
-		//	}
-		//	confData = []byte(resp.String())
-		//} else {
-		//	confData, err = ioutil.ReadFile(c.confUrl)
-		//	if err != nil {
-		//		logger.Error(fmt.Sprintf("Etcd注册中心本地配置文件%s读取失败:%s", c.confUrl, err.Error()))
-		//		return
-		//	}
-		//}
 		c.conf = koanf.New(".")
 		err = c.conf.Load(rawbytes.Provider(c.confData), yaml.Parser())
 		if err != nil {
@@ -122,9 +103,6 @@ func (c *EtcdClient) Register(etcdConfigData []byte) {
 			protocol = "https://"
 		}
 		apiUrl := fmt.Sprintf("%s%s:%d", protocol, ip, port)
-		//if config.Config.App.Debug {
-		//	metadata["debug"] = "true"
-		//}
 		prefix := fmt.Sprintf("%s/%s/%s/", c.prefix, c.group, config.Config.App.Name)
 		resp, err := c.client.Get(context.Background(), prefix, clientv3.WithPrefix())
 		if err != nil {
