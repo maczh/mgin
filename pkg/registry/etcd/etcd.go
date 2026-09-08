@@ -162,7 +162,7 @@ func (c *EtcdClient) GetServiceURL(servicename string, groupName ...string) (str
 		groupName[0] = c.group
 	}
 	currentGroup := groupName[0]
-	logger.Debug(fmt.Sprintf("groupName=%s, etcdClient=%s", toJSON(groupName), toJSON(c)))
+	// logger.Debug(fmt.Sprintf("groupName=%s, serviceName=%s", groupName, servicename))
 	for _, group := range groupName {
 		prefix := fmt.Sprintf("%s/%s/%s/", c.prefix, group, servicename)
 		logger.Debug("查询前缀: " + prefix)
