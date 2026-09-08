@@ -972,7 +972,56 @@ app.Router.Use(limit.MaxAllowed(100))   // at most 100 concurrent requests
 app.Router.Use(postlog.RequestLogger())  // mounted by default
 ```
 
-Asynchronously writes request/response logs to MongoDB / ElasticSearch (per `go.log.db`) or to Kafka (`go.log.kafka.use`). Supports switching DB by a header param named in `go.log.dbName`.
+The middleware only **produces** logs and emits them asynchronously; it does not care where they go:
+
+- With `go.log.req` set and `mongodb` in `go.config.used`, a built-in `mongodb` handler is registered automatically (same behaviour as before);
+- Any other destination (Kafka, Elasticsearch, ClickHouse, files, custom collectors) is plugged in by registering a handler — see chapter 25;
+- Emission is non-blocking: a full queue drops the entry and counts it, never slowing down the request. `mgin.SafeExit()` drains the queues before closing connections.
+
+Supports switching DB by a header param named in `go.log.dbName`.
+
+---
+
+## 25. Access Log Sink (logsink)
+
+`middleware/postlog` produces logs, `logsink` dispatches them. Thanks to this decoupling, **external plugins receive the full access log stream without touching the framework**.
+
+```go
+// main.go, after mgin.New(...)
+logsink.MustRegister(logsink.NewHandlerFunc("kafka", func(e *logsink.Entry) error {
+    return mgkafka.Kafka.Send(config.Config.Log.Kafka.Topic, utils.ToJSON(e))
+}).WithClose(mgkafka.Kafka.Close))
+```
+
+```go
+type Handler interface {
+    Name() string              // unique, used for de-duplication / unregister / logs
+    Write(entry *Entry) error  // called in a dedicated goroutine, must be concurrency-safe
+}
+
+type Closer interface{ Close() error }   // optional, invoked once on unregister or shutdown
+```
+
+Key points:
+
+- Each handler has its **own queue and consumer goroutine**; a slow handler cannot stall the others;
+- A full queue drops entries and counts them (rate-limited warn log, 60s);
+- Panics inside a handler are recovered; returned errors are only counted and reported;
+- `logsink.Stats()` exposes `Queued / Dropped / Written / Failed` per handler; `logsink.Unregister(name, timeout)` and `logsink.Close(timeout)` stop handlers after draining.
+
+Configuration:
+
+```yaml
+go:
+  log:
+    req: MyappRequestLog   # non-empty + mongodb enabled => built-in mongodb handler
+    sink:
+      queue: 1024          # queue size per handler
+      workers: 1           # consumer goroutines per handler
+      shutdown: 3000       # ms to wait for drain on exit
+```
+
+Note: `go.log.kafka.use` never had a working send path in earlier versions; Kafka is now wired by the `mgkafka` plugin as a handler.
 
 ### 11.7 Session
 

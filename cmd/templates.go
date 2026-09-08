@@ -219,7 +219,11 @@ func main() {
 	}
 {{if .HasMQ}}	// 注册消息队列插件(见 plugins.go)
 	registerMQPlugins(app)
-{{end}}	router.RegisterRoutes(app)
+{{end}}	// 可选: 挂接额外的接口日志处理器, 例如把日志发往 kafka / elasticsearch
+	// logsink.MustRegister(logsink.NewHandlerFunc("kafka", func(e *logsink.Entry) error {
+	// 	return mgkafka.Kafka.Send("myapp-log", utils.ToJSON(e))
+	// }))
+	router.RegisterRoutes(app)
 	app.Run()
 }
 `

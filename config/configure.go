@@ -85,6 +85,12 @@ type appLog struct {
 		Use   bool   `json:"use" bson:"use"`
 		Topic string `json:"topic" bson:"topic"`
 	} `json:"kafka" bson:"kafka"`
+	// Sink 接口日志异步总线的运行参数，作用于每一个日志 handler。
+	Sink struct {
+		Queue    int `json:"queue" bson:"queue"`       // 每个 handler 的队列长度，默认 1024
+		Workers  int `json:"workers" bson:"workers"`   // 每个 handler 的消费协程数，默认 1
+		Shutdown int `json:"shutdown" bson:"shutdown"` // 进程退出时等待队列排空的毫秒数，默认 3000
+	} `json:"sink" bson:"sink"`
 }
 
 type discovery struct {
@@ -165,6 +171,16 @@ func (c *config) Init(cf string) {
 	c.Cnf.Unmarshal("go.log.kafka", &c.Log.Kafka)
 	if c.Log.Kafka.Topic == "" {
 		c.Log.Kafka.Topic = c.App.Name
+	}
+	c.Cnf.Unmarshal("go.log.sink", &c.Log.Sink)
+	if c.Log.Sink.Queue <= 0 {
+		c.Log.Sink.Queue = 1024
+	}
+	if c.Log.Sink.Workers <= 0 {
+		c.Log.Sink.Workers = 1
+	}
+	if c.Log.Sink.Shutdown <= 0 {
+		c.Log.Sink.Shutdown = 3000
 	}
 	c.Logger.Level = c.Cnf.String("go.logger.level")
 	c.Logger.Out = c.Cnf.String("go.logger.out")

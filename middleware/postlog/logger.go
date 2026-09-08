@@ -14,13 +14,12 @@ import (
 	"time"
 
 	"github.com/maczh/mgin/config"
-	"github.com/maczh/mgin/db"
-	"github.com/maczh/mgin/db/dao"
-	"github.com/maczh/mgin/models"
+	"github.com/maczh/mgin/logsink"
 
 	"github.com/gin-gonic/gin"
 	"github.com/maczh/mgin/logs"
 	"github.com/maczh/mgin/middleware/trace"
+	"github.com/maczh/mgin/models"
 	"github.com/maczh/mgin/utils"
 )
 
@@ -29,34 +28,10 @@ type bodyLogWriter struct {
 	body *bytes.Buffer
 }
 
-type mongo[E any] struct {
-	//insert    func(entity *E) error
-	isMultiDB func() bool
-	mgodao    dao.Dao[E]
-}
-
-func getTag() string {
-	if db.Mongo.IsMultiDB() {
-		return config.Config.Log.DbName
-	} else {
-		return "0"
-	}
-}
-
-var Mgo = mongo[models.PostLog]{
-	//insert:    postlogDao.Insert,
-	isMultiDB: db.Mongo.IsMultiDB,
-	//mgodao:    &postlogDao,
-}
-
-func (m *mongo[E]) Set(mgodao dao.Dao[E], isMultiDBFunc func() bool) {
-	m.mgodao = mgodao
-	m.isMultiDB = isMultiDBFunc
-}
-
-var accessChannel = make(chan string, 100)
-
-var accessChannelOnce sync.Once
+var (
+	initOnce  sync.Once
+	closeOnce sync.Once
+)
 
 var fileResponseFormats = map[string]string{
 	"application/zip":    "zip",
@@ -107,6 +82,18 @@ func fileExtension(filename string) string {
 	return ""
 }
 
+// shouldSkipLog 判断是否跳过接口日志。
+// 注意：Swagger.Uri 为空时必须跳过该判断，否则 strings.Contains(path, "") 恒为真会屏蔽全部日志。
+func shouldSkipLog(path string) bool {
+	if path == "" || path == "/" || strings.Contains(path, "/docs/") || strings.Contains(path, "/swagger/") {
+		return true
+	}
+	if uri := config.Config.Sys.Swagger.Uri; uri != "" && strings.Contains(path, uri) {
+		return true
+	}
+	return false
+}
+
 func getResponseLogMode() string {
 	mode := strings.ToLower(config.Config.Log.Get)
 	if mode != "line" && mode != "off" {
@@ -134,15 +121,30 @@ func (w bodyLogWriter) WriteString(s string) (int, error) {
 	return w.ResponseWriter.WriteString(s)
 }
 
-func RequestLogger() gin.HandlerFunc {
-	var postlogDao = dao.MgoDao[models.PostLog]{
-		CollectionName: config.Config.Log.RequestTableName,
-		Tag:            getTag,
-	}
-	Mgo.mgodao = &postlogDao
+// RegisterHandler 挂接一个接口日志处理器，等价于 logsink.Register。
+// 外部插件（mgkafka、elasticsearch 插件等）或业务代码在应用启动时调用即可接收全量接口日志。
+//
+//	postlog.RegisterHandler(logsink.NewHandlerFunc("kafka", func(e *logsink.Entry) error {
+//	    return mgkafka.Kafka.Send(topic, utils.ToJSON(e))
+//	}))
+func RegisterHandler(h logsink.Handler, opts ...logsink.Option) error {
+	return logsink.Register(h, opts...)
+}
 
-	accessChannelOnce.Do(func() {
-		go handleAccessChannel()
+// Close 停止全部日志处理器并尽力排空队列，进程退出前调用（mgin.SafeExit 已内置调用）。
+func Close() {
+	closeOnce.Do(func() { logsink.Close(shutdownTimeout()) })
+}
+
+func RequestLogger() gin.HandlerFunc {
+	initOnce.Do(func() {
+		logsink.SetDropLogger(func(name string, dropped uint64) {
+			logs.Warn("接口日志handler {} 队列已满，累计丢弃 {} 条，请调大 go.log.sink.queue 或排查下游性能", name, dropped)
+		})
+		logsink.SetErrorLogger(func(name string, err error) {
+			logs.Error("接口日志handler {} 处理失败:{}", name, err.Error())
+		})
+		registerMongoHandler()
 	})
 
 	return func(c *gin.Context) {
@@ -205,8 +207,8 @@ func RequestLogger() gin.HandlerFunc {
 		}
 		var result any
 
-		// 日志格式
-		if strings.Contains(c.Request.URL.Path, "/docs/") || strings.Contains(c.Request.URL.Path, "/swagger/") || strings.Contains(c.Request.URL.Path, config.Config.Sys.Swagger.Uri) || c.Request.URL.Path == "/" {
+		// 文档类路径不记录接口日志
+		if shouldSkipLog(c.Request.URL.Path) {
 			return
 		}
 
@@ -255,37 +257,7 @@ func RequestLogger() gin.HandlerFunc {
 			logs.Debug("接口返回:{}", responseLogBody)
 		}
 
-		if config.Config.Log.RequestTableName != "" || config.Config.Log.Kafka.Use {
-			accessChannel <- utils.ToJSON(postLog)
-		}
-	}
-}
-
-func handleAccessChannel() {
-	for accessLog := range accessChannel {
-		var postLog models.PostLog
-		if err := json.Unmarshal([]byte(accessLog), &postLog); err != nil {
-			logs.Error("接口日志解析错误:{}", err.Error())
-			continue
-		}
-		dbName := ""
-		if config.Config.Log.DbName != "" {
-			dbName = config.Config.Log.DbName
-		}
-		if dbName == "" && Mgo.isMultiDB() {
-			logs.Error("日志多库header配置{}错误，请求头中无此参数值", config.Config.Log.DbName)
-			continue
-		}
-		if config.Config.Log.RequestTableName == "" {
-			continue
-		}
-		if Mgo.mgodao == nil {
-			logs.Error("MongoDB日志DAO未初始化，跳过日志写入")
-			continue
-		}
-		err := Mgo.mgodao.Insert(&postLog)
-		if err != nil {
-			logs.Error("MongoDB写入错误:" + err.Error())
-		}
+		// 异步投递给所有已注册的 handler（无 handler 时直接返回，零开销）
+		logsink.Emit(postLog)
 	}
 }

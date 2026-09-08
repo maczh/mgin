@@ -113,6 +113,12 @@
 22. [新增：定时任务管理器（job）](#22-新增定时任务管理器job)
 23. [新增：S3 对象存储插件（storage/s3）](#23-新增s3-对象存储插件storages3)
 24. [新增能力汇总（jh 分支）](#24-新增能力汇总jh-分支)
+25. [接口日志异步总线（logsink）](#25-接口日志异步总线logsink)
+   - 25.1 [整体模型](#251-整体模型)
+   - 25.2 [配置](#252-配置)
+   - 25.3 [在应用中挂接处理逻辑](#253-在应用中挂接处理逻辑)
+   - 25.4 [运行期观测与注销](#254-运行期观测与注销)
+   - 25.5 [升级说明](#255-升级说明)
 
 ---
 
@@ -973,7 +979,13 @@ app.Router.Use(limit.MaxAllowed(100))   // 最多 100 个并发请求
 app.Router.Use(postlog.RequestLogger())  // 默认已挂载
 ```
 
-异步写日志到 MongoDB / ElasticSearch（取决于 `go.log.db`），或发往 Kafka（`go.log.kafka.use`）。支持按 header 中 `go.log.dbName` 指定参数切库。
+中间件只负责**产生**日志并异步抛出，不关心落到哪里：
+
+- 配置了 `go.log.req` 且 `go.config.used` 含 `mongodb` 时，自动注册内置 `mongodb` handler，行为与历史版本一致；
+- 任何其他目标（Kafka、Elasticsearch、ClickHouse、文件、自研采集…）都通过注册 handler 接入，见第 25 章；
+- 投递全程非阻塞，队列满则丢弃并计数告警，不会拖慢接口；进程退出时 `mgin.SafeExit()` 会排空队列。
+
+支持按 header 中 `go.log.dbName` 指定的参数切库。
 
 ### 11.7 Session
 
@@ -1489,6 +1501,7 @@ A：设 `go.application.debug=false`（或删掉），框架自动用 `gin.Relea
 
 ## 19. 版本与升级说明
 
+- **v1.20.4**：新增接口日志异步总线 `logsink`，接口日志可由外部插件（mgkafka、elasticsearch 插件等）注册 handler 接收；修复 swagger 路径为空时接口日志被全部跳过的缺陷。
 - **v1.20.3**：内置系统管理模块，仅需 yml 开启，自动建表，自带 Swagger 文档。
 - **v1.20.1**：新增 `App` 对象，极大简化创建一个新 MGin 应用。
 - **v1.19.42**：持久化缓存改为 bitcask，并与内存缓存通过 `ICache` 接口标准化。
@@ -1907,3 +1920,104 @@ etag, _ := b.UploadMultipart(ctx, "big.iso", "", bytes.NewReader(huge), 16*1024*
 | S3 对象存储插件 | `storage/s3` | `s3` | aws-sdk-go-v2，兼容 MinIO，见 23 |
 
 上述新增能力均通过 `go.config.used` 中的开关按需启用，未启用时不会产生任何连接或副作用。
+
+---
+
+## 25. 接口日志异步总线（logsink）
+
+`middleware/postlog` 产生日志，`logsink` 负责分发。二者解耦后，**外部插件无需修改框架**即可接收全量接口日志。
+
+### 25.1 整体模型
+
+```
+HTTP 请求 → postlog 中间件 → logsink.Emit(*models.PostLog)  ← 非阻塞
+                                   │
+                    ┌──────────────┼──────────────┐
+                    ▼              ▼              ▼
+             mongodb handler  kafka handler   es handler …（各自独立队列 + 消费协程）
+```
+
+- 每个 handler 拥有**独立缓冲队列与消费协程**，慢 handler 拖不垮其它目标；
+- 队列满即丢弃并计数（60 秒限流的 warn 日志），**绝不让日志写不出去拖慢接口**；
+- handler 内部 panic 被 recover，返回 error 仅统计与告警；
+- `mgin.SafeExit()` 会先排空队列再关闭连接，减少退出时的日志丢失。
+
+### 25.2 配置
+
+```yaml
+go:
+  log:
+    req: MyappRequestLog      # 非空且启用 mongodb 时自动注册内置 mongodb handler
+    dbName: Partner-Id        # 多库时从 header 取该参数作库名标签
+    sink:
+      queue: 1024             # 每个 handler 的队列长度，默认 1024
+      workers: 1              # 每个 handler 的消费协程数，默认 1（>1 不保证顺序）
+      shutdown: 3000          # 退出时等待队列排空的毫秒数，默认 3000
+```
+
+### 25.3 在应用中挂接处理逻辑
+
+`logsink` 只依赖 `models`，外部插件 import 它不会被迫拉入 gin / mongo 依赖。
+
+```go
+// main.go
+import (
+    "github.com/maczh/mgin/logsink"
+    "github.com/maczh/mgin/config"
+    "github.com/maczh/mgin/utils"
+    mgkafka "github.com/maczh/mgkafka"
+)
+
+func main() {
+    app := mgin.New("myapp", "1.0.0")   // 内部已完成配置与组件初始化
+
+    // 1) Kafka：一行挂接，topic 仍走 go.log.kafka.topic
+    logsink.MustRegister(logsink.NewHandlerFunc("kafka",
+        func(e *logsink.Entry) error {
+            return mgkafka.Kafka.Send(config.Config.Log.Kafka.Topic, utils.ToJSON(e))
+        }).WithClose(mgkafka.Kafka.Close))
+
+    // 2) Elasticsearch：插件自行实现批量写入
+    logsink.MustRegister(esplugin.NewPostLogSink("mgin-request-log"))
+
+    // 3) 业务自定义：只留慢接口
+    logsink.MustRegister(logsink.NewHandlerFunc("slow-api", func(e *logsink.Entry) error {
+        if e.TTL > 1000 {
+            logs.Warn("慢接口 {} {} 耗时{}ms", e.Method, e.Uri, e.TTL)
+        }
+        return nil
+    }))
+
+    app.Run()
+}
+```
+
+实现完整接口（需要状态、批量、连接池）时直接实现 `Handler`：
+
+```go
+type Handler interface {
+    Name() string              // 唯一名称，用于去重/注销/日志标识
+    Write(entry *Entry) error  // 在独立协程中调用，需并发安全
+}
+
+type Closer interface{ Close() error }   // 可选：注销或进程退出时调用一次
+```
+
+注册时机：任意时刻均可，建议在 `mgin.New()` 之后、`app.Run()` 之前；插件也可在自己的 `Init(cfg []byte)` 里注册。
+
+### 25.4 运行期观测与注销
+
+```go
+logsink.Stats()          // []HandlerStats{Name, Queued, Dropped, Written, Failed}
+logsink.HandlerNames()   // 已注册 handler 名称（按注册顺序）
+logsink.Unregister("kafka", 3*time.Second)  // 注销：停止接收 → 排空 → 调用 Close
+logsink.Close(3*time.Second)                // 全部注销，postlog.Close() / SafeExit 内部已调用
+```
+
+丢弃与写失败默认静默；框架在 `postlog` 内已接管为 `logs` 输出，业务方可用 `SetDropLogger` / `SetErrorLogger` 覆盖（如接入 Prometheus）。
+
+### 25.5 升级说明
+
+- `go.log.kafka.use` 此前从未真正生效（旧代码只有配置没有发送逻辑）。现在 Kafka 由 `mgkafka` 插件以 handler 形式接入，配置里的 `topic` 仍可复用；
+- 旧代码中的 `postlog.Mgo`（导出变量）随重构移除，其 `Set` 方法本就会被每次请求覆盖，无实际用途；需要自定义落库请改用 `logsink.Register`；
+- 修复：`go.sys.swagger.uri` 为空时，`strings.Contains(path, "")` 恒为真导致**全部接口日志被跳过**。

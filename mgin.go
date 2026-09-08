@@ -7,6 +7,7 @@ import (
 	"github.com/maczh/mgin/db"
 	"github.com/maczh/mgin/job"
 	"github.com/maczh/mgin/logs"
+	"github.com/maczh/mgin/middleware/postlog"
 	"github.com/maczh/mgin/registry"
 	"github.com/sadlil/gologger"
 )
@@ -149,6 +150,9 @@ func (m *mgin) checkAll() {
 
 func (m *mgin) SafeExit() {
 	configs := config.Config.Config.Used
+
+	// 先排空接口日志队列并关闭各日志 handler，再关闭数据库连接
+	postlog.Close()
 
 	if strings.Contains(configs, "mysql") {
 		logger.Info("正在关闭MySQL连接")
