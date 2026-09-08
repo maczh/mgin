@@ -17,6 +17,7 @@ import (
 
 	"github.com/maczh/mgin/v2/pkg/config"
 	"github.com/maczh/mgin/v2/pkg/logs"
+	"github.com/maczh/mgin/v2/pkg/middleware/postlog"
 	"github.com/maczh/mgin/v2/pkg/plugin"
 	"github.com/maczh/mgin/v2/pkg/registry"
 )
@@ -197,6 +198,9 @@ func (m *mgin) SafeExit() {
 	// 给关闭动作一个 5 秒上限（与配置无关，SafeExit 不阻塞退出）
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+
+	// 先排空接口日志队列并关闭各日志 handler，再关闭数据库连接（plugin.CloseAll 会关掉 mongodb）
+	postlog.Close()
 
 	// v2：按 Order 逆序关闭所有已启用的内置组件。
 	if err := plugin.CloseAll(ctx); err != nil {
