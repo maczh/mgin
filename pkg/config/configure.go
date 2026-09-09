@@ -248,7 +248,13 @@ func (c *config) Init(cf string) {
 		c.Discovery.CallType = "x-form"
 	}
 	c.Discovery.CacheTTL = c.Cnf.Int("go.discovery.cacheTTL")
+	if c.Discovery.CacheTTL <= 0 {
+		c.Discovery.CacheTTL = 60
+	}
 	c.Discovery.CacheRefresh = c.Cnf.Int("go.discovery.cacheRefresh")
+	if c.Discovery.CacheRefresh <= 0 {
+		c.Discovery.CacheRefresh = 30
+	}
 	c.Jwt.Secret = c.Cnf.String("go.jwt.secret")
 	c.Sys.Enabled = c.Cnf.Bool("go.sys.enabled")
 	c.Sys.Initdb = c.Cnf.Bool("go.sys.initdb")
