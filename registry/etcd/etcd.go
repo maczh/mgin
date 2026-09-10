@@ -154,7 +154,7 @@ func (c *EtcdClient) GetServiceURL(servicename string, groupName ...string) (str
 		groupName[0] = c.group
 	}
 	currentGroup := groupName[0]
-	logger.Debug(fmt.Sprintf("groupName=%s, etcdClient=%s", toJSON(groupName), toJSON(c)))
+	// logger.Debug(fmt.Sprintf("groupName=%s, etcdClient=%s", toJSON(groupName), toJSON(c)))
 	if c.client == nil {
 		return "", currentGroup
 	}
