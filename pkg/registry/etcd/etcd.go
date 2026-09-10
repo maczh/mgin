@@ -34,9 +34,9 @@ type EtcdClient struct {
 
 	// 注册稳定性增强字段
 	registeredKey string             // 本实例在 etcd 上的完整 key，用于注销与重注册
-	apiUrl       string             // 本实例注册值（如 http://ip:port）
-	ctx          context.Context    // 续约/重注册协程的取消上下文
-	cancel       context.CancelFunc // 注销时取消续约协程
+	apiUrl        string             // 本实例注册值（如 http://ip:port）
+	ctx           context.Context    // 续约/重注册协程的取消上下文
+	cancel        context.CancelFunc // 注销时取消续约协程
 }
 
 var logger = gologger.GetLogger()
@@ -162,7 +162,7 @@ func (c *EtcdClient) GetServiceURL(servicename string, groupName ...string) (str
 		groupName[0] = c.group
 	}
 	currentGroup := groupName[0]
-	logger.Debug(fmt.Sprintf("groupName=%s, etcdClient=%s", toJSON(groupName), toJSON(c)))
+	// logger.Debug(fmt.Sprintf("groupName=%s, serviceName=%s", groupName, servicename))
 	for _, group := range groupName {
 		prefix := fmt.Sprintf("%s/%s/%s/", c.prefix, group, servicename)
 		logger.Debug("查询前缀: " + prefix)
@@ -212,7 +212,7 @@ func (c *EtcdClient) GetServices(servicename string, groupName ...string) ([]str
 		for _, kv := range resp.Kvs {
 			urls = append(urls, string(kv.Value))
 		}
-		logger.Debug("etcd 获取" + servicename + "服务列表成功:" + strings.Join(urls, ","))
+		// logger.Debug("etcd 获取" + servicename + "服务列表成功:" + strings.Join(urls, ","))
 		return urls, nil
 	}
 	return nil, nil
