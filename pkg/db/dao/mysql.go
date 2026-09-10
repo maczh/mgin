@@ -3,6 +3,7 @@ package dao
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math"
 	"strings"
 
@@ -337,4 +338,34 @@ func (receiver *MySQLDao[E]) Pager(conn *gorm.DB, page, size int) ([]E, *models.
 		return nil, nil, errors.New("数据库查询失败")
 	}
 	return result, &p, nil
+}
+
+func (receiver *MySQLDao[E]) Alias(alias string) *gorm.DB {
+	if receiver.Tag == nil {
+		receiver.Tag = notag
+	}
+	conn, err := db.Mysql.GetConnection(receiver.Tag())
+	if err != nil {
+		logger.Error("数据库连接失败: " + err.Error())
+		return nil
+	}
+	var e E
+	return conn.Table(fmt.Sprintf("%s AS %s", e.TableName(), alias))
+}
+
+func (receiver *MySQLDao[E]) DB() *gorm.DB {
+	if receiver.Tag == nil {
+		receiver.Tag = notag
+	}
+	conn, err := db.Mysql.GetConnection(receiver.Tag())
+	if err != nil {
+		logger.Error("数据库连接失败: " + err.Error())
+		return nil
+	}
+	var e E
+	return conn.Model(&e)
+}
+
+func (receiver *MySQLDao[E]) JOIN(alias, query string, args ...interface{}) *gorm.DB {
+	return receiver.Alias(alias).Joins(query, args...)
 }
