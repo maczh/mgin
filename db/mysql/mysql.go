@@ -5,13 +5,9 @@ import (
 	"strings"
 	"time"
 
-	caches "github.com/go-gorm/caches/v4"
 	"github.com/knadh/koanf"
 	"github.com/knadh/koanf/parsers/yaml"
 	"github.com/knadh/koanf/providers/rawbytes"
-	"github.com/maczh/mgin/config"
-	"github.com/maczh/mgin/db/cacher"
-	"github.com/maczh/mgin/db/redis"
 	"github.com/sadlil/gologger"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -262,54 +258,4 @@ func (m *MysqlClient) IsMultiDB() bool {
 
 func (m *MysqlClient) ListConnNames() []string {
 	return m.conns
-}
-
-func (m *MysqlClient) UseCache() bool {
-	if m.conf == nil {
-		return false
-	}
-	if !m.conf.Bool("go.data.mysql_cache") {
-		return false
-	}
-	if !strings.Contains(config.Config.Config.Used, "redis") {
-		logger.Error("MySQL cache use memory cache")
-		cachesPlugin := &caches.Caches{
-			Conf: &caches.Config{
-				Easer: true,
-			},
-		}
-		if m.multi {
-			for k, _ := range m.mysqls {
-				m.mysqls[k].Use(cachesPlugin)
-			}
-		} else {
-			m.mysql.Use(cachesPlugin)
-		}
-		return true
-	}
-	rds, err := redis.Redis.GetConnection()
-	if err != nil {
-		logger.Error("MySQL init Redis Cache connection error: " + err.Error())
-		return false
-	}
-	exp := 5 * time.Minute
-	if m.conf.Duration("go.data.mysql_cache_expired") > 0 {
-		exp = m.conf.Duration("go.data.mysql_cache_expired") * time.Second
-	}
-	cachesPlugin := &caches.Caches{
-		Conf: &caches.Config{
-			Cacher: &cacher.RedisCacher{
-				Rdb:        rds,
-				Expiration: exp,
-			},
-		},
-	}
-	if m.multi {
-		for k, _ := range m.mysqls {
-			m.mysqls[k].Use(cachesPlugin)
-		}
-	} else {
-		m.mysql.Use(cachesPlugin)
-	}
-	return true
 }

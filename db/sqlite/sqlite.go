@@ -5,13 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
-	"time"
 
-	"github.com/go-gorm/caches/v4"
 	"github.com/maczh/mgin/config"
-	"github.com/maczh/mgin/db/cacher"
-	"github.com/maczh/mgin/db/redis"
 	"github.com/sadlil/gologger"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -59,32 +54,4 @@ func (m *Sqlite) GetConnection() (*gorm.DB, error) {
 		return nil, errors.New("SQLite not opened")
 	}
 	return m.sqlite, nil
-}
-
-func (m *Sqlite) UseCache() bool {
-	if !strings.Contains(config.Config.Config.Used, "redis") {
-		logger.Error("SQLite cache use memory cache")
-		cachesPlugin := &caches.Caches{
-			Conf: &caches.Config{
-				Easer: true,
-			},
-		}
-		m.sqlite.Use(cachesPlugin)
-		return true
-	}
-	rds, err := redis.Redis.GetConnection()
-	if err != nil {
-		logger.Error("MySQL init Redis Cache connection error: " + err.Error())
-		return false
-	}
-	cachesPlugin := &caches.Caches{
-		Conf: &caches.Config{
-			Cacher: &cacher.RedisCacher{
-				Rdb:        rds,
-				Expiration: 5 * time.Minute,
-			},
-		},
-	}
-	m.sqlite.Use(cachesPlugin)
-	return true
 }
