@@ -87,6 +87,29 @@ func (m MgoDao[E]) Updates(id primitive.ObjectID, doc E) error {
 	return nil
 }
 
+// Updates mongo动态更新数据
+func (m MgoDao[E]) Update(selector bson.M, update bson.M) error {
+	if m.CollectionName == "" {
+		return errors.New("CollectionName未定义")
+	}
+	if m.Tag == nil {
+		m.Tag = notag
+	}
+	conn, err := db.Mongo.GetConnection(m.Tag())
+	if err != nil {
+		logger.Error("数据库连接失败: " + err.Error())
+		return errors.New("数据库连接失败")
+	}
+	defer db.Mongo.ReturnConnection(conn)
+	err = conn.C(m.CollectionName).Update(selector, update)
+	if err != nil {
+		logger.Error("数据库更新失败: " + err.Error())
+		return errors.New("数据库更新失败")
+	}
+	return nil
+}
+
+
 // All mongo动态查询数据
 func (m MgoDao[E]) All(query bson.M) ([]E, error) {
 	if m.CollectionName == "" {
