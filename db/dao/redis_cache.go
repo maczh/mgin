@@ -28,6 +28,10 @@ func (c *RedisCache) IsExist(key interface{}) bool {
 	return ok
 }
 
+// Clear 清空缓存。
+// ⚠️ 警告：当前实现直接对 Redis 执行 FLUSHDB，会清空【整个数据库】而不仅仅是本缓存管理的键。
+// RedisCache 未做键前缀隔离，无法精确只删除缓存键，因此生产环境请勿随意调用，
+// 否则会误删同库内的其他业务数据。如需安全清空，请改用 Delete 按 key 逐个删除。
 func (c *RedisCache) Clear() bool {
 	if c.Client == nil {
 		return false

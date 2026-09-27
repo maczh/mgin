@@ -1873,12 +1873,22 @@ func (t Timestamp) Time() time.Time {
 
 ##### `(l *LinkList[T]) Get(index int)`
 
-- **功能**：获取链表中指定索引位置的元素。
+- **功能**：获取链表中指定索引位置的元素。索引越界（`index < 0` 或 `index >= Size()`）时**不再 panic**，返回 `T` 的零值。
 - **入参**：
     - `l *LinkList[T]`：链表指针
     - `index int`：索引位置
 - **出参**：
-    - `T`：指定索引位置的元素
+    - `T`：指定索引位置的元素；越界时为 `T` 的零值
+
+##### `(l *LinkList[T]) TryGet(index int)`
+
+- **功能**：尝试获取链表中指定索引位置的元素，并可区分「索引越界」与「元素值恰好是零值」。该函数不会 panic。
+- **入参**：
+    - `l *LinkList[T]`：链表指针
+    - `index int`：索引位置
+- **出参**：
+    - `T`：指定索引位置的元素；越界时为 `T` 的零值
+    - `bool`：索引是否有效；`false` 表示越界
 
 ##### `(l *LinkList[T]) GetAll()`
 
@@ -2252,3 +2262,67 @@ func (t Timestamp) Time() time.Time {
     - `cardNo string`：身份证号码字符串
 - **出参**：
     - `bool`：如果是 18 或 15 位身份证号码，返回 `true`；否则返回 `false`
+
+#### 9.12 iputil.go
+
+##### `IsPortUse(port int)`
+
+- **功能**：判断端口是否被占用。
+- **入参**：
+    - `port int`：端口号
+- **出参**：
+    - `bool`：`netstat` 输出非空（端口被使用）时返回 `true`，否则返回 `false`
+- **⚠️ Deprecated**：函数名存在歧义，且实现依赖 `netstat` 外部命令（存在误报、且不支持 darwin）。新代码请改用 `IsPortAvailable`。
+
+##### `IsPortAvailable(port int)`
+
+- **功能**：判断本机指定 TCP 端口当前是否可用（没有被任何进程占用）。
+- **入参**：
+    - `port int`：端口号
+- **出参**：
+    - `bool`：端口空闲可用时返回 `true`；端口已被占用或端口号非法（`<= 0` 或 `> 65535`）时返回 `false`
+- **说明**：通过尝试监听该端口来判定，成功即认为空闲并立即释放；不依赖 `netstat` / `findstr` 等外部命令，跨平台可用。
+
+#### 9.13 sftputil.go
+
+##### `SftpConnect(user, password, host string, port int)`
+
+- **功能**：使用用户名密码建立 SFTP 连接。
+- **入参**：
+    - `user string`：用户名
+    - `password string`：密码
+    - `host string`：主机地址
+    - `port int`：端口
+- **出参**：
+    - `*sftp.Client`：SFTP 客户端
+    - `*ssh.Client`：SSH 客户端
+    - `error`：连接或创建客户端失败时返回错误信息
+- **⚠️ 安全提示**：该函数的 `HostKeyCallback` 恒返回 `nil`，等价 `ssh.InsecureIgnoreHostKey()`，**不校验服务端主机密钥，存在中间人攻击（MITM）风险**。该行为为兼容存量业务而保留，新代码请改用 `SftpConnectWithHostKey` 或 `SftpConnectWithKnownHosts`。
+
+##### `SftpConnectWithHostKey(user, password, host string, port int, hostKeyCallback ssh.HostKeyCallback)`
+
+- **功能**：使用用户名密码建立 SFTP 连接，并由调用方提供主机密钥校验回调。
+- **入参**：
+    - `user string`：用户名
+    - `password string`：密码
+    - `host string`：主机地址
+    - `port int`：端口
+    - `hostKeyCallback ssh.HostKeyCallback`：主机密钥校验回调；为 `nil` 时回退为不校验行为
+- **出参**：
+    - `*sftp.Client`：SFTP 客户端
+    - `*ssh.Client`：SSH 客户端
+    - `error`：连接失败或主机密钥校验不通过时返回错误信息
+
+##### `SftpConnectWithKnownHosts(user, password, host string, port int, knownHostsPath string)`
+
+- **功能**：使用用户名密码建立 SFTP 连接，并基于 known_hosts 文件校验服务端主机密钥。
+- **入参**：
+    - `user string`：用户名
+    - `password string`：密码
+    - `host string`：主机地址
+    - `port int`：端口
+    - `knownHostsPath string`：known_hosts 文件路径；为空时默认使用 `~/.ssh/known_hosts`
+- **出参**：
+    - `*sftp.Client`：SFTP 客户端
+    - `*ssh.Client`：SSH 客户端
+    - `error`：加载 known_hosts 失败、连接失败或主机密钥不匹配时返回错误信息

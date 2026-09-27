@@ -1376,7 +1376,8 @@ ok := utils.IsChinaMobileString("13800138000")    // true
 | `GetLocalIpAddress() string` | 首个非回环、非 `169.254.x` 的 IPv4，否则 `127.0.0.1` |
 | `LocalIPv4s() ([]string, error)`、`GetIPv4ByInterface(name)` | 全部 / 指定网卡 IPv4 |
 | `IsIntranetIP(ip) bool` | 内网判定（`10.*` / `192.168.*` / `172.16-31.*`） |
-| `IsPortUse(port int) bool` | 端口占用判定（注意：输出非空时返回 `true`） |
+| `IsPortUse(port int) bool` | **Deprecated**：端口占用判定（`netstat` 输出非空时返回 `true`）；依赖外部命令、存在误报且不支持 darwin，请改用 `IsPortAvailable` |
+| `IsPortAvailable(port int) bool` | 端口是否可用（空闲返回 `true`，被占用或端口号非法返回 `false`）；通过尝试监听判定，跨平台、不依赖外部命令 |
 | `UrlEncode(raw) string` / `UrlDecode(encoded) (string, error)` | RFC3986 风格编解码 |
 
 ### 16.8 文件与压缩（File / Zip）
@@ -1388,7 +1389,9 @@ ok := utils.IsChinaMobileString("13800138000")    // true
 | `FileSize / FileMTime`、`DirsUnder / FilesUnder(dir)` | 文件信息 / 列举 |
 | `SearchFile(filename, paths...)`、`RealPath(file)` | 查找 / 真实路径 |
 | `DownloadFile(fileUrl, localPath) (string, error)` | HTTP 下载（`grequests`） |
-| `SftpConnect / SftpUploadFile / SftpClose` | SFTP 上传（密码认证） |
+| `SftpConnect / SftpUploadFile / SftpClose` | SFTP 上传（密码认证）；**注意 `SftpConnect` 不校验主机密钥，存在中间人风险** |
+| `SftpConnectWithHostKey(user, password, host string, port int, hostKeyCallback ssh.HostKeyCallback)` | 可自定义主机密钥校验回调的 SFTP 连接；`hostKeyCallback` 为 `nil` 时回退为不校验 |
+| `SftpConnectWithKnownHosts(user, password, host string, port int, knownHostsPath string)` | 基于 known_hosts 文件校验主机密钥的 SFTP 连接；`knownHostsPath` 为空时默认 `~/.ssh/known_hosts` |
 | `ZipFiles(filename, files, srcpath, aliasnames)` | 多文件 ZIP |
 | `Compress / Decompress(data []byte)` | Gzip 压缩 / 解压 |
 | `Utf8ToGbk / GbkToUtf8`、`ClearUtf8BOM(str)` | 编码转换 / 去 BOM |
@@ -1409,11 +1412,11 @@ ok := utils.IsChinaMobileString("13800138000")    // true
 | `NewSafeGo(fn)`（`SetGoBeforeHandler / SetCallBeforeHandler / Run`） | panic 安全协程（recover 并打印彩色堆栈） |
 | `GetGoroutineID() uint64` | 当前 goroutine ID（调试用） |
 | `Map[T any]`（`Load / Store / Range / Delete / LoadAndStore / LoadAndDelete / Len / Clear`） | 泛型并发安全 map |
-| `LinkList[T any]`（`Add / Push / Pop / Enqueue / Dequeue / Get / GetAll / Walk / Size`） | 泛型双向链表 |
+| `LinkList[T any]`（`Add / Push / Pop / Enqueue / Dequeue / Get / TryGet / GetAll / Walk / Size`） | 泛型双向链表；`Get` 越界返回零值（不再 panic），`TryGet` 额外返回 `bool` 用于区分越界 |
 | `RingBuffer[T any]`（`Write / Read / Latest / Oldest / Overwrite`） | 泛型环形缓冲（覆盖式） |
 | `HashSet`（`Add / Exists / Remove / Members`） | 字符串集合（见 16.6） |
 | `Values`（`Put / Get / GetAll / Merge / Clear`） | 并发键值容器 |
-| `ExpireCache`（`Store / Load / Delete`，`Timeout` 秒） | 带过期的内存缓存 |
+| `ExpireCache`（`Store / Load / Delete`，`Timeout` 秒） | 带过期的内存缓存；`Store/Load/Delete` 与内部过期清理均由互斥锁串行化，可并发使用 |
 | `NewLimitQueue()` + `LimitFreqSingle(queue, count, window) bool` | 单机滑动窗口限流 |
 
 ### 16.11 校验与防护（Validate）
@@ -1422,8 +1425,13 @@ ok := utils.IsChinaMobileString("13800138000")    // true
 | `IsChinaMobile / Mail / UserName / Nickname / ChineseName(...)` | 手机号 / 邮箱 / 用户名 / 昵称 / 中文名（含 `...String` 与 `[]byte` 两种入参） |
 | `IsChineseNameEx(s) (string, bool)` | 不规范间隔符自动规整为 `·` 并返回修正结果 |
 | `IsIdCard(cardNo string) bool` | 15 / 18 位身份证（末位可 X） |
-| `CheckSqlValidate(content string) (bool, string)` | SQL 注入关键字黑名单（命中返回疑似串） |
+| `CheckSqlValidate(content string) (bool, string)` | SQL 注入关键字黑名单（命中返回疑似串）；**不得作为安全防护手段**，见下方警告 |
 | `AddPortsToFirewall(ports []int)` | linux `firewall-cmd` 放通端口（仅 linux） |
+
+> ⚠️ **`CheckSqlValidate` 的能力边界（重要）**：
+> 1. **黑名单式 SQL 注入检测本身不可靠**，既容易绕过也容易误报，只能用于粗筛提示，**不能作为安全防护手段**；正确的防护方式是使用参数化查询 / 预编译语句。
+> 2. **实际生效的只有关键字清单第一行中的 11 个关键字**。清单以跨行 raw string 书写，按 `|` 切分后第 2~5 行的关键字（如 `--`、`char`、`table`、`information_schema.columns`、`or 1 = 1` 等）会带上 `\n\t\t` 前缀，**永远无法命中**。
+> 3. 命中判定已包含关键字出现在字符串首位（下标 0）的情况。
 
 ### 16.12 其它（Misc）
 | 函数 | 说明 |
@@ -1435,7 +1443,9 @@ ok := utils.IsChinaMobileString("13800138000")    // true
 | `DisplaySize(raw float64) string` | 字节数 → 人类可读（`B/K/M/G/T/P/E`） |
 | `IfThen / IfThenElse / DefaultIfNil / FirstNonNil` | 条件 / 空值取值工具 |
 
-> ⚠️ **实现备注（供生产参考）**：经源码核对，`utils` 部分函数存在已知边界问题 —— `LinkList.Get` 越界会 `panic`；`ExpireCache.checkExpire` 存在误用 value 作 key 的清理 bug；`sqlvalidate` 仅为关键字黑名单且首字符命中会漏判；`SftpConnect` 的 `HostKeyCallback` 恒返回 nil（存在中间人风险）；`IsPortUse` 语义与命名相反（输出非空返回 `true`）。生产使用前建议阅读对应源码。
+> ✅ **已修复（原记录于本节的边界问题）**：`LinkList.Get` 越界不再 `panic`，改为返回零值，并新增 `TryGet(index int) (T, bool)` 用于区分「越界」与「元素值恰好是零值」，`Remove` 越界改为安全的空操作；`ExpireCache.checkExpire` 已改为按 key 删除过期项（原误用 value 作 key 导致过期项清不掉），且 `Store / Load / Delete / checkExpire` 全部由内部互斥锁串行化，并发安全；`sqlvalidate` 已修正关键字出现在首字符时被漏判的问题。
+>
+> ⚠️ **仍需留意（未变更 / 需调用方决策）**：`SftpConnect` 的 `HostKeyCallback` 恒返回 nil（等价 `ssh.InsecureIgnoreHostKey()`，**存在中间人攻击风险**），该行为为兼容存量业务而保留，新代码请改用 `SftpConnectWithHostKey` 或 `SftpConnectWithKnownHosts`；`IsPortUse` 命名与语义存在歧义且已标记 `Deprecated`，请改用 `IsPortAvailable`；`CheckSqlValidate` 仅为关键字黑名单、且存在永远无法命中的死关键字，**不得作为 SQL 注入的防护手段**（详见 16.11 节警告）。
 
 
 

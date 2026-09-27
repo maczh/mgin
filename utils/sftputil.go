@@ -5,10 +5,12 @@ import (
 	"github.com/maczh/mgin/logs"
 	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/knownhosts"
 	"io/ioutil"
 	"net"
 	"os"
 	"path"
+	"path/filepath"
 	"time"
 )
 
@@ -21,7 +23,60 @@ func SftpClose(sftpClient *sftp.Client, sshClient *ssh.Client) {
 	}
 }
 
+// SftpConnect 使用用户名密码建立 sftp 连接。
+//
+// 安全提示（重要）：该函数当前的 HostKeyCallback 恒返回 nil，等价于
+// ssh.InsecureIgnoreHostKey()，即**不校验服务端主机密钥**，存在中间人攻击（MITM）风险。
+// 这里保留该行为是为了兼容使用自签/未登记主机密钥的存量业务，避免破坏性变更。
+//
+// 新代码请使用 SftpConnectWithHostKey 或 SftpConnectWithKnownHosts 显式校验主机密钥。
 func SftpConnect(user, password, host string, port int) (*sftp.Client, *ssh.Client, error) {
+	return sftpConnect(user, password, host, port, func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+		// 兼容存量行为：跳过主机密钥校验
+		return nil
+	})
+}
+
+// SftpConnectWithHostKey 使用用户名密码建立 sftp 连接，并由调用方提供主机密钥校验回调。
+//
+// hostKeyCallback 为 nil 时回退为 SftpConnect 的不校验行为。
+// 常见的回调实现：
+//   - knownhosts.New("<known_hosts 文件路径>") 基于 known_hosts 文件校验
+//   - ssh.FixedHostKey(pubkey) 固定单一主机密钥
+func SftpConnectWithHostKey(user, password, host string, port int, hostKeyCallback ssh.HostKeyCallback) (*sftp.Client, *ssh.Client, error) {
+	if hostKeyCallback == nil {
+		hostKeyCallback = func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+			return nil
+		}
+	}
+	return sftpConnect(user, password, host, port, hostKeyCallback)
+}
+
+// SftpConnectWithKnownHosts 使用用户名密码建立 sftp 连接，并基于 known_hosts 文件校验主机密钥。
+//
+// knownHostsPath 为空时，默认使用当前用户家目录下的 ~/.ssh/known_hosts。
+// 主机密钥不在 known_hosts 中或不匹配时，连接会被拒绝并返回错误。
+func SftpConnectWithKnownHosts(user, password, host string, port int, knownHostsPath string) (*sftp.Client, *ssh.Client, error) {
+	if knownHostsPath == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			logs.Error("获取用户家目录失败，无法定位 known_hosts:{}", err.Error())
+			return nil, nil, err
+		}
+		knownHostsPath = filepath.Join(home, ".ssh", "known_hosts")
+	}
+
+	hostKeyCallback, err := knownhosts.New(knownHostsPath)
+	if err != nil {
+		logs.Error("加载known_hosts文件{}错误:{}", knownHostsPath, err.Error())
+		return nil, nil, err
+	}
+
+	return sftpConnect(user, password, host, port, hostKeyCallback)
+}
+
+// sftpConnect 建立 sftp 连接的内部实现，hostKeyCallback 决定如何校验服务端主机密钥。
+func sftpConnect(user, password, host string, port int, hostKeyCallback ssh.HostKeyCallback) (*sftp.Client, *ssh.Client, error) {
 	var (
 		auth         []ssh.AuthMethod
 		addr         string
@@ -35,12 +90,10 @@ func SftpConnect(user, password, host string, port int) (*sftp.Client, *ssh.Clie
 	auth = append(auth, ssh.Password(password))
 
 	clientConfig = &ssh.ClientConfig{
-		User:    user,
-		Auth:    auth,
-		Timeout: 30 * time.Second,
-		HostKeyCallback: func(hostname string, remote net.Addr, key ssh.PublicKey) error {
-			return nil
-		},
+		User:            user,
+		Auth:            auth,
+		Timeout:         30 * time.Second,
+		HostKeyCallback: hostKeyCallback,
 	}
 
 	// connet to ssh

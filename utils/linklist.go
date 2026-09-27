@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"fmt"
 	"sync"
 )
 
@@ -71,6 +70,9 @@ func (l *LinkList[T]) Add(v T, num int) {
 	}
 }
 
+// Remove 移除指定下标的节点。
+// 下标越界（index < 0 或 index >= Size()）时不做任何操作，不会 panic 也不会误删其他节点。
+// 注意：index == 0 沿用历史行为，等价于 Pop（移除尾节点）。
 func (l *LinkList[T]) Remove(index int) {
 	if index < 0 {
 		return
@@ -84,9 +86,8 @@ func (l *LinkList[T]) Remove(index int) {
 	l.lock.Lock()
 	defer l.lock.Unlock()
 
-	// 越界时保持原有语义：退化为移除头节点
+	// 越界时不做任何删除：原实现会移除头节点，属于误删无关数据，这里改为安全的空操作
 	if index >= l.size {
-		l.dequeueLocked()
 		return
 	}
 
@@ -178,28 +179,42 @@ func (l *LinkList[T]) Size() int {
 	return l.size
 }
 
+// Get 返回指定下标的节点值。
+// 下标越界（index < 0 或 index >= Size()）时不再 panic，而是返回 T 的零值。
+// 如需区分「越界」与「元素值恰好是零值」，请改用 TryGet。
 func (l *LinkList[T]) Get(index int) T {
+	value, _ := l.TryGet(index)
+	return value
+}
+
+// TryGet 尝试返回指定下标的节点值。
+// 第二个返回值表示下标是否有效：false 表示越界，此时第一个返回值为 T 的零值。
+// 该函数不会 panic，调用方可以显式处理越界场景。
+func (l *LinkList[T]) TryGet(index int) (T, bool) {
 	var zero T
 	if index < 0 {
-		panic(fmt.Errorf("链表越界访问 index:%d", index))
+		return zero, false
 	}
 
 	l.lock.RLock()
 	defer l.lock.RUnlock()
 
-	if l.size <= index {
-		panic(fmt.Errorf("链表越界访问 index:%d size:%d", index, l.size))
+	if index >= l.size || l.head == nil {
+		return zero, false
 	}
 
 	ptr := l.head
-	for i := 1; i <= index && ptr != nil; i++ {
+	for i := 0; i < index; i++ {
+		if ptr.next == nil {
+			return zero, false
+		}
 		ptr = ptr.next
 	}
 	if ptr == nil {
-		return zero
+		return zero, false
 	}
 
-	return ptr.value
+	return ptr.value, true
 }
 
 func (l *LinkList[T]) GetAll() []T {
