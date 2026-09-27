@@ -1362,7 +1362,8 @@ ok := utils.IsChinaMobileString("13800138000")    // true
 | `GetLocalIpAddress() string` | first non-loopback, non-`169.254.x` IPv4, else `127.0.0.1` |
 | `LocalIPv4s() ([]string, error)`, `GetIPv4ByInterface(name)` | all / per-interface IPv4 |
 | `IsIntranetIP(ip) bool` | intranet check (`10.*` / `192.168.*` / `172.16-31.*`) |
-| `IsPortUse(port int) bool` | port-in-use check (note: returns `true` when output is non-empty) |
+| `IsPortUse(port int) bool` | **Deprecated**: port-in-use check whose **return value is the opposite of its doc comment** — returns `true` when `netstat` output is empty (port free) and `false` when it is non-empty (port occupied); relies on an external command, has false positives and does not support darwin — use `IsPortAvailable` instead |
+| `IsPortAvailable(port int) bool` | whether the port is free (`true` = available; `false` = occupied or invalid port number); probed by attempting to listen, cross-platform and dependency-free |
 | `UrlEncode(raw) string` / `UrlDecode(encoded) (string, error)` | RFC3986-style encode/decode |
 
 ### 16.8 File & Compression
@@ -1374,7 +1375,9 @@ ok := utils.IsChinaMobileString("13800138000")    // true
 | `FileSize / FileMTime`, `DirsUnder / FilesUnder(dir)` | file info / listing |
 | `SearchFile(filename, paths...)`, `RealPath(file)` | search / real path |
 | `DownloadFile(fileUrl, localPath) (string, error)` | HTTP download (`grequests`) |
-| `SftpConnect / SftpUploadFile / SftpClose` | SFTP upload (password auth) |
+| `SftpConnect / SftpUploadFile / SftpClose` | SFTP upload (password auth); **note: `SftpConnect` does not verify the host key (MITM risk)** |
+| `SftpConnectWithHostKey(user, password, host string, port int, hostKeyCallback ssh.HostKeyCallback)` | SFTP connect with a caller-supplied host-key callback; falls back to no verification when `hostKeyCallback` is `nil` |
+| `SftpConnectWithKnownHosts(user, password, host string, port int, knownHostsPath string)` | SFTP connect verified against a known_hosts file; defaults to `~/.ssh/known_hosts` when `knownHostsPath` is empty |
 | `ZipFiles(filename, files, srcpath, aliasnames)` | multi-file ZIP |
 | `Compress / Decompress(data []byte)` | Gzip compress / decompress |
 | `Utf8ToGbk / GbkToUtf8`, `ClearUtf8BOM(str)` | encoding conversion / strip BOM |
@@ -1395,11 +1398,11 @@ ok := utils.IsChinaMobileString("13800138000")    // true
 | `NewSafeGo(fn)` (`SetGoBeforeHandler / SetCallBeforeHandler / Run`) | panic-safe goroutine (recover + colored stack) |
 | `GetGoroutineID() uint64` | current goroutine ID (debugging) |
 | `Map[T any]` (`Load / Store / Range / Delete / LoadAndStore / LoadAndDelete / Len / Clear`) | generic concurrency-safe map |
-| `LinkList[T any]` (`Add / Push / Pop / Enqueue / Dequeue / Get / GetAll / Walk / Size`) | generic doubly-linked list |
+| `LinkList[T any]` (`Add / Push / Pop / Enqueue / Dequeue / Get / TryGet / GetAll / Walk / Size`) | generic doubly-linked list; `Get` returns the zero value on out-of-range (no panic), `TryGet` also returns a `bool` to distinguish out-of-range |
 | `RingBuffer[T any]` (`Write / Read / Latest / Oldest / Overwrite`) | generic ring buffer (overwriting) |
 | `HashSet` (`Add / Exists / Remove / Members`) | string set (see 16.6) |
 | `Values` (`Put / Get / GetAll / Merge / Clear`) | concurrency-safe key-value container |
-| `ExpireCache` (`Store / Load / Delete`, `Timeout` seconds) | in-memory cache with expiry |
+| `ExpireCache` (`Store / Load / Delete`, `Timeout` seconds) | in-memory cache with expiry; `Store/Load/Delete` and the internal expiry sweep are serialized by an internal mutex, safe for concurrent use |
 | `NewLimitQueue()` + `LimitFreqSingle(queue, count, window) bool` | single-node sliding-window rate limiter |
 
 ### 16.11 Validation & Protection
@@ -1408,8 +1411,13 @@ ok := utils.IsChinaMobileString("13800138000")    // true
 | `IsChinaMobile / Mail / UserName / Nickname / ChineseName(...)` | mobile / email / username / nickname / Chinese-name (both `...String` and `[]byte` forms) |
 | `IsChineseNameEx(s) (string, bool)` | normalize irregular separators to `·` and return the corrected value |
 | `IsIdCard(cardNo string) bool` | 15 / 18-digit ID card (last char may be X) |
-| `CheckSqlValidate(content string) (bool, string)` | SQL-injection keyword blacklist (returns suspected string on hit) |
+| `CheckSqlValidate(content string) (bool, string)` | SQL-injection keyword blacklist (returns suspected string on hit); **must not be used as a security control** — see the warning below |
 | `AddPortsToFirewall(ports []int)` | linux `firewall-cmd` port open (linux only) |
+
+> ⚠️ **`CheckSqlValidate` capability boundaries (important)**:
+> 1. **Blacklist-based SQL-injection detection is inherently unreliable** — it is trivially bypassed and prone to false positives. Use it only as a coarse hint, **never as a security control**; the correct defence is parameterized queries / prepared statements.
+> 2. **Only the 11 keywords on the first line of the keyword list actually take effect.** The list is written as a multi-line raw string; after splitting on `|`, the keywords on lines 2–5 (e.g. `--`, `char`, `table`, `information_schema.columns`, `or 1 = 1`) carry a leading `\n\t\t` prefix and therefore **can never match**.
+> 3. Matches at the very first character (index 0) are detected.
 
 ### 16.12 Misc
 | Function | Description |
@@ -1421,7 +1429,9 @@ ok := utils.IsChinaMobileString("13800138000")    // true
 | `DisplaySize(raw float64) string` | bytes → human readable (`B/K/M/G/T/P/E`) |
 | `IfThen / IfThenElse / DefaultIfNil / FirstNonNil` | conditional / nil-value helpers |
 
-> ⚠️ **Implementation notes (for production)**: source review found known edge issues in some `utils` functions — `LinkList.Get` panics on out-of-range; `ExpireCache.checkExpire` mistakenly uses value as the delete key; `sqlvalidate` is a keyword blacklist and misses a leading-character hit; `SftpConnect` always returns nil from `HostKeyCallback` (MITM risk); `IsPortUse` is named opposite to its behavior (returns `true` when output is non-empty). Review the source before production use.
+> ✅ **Fixed (the edge issues previously recorded here)**: `LinkList.Get` no longer panics on out-of-range — it returns the zero value, and a new `TryGet(index int) (T, bool)` lets callers distinguish "out of range" from "the element is genuinely the zero value"; `Remove` on an out-of-range index is now a safe no-op (the old v2 implementation crashed with a nil-pointer dereference at `index == 1`). `ExpireCache.checkExpire` now deletes by key (it previously passed the value, so expired entries were never removed), and `Store / Load / Delete / checkExpire` are all serialized by an internal mutex, making it concurrency-safe. `sqlvalidate` now detects keywords occurring at the very first character.
+>
+> ⚠️ **Still relevant (unchanged / caller decision required)**: `SftpConnect` still returns nil from `HostKeyCallback` (equivalent to `ssh.InsecureIgnoreHostKey()`, **MITM risk**) — kept for backwards compatibility, new code should use `SftpConnectWithHostKey` or `SftpConnectWithKnownHosts`; `IsPortUse` returns the opposite of its documented meaning and is now marked `Deprecated` (it returns `true` precisely when the port is free) — use `IsPortAvailable`; `CheckSqlValidate` is a keyword blacklist with dead keywords that can never match and **must not be relied on for SQL-injection defence** (see the warning in section 16.11).
 
 
 

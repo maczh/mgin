@@ -87,7 +87,8 @@ func NewApp(configFile, appName, version string, xlang bool) *App {
 	// 如果启用了版本号显示，则打印版本号并退出程序
 	if flagValueBool("v") {
 		fmt.Printf("%s, 版本号: %s\n", appName, version)
-		return nil
+		// 打印版本号后直接退出进程，避免返回 nil 导致调用方未判空而 panic
+		os.Exit(0)
 	}
 	// 获取当前可执行文件所在的绝对路径
 	path, err := filepath.Abs(filepath.Dir(os.Args[0]))
