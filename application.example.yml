@@ -127,8 +127,37 @@ go:
       - name: "private-files"
         public: false
 
+  # ------------------------------------------------------------------
+  # 4) 健康检查探针（health 包，K8s liveness/readiness/startup）
+  #    端点：/health/live（恒 200） /health/ready（依赖异常返 503） /health/startup（未 MarkStarted 返 503）
+  #    探针在 baseRouter() 中先于一切中间件注册，不会被 casbin/jwt/ratelimit 拦截。
+  #    三种启用方式任选其一：配置 enabled=true、代码 app.EnableHealth()、或自行 health.Router(...)。
+  # ------------------------------------------------------------------
+  health:
+    enabled: false            # true 时框架自动挂载 /health/* 探针
+    autoStarted: false        # true 时监听启动后自动标记“已完成启动”，使 /startup 返回 200；
+                              # 否则需业务在初始化完成后调用 health.MarkStarted() 或 app.MarkHealthStarted()
+
+  # ------------------------------------------------------------------
+  # 5) Prometheus 指标端点（metrics 包）
+  #    端点：/metrics（恒 200，遵循 Prometheus 抓取约定），同样先于业务中间件注册。
+  #    两种启用方式任选其一：配置 enabled=true、或代码 app.EnableMetrics()。
+  #    启用后建议再 app.Router.Use(metrics.Middleware()) 自动记录 HTTP 请求计数与时延；
+  #    并在启动时调用 metrics.SetBuildInfo(version, commit, goVersion) 注入版本标签。
+  # ------------------------------------------------------------------
+  metrics:
+    enabled: false            # true 时框架自动挂载 /metrics 端点
+
   # 定时任务执行器与 S3 桶的取用均在代码中完成，例如：
   #   job.Register("demoJob", func(ctx *job.Context) error { ... })
   #   b := s3.GetS3().Default()
   # 管理接口挂载（Gin 路由组）：
   #   job.RouterGroup(app.Router.Group("/job"))
+  # 健康检查 / 指标端点挂载示例：
+  #   app := mgin.NewApp("application.yml", "myapp", "1.0.0", false)
+  #   app.EnableHealth()
+  #   app.EnableMetrics()
+  #   app.Router.Use(metrics.Middleware())
+  #   metrics.SetBuildInfo("1.0.0", "abc123", runtime.Version())
+  #   // 所有初始化（数据源、缓存、定时任务、预热）完成后：
+  #   app.MarkHealthStarted()
