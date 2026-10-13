@@ -2,11 +2,16 @@
 //
 // 端点：
 //
-//	GET /live     存活探针：只判断进程能否响应，不查任何依赖，恒返回 200
+//	GET /live     存活探针：只判断进程能否响应，不查任何依赖，恒返回 200，标准模板见下
+//	GET /healthz  存活探针的根路径别名，与 /health/live 返回完全一致的标准健康模板
 //	GET /ready    就绪探针：按需实时调用已启用数据源的 Check()，任一失败返回 503
 //	GET /startup  启动探针：返回应用是否已完成启动，未完成返回 503
 //
-// 响应体统一为 JSON：
+// 存活探针（/live、/healthz）响应体为标准健康模板：
+//
+//	{"code":1,"msg":"success","srvTime":"...","data":{"status":"UP","version":"1.4.2","uptime":86400}}
+//
+// 就绪/启动探针（/ready、/startup）响应体为：
 //
 //	{"status":"ok","dependencies":{"mysql":"ok","redis":"fail"}}
 //
@@ -37,6 +42,7 @@ package health
 
 import (
 	"net/http"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
@@ -53,14 +59,64 @@ const (
 	StatusOK = "ok"
 	// StatusFail 表示检查未通过。
 	StatusFail = "fail"
+	// StatusUP 标准健康模板中存活状态取值。
+	StatusUP = "UP"
 )
 
-// response 探针统一响应体。
-// Dependencies 使用 omitempty：/live 与 /startup 不返回该字段；
+// response 就绪/启动探针统一响应体。
+// Dependencies 使用 omitempty：/startup 不返回该字段；
 // 没有任何数据源被启用时也不会出现 null，而是直接省略。
 type response struct {
 	Status       string            `json:"status"`
 	Dependencies map[string]string `json:"dependencies,omitempty"`
+}
+
+// standardHealthData 标准健康模板的 data 字段。
+type standardHealthData struct {
+	Status  string `json:"status"`
+	Version string `json:"version"`
+	Uptime  int64  `json:"uptime"`
+}
+
+// standardHealth 是 /healthz 与 /health/live 共用的标准健康模板。
+type standardHealth struct {
+	Code    int                `json:"code"`
+	Msg     string             `json:"msg"`
+	SrvTime string             `json:"srvTime"`
+	Data    standardHealthData `json:"data"`
+}
+
+// processStart 记录进程启动时刻，用于计算 uptime（秒）。
+var processStart = time.Now()
+
+// buildStandardHealth 构造标准健康模板。
+// version 优先取 NewApp 注入的版本，否则回落到构建信息
+// （go build 未通过 -ldflags 注入版本时可能为 "(devel)" 或 "unknown"）。
+func buildStandardHealth() standardHealth {
+	return standardHealth{
+		Code:    1,
+		Msg:     "success",
+		SrvTime: time.Now().Format(time.RFC3339Nano),
+		Data: standardHealthData{
+			Status:  StatusUP,
+			Version: resolvedVersion(),
+			Uptime:  int64(time.Since(processStart).Seconds()),
+		},
+	}
+}
+
+// resolvedVersion 返回当前应用版本号。
+func resolvedVersion() string {
+	versionMu.RLock()
+	v := appVersion
+	versionMu.RUnlock()
+	if v != "" {
+		return v
+	}
+	if info, ok := debug.ReadBuildInfo(); ok && info.Main.Version != "" && info.Main.Version != "(devel)" {
+		return info.Main.Version
+	}
+	return "unknown"
 }
 
 // started / startedAt 记录应用是否已完成启动，供 /startup 探针使用。
@@ -69,6 +125,20 @@ var (
 	started   bool
 	startedAt time.Time
 )
+
+// appVersion 由 NewApp 在启动时通过 SetVersion 注入，供标准健康模板展示。
+var (
+	versionMu  sync.RWMutex
+	appVersion string
+)
+
+// SetVersion 注入应用版本号，供 /healthz、/health/live 的标准健康模板使用。
+// 建议在 NewApp() 中创建 App 后调用一次。
+func SetVersion(v string) {
+	versionMu.Lock()
+	defer versionMu.Unlock()
+	appVersion = v
+}
 
 // MarkStarted 标记应用已完成启动。
 // 业务应在所有初始化工作（数据源、缓存、定时任务、本地预热等）完成之后调用；
@@ -166,9 +236,18 @@ func Router(g *gin.RouterGroup) {
 	g.GET("/startup", startupHandler)
 }
 
-// liveHandler 存活探针：进程能响应即认为存活，不查任何依赖，避免依赖抖动导致容器被误重启。
+// liveHandler 存活探针：进程能响应即认为存活，不查任何依赖，恒返回 200。
+// 返回标准健康模板（与 /healthz 完全一致，满足二者同构的探针规范要求）。
 func liveHandler(c *gin.Context) {
-	c.JSON(http.StatusOK, response{Status: StatusOK})
+	c.JSON(http.StatusOK, buildStandardHealth())
+}
+
+// HealthzHandler 存活探针的别名端点（根路径 /healthz）。
+//
+// 它与 /health/live 调用完全相同的处理逻辑（liveHandler），因此两者返回结果
+// 永远一致，用于兼容同时要求 /healthz 与 /health/live 两种路径的探针规范。
+func HealthzHandler(c *gin.Context) {
+	liveHandler(c)
 }
 
 // readyHandler 就绪探针：实时检查所有已启用数据源，任一失败返回 503 并在响应体中逐项列出状态。
