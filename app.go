@@ -89,6 +89,8 @@ func NewApp(configFile, appName, version string, xlang bool) *App {
 		i18n:    xlang,
 		MGin:    &mgin{},
 	}
+	// 把应用版本号交给 health 包，供 /healthz、/health/live 标准健康模板展示。
+	health.SetVersion(version)
 	// 初始化配置，传入配置文件路径
 	Init(app.configFile)
 	//设置定时任务自动检查
@@ -197,8 +199,11 @@ func (app *App) mountHealth() {
 		return
 	}
 	health.Router(app.Router.Group("/health"))
+	// /healthz 是 /health/live 的根路径别名（health.HealthzHandler 直接委托 liveHandler），
+	// 两者返回结果完全一致。同样在一切 Use() 之前注册，不会被鉴权/限流中间件拦截。
+	app.Router.GET("/healthz", health.HealthzHandler)
 	app.healthMounted = true
-	logs.Info("健康检查探针已挂载: /health/live /health/ready /health/startup")
+	logs.Info("健康检查探针已挂载: /healthz /health/live /health/ready /health/startup")
 }
 
 // EnableHealth 显式启用健康检查探针，等价于配置 go.health.enabled=true。

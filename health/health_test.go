@@ -48,16 +48,55 @@ func TestHealthMain(t *testing.T) {
 		if w.Code != http.StatusOK {
 			t.Fatalf("期望 200，实际 %d", w.Code)
 		}
-		var body response
+		var body standardHealth
 		if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
 			t.Fatalf("解析响应失败: %v", err)
 		}
-		if body.Status != StatusOK {
-			t.Fatalf("期望 status=ok，实际 %q", body.Status)
+		if body.Code != 1 || body.Msg != "success" {
+			t.Fatalf("期望 code=1 msg=success，实际 code=%d msg=%q", body.Code, body.Msg)
 		}
-		// /live 不应返回 dependencies 字段。
-		if body.Dependencies != nil {
-			t.Fatalf("/live 不应包含 dependencies，实际 %v", body.Dependencies)
+		if body.Data.Status != StatusUP {
+			t.Fatalf("期望 data.status=UP，实际 %q", body.Data.Status)
+		}
+		if body.Data.Uptime < 0 {
+			t.Fatalf("uptime 不应为负，实际 %d", body.Data.Uptime)
+		}
+		if body.SrvTime == "" {
+			t.Fatalf("srvTime 不应为空")
+		}
+	})
+
+	t.Run("/healthz 与 /health/live 返回结果相同", func(t *testing.T) {
+		resetStarted(t)
+		// 同一次请求中分别打 /healthz（根路径别名）与 /health/live，断言二者返回结果一致。
+		r := gin.New()
+		r.GET("/healthz", HealthzHandler)
+		r.GET("/health/live", liveHandler)
+		r.GET("/health/ready", readyHandler)
+		r.GET("/health/startup", startupHandler)
+
+		z := httptest.NewRecorder()
+		r.ServeHTTP(z, httptest.NewRequest(http.MethodGet, "/healthz", nil))
+		live := httptest.NewRecorder()
+		r.ServeHTTP(live, httptest.NewRequest(http.MethodGet, "/health/live", nil))
+
+		if z.Code != live.Code {
+			t.Fatalf("/healthz 状态码 %d 与 /health/live %d 不一致", z.Code, live.Code)
+		}
+		// srvTime 随时间变化，只比较 code/msg/data（data 一致即代表两者结果相同）。
+		var zBody, liveBody standardHealth
+		if err := json.Unmarshal(z.Body.Bytes(), &zBody); err != nil {
+			t.Fatalf("解析 /healthz 响应失败: %v", err)
+		}
+		if err := json.Unmarshal(live.Body.Bytes(), &liveBody); err != nil {
+			t.Fatalf("解析 /health/live 响应失败: %v", err)
+		}
+		if zBody.Code != liveBody.Code || zBody.Msg != liveBody.Msg ||
+			zBody.Data != liveBody.Data {
+			t.Fatalf("/healthz %+v 与 /health/live %+v 不一致", zBody, liveBody)
+		}
+		if zBody.Data.Status != StatusUP {
+			t.Fatalf("/healthz data.status 期望 UP，实际 %q", zBody.Data.Status)
 		}
 	})
 
