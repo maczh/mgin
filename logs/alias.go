@@ -14,6 +14,7 @@ type (
 	GoLogger    = pkglogs.GoLogger
 	Color       = pkglogs.Color
 	Attribute   = pkglogs.Attribute
+	GORMLogger  = pkglogs.GORMLogger
 )
 
 // 包级变量。
@@ -24,32 +25,35 @@ var (
 
 // 包级函数。
 var (
-	Print          = pkglogs.Print
-	FilePrinter    = pkglogs.FilePrinter
-	GetLogger      = pkglogs.GetLogger
-	OutPrint       = pkglogs.OutPrint
-	Debug          = pkglogs.Debug
-	Info           = pkglogs.Info
-	Warn           = pkglogs.Warn
-	Error          = pkglogs.Error
-	ConsolePrinter = pkglogs.ConsolePrinter
-	New            = pkglogs.New
-	Set            = pkglogs.Set
-	Unset          = pkglogs.Unset
-	Black          = pkglogs.Black
-	Red            = pkglogs.Red
-	Green          = pkglogs.Green
-	Yellow         = pkglogs.Yellow
-	Blue           = pkglogs.Blue
-	Magenta        = pkglogs.Magenta
-	Cyan           = pkglogs.Cyan
-	White          = pkglogs.White
-	BlackString    = pkglogs.BlackString
-	RedString      = pkglogs.RedString
-	GreenString    = pkglogs.GreenString
-	YellowString   = pkglogs.YellowString
-	BlueString     = pkglogs.BlueString
-	MagentaString  = pkglogs.MagentaString
-	CyanString     = pkglogs.CyanString
-	WhiteString    = pkglogs.WhiteString
+	Print           = pkglogs.Print
+	FilePrinter     = pkglogs.FilePrinter
+	GetLogger       = pkglogs.GetLogger
+	NewGORMLogger   = pkglogs.NewGORMLogger
+	RegisterHandler = pkglogs.RegisterHandler
+	FormatRecord    = pkglogs.FormatRecord
+	OutPrint        = pkglogs.OutPrint
+	Debug           = pkglogs.Debug
+	Info            = pkglogs.Info
+	Warn            = pkglogs.Warn
+	Error           = pkglogs.Error
+	ConsolePrinter  = pkglogs.ConsolePrinter
+	New             = pkglogs.New
+	Set             = pkglogs.Set
+	Unset           = pkglogs.Unset
+	Black           = pkglogs.Black
+	Red             = pkglogs.Red
+	Green           = pkglogs.Green
+	Yellow          = pkglogs.Yellow
+	Blue            = pkglogs.Blue
+	Magenta         = pkglogs.Magenta
+	Cyan            = pkglogs.Cyan
+	White           = pkglogs.White
+	BlackString     = pkglogs.BlackString
+	RedString       = pkglogs.RedString
+	GreenString     = pkglogs.GreenString
+	YellowString    = pkglogs.YellowString
+	BlueString      = pkglogs.BlueString
+	MagentaString   = pkglogs.MagentaString
+	CyanString      = pkglogs.CyanString
+	WhiteString     = pkglogs.WhiteString
 )

@@ -8,7 +8,7 @@ import (
 	"github.com/knadh/koanf"
 	"github.com/knadh/koanf/parsers/yaml"
 	"github.com/knadh/koanf/providers/rawbytes"
-	"github.com/sadlil/gologger"
+	"github.com/maczh/mgin/v2/pkg/logs"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 )
@@ -24,7 +24,7 @@ type MysqlClient struct {
 	cache    bool
 }
 
-var logger = gologger.GetLogger()
+var logger = logs.GetLogger()
 
 func (m *MysqlClient) Init(mysqlConfigData []byte) {
 	//if mysqlConfigUrl != "" {
@@ -69,7 +69,7 @@ func (m *MysqlClient) Init(mysqlConfigData []byte) {
 			dbNames := strings.Split(m.conf.String("go.data.mysql.dbNames"), ",")
 			for _, dbName := range dbNames {
 				if dbName != "" && m.conf.String("go.data.mysql."+dbName) != "" {
-					conn, err := gorm.Open(mysql.Open(m.conf.String("go.data.mysql."+dbName)), &gorm.Config{})
+					conn, err := gorm.Open(mysql.Open(m.conf.String("go.data.mysql."+dbName)), &gorm.Config{Logger: logs.NewGORMLogger()})
 					if err != nil {
 						logger.Error(dbName + " mysql connection error:" + err.Error())
 						continue
@@ -79,7 +79,7 @@ func (m *MysqlClient) Init(mysqlConfigData []byte) {
 				}
 			}
 		} else {
-			m.mysql, err = gorm.Open(mysql.Open(m.conf.String("go.data.mysql")), &gorm.Config{})
+			m.mysql, err = gorm.Open(mysql.Open(m.conf.String("go.data.mysql")), &gorm.Config{Logger: logs.NewGORMLogger()})
 			if err != nil {
 				logger.Error("mysql connection error:" + err.Error())
 				return

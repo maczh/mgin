@@ -1,19 +1,12 @@
-# logs 对github.com/sadlil/gologger的二次封装
+# logs
 
-## 说明
-
-+ 无需声明logger对象
-+ 使用方法类似slf4j的logger，格式中用{}替换传入值的内容
-+ 可以使用mgconfig初始化配置中，在配置文件中定义 go.log.level为 debug,info,warn,error
-
-## 安装
-
-go get -u github.com/maczh/logs
-
-## 使用范例
+MGIN 日志输出，使用 `{}` 替换参数：
 
 ```go
-    str := "测试"
-    m := map[string]any{"userid": 1,"username":"mmaacc"}
-    logs.Debug("测试日志,str:{},m:{}",str,m)
+logs.Info("用户 {} 登录", userID)
 ```
+
+级别由 `go.logger.level`（debug/info/warn/error）控制。
+`go.application.debug=true` 强制 debug。旧的 `go.logger.out/file` 配置保持兼容。
+多目标 text/JSON、字段选择、文本模板、协程 ID、外部 logsink handler 和 GORM 日志配置
+参见 [README_CN.md](../../README_CN.md#logs-运行日志的多目标输出)。

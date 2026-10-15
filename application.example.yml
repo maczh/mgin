@@ -17,6 +17,18 @@ go:
     level: debug
     out: console,file
     file: /opt/logs/myapp
+    # outputs 非空时替代 out/file；外部 target 需先注册运行日志 handler
+    # outputs:
+    #   - target: console
+    #     format: text
+    #     fields: [time, level, goroutine_id, request_id, message]
+    #     logtext: "[{time}] [{level}] [g:{goroutine_id}] [{request_id}] {message}"
+    #   - target: file
+    #     file: ./logs/myapp
+    #     format: json
+    #   - target: kafka
+    #     format: json
+    #     fields: [time, level, app, goroutine_id, request_id, message]
   config:
     # 启用的组件，逗号分隔。下列组件按需增删：
     #   sqlite  —— 定时任务(job)需要至少一个数据库；此处用 sqlite 演示

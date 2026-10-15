@@ -2028,10 +2028,72 @@ logsink.Unregister("kafka", 3*time.Second)  // 注销：停止接收 → 排空 
 logsink.Close(3*time.Second)                // 全部注销，postlog.Close() / SafeExit 内部已调用
 ```
 
-丢弃与写失败默认静默；框架在 `postlog` 内已接管为 `logs` 输出，业务方可用 `SetDropLogger` / `SetErrorLogger` 覆盖（如接入 Prometheus）。
+丢弃与写失败默认静默；框架在 `postlog` 内使用标准库 `log.Printf` 输出，避免运行日志 handler 失败时循环投递。业务方可用 `SetDropLogger` / `SetErrorLogger` 覆盖（如接入 Prometheus）。
 
 ### 25.5 升级说明
 
 - `go.log.kafka.use` 此前从未真正生效（旧代码只有配置没有发送逻辑）。现在 Kafka 由 `mgkafka` 插件以 handler 形式接入，配置里的 `topic` 仍可复用；
 - 旧代码中的 `postlog.Mgo`（导出变量）随重构移除，其 `Set` 方法本就会被每次请求覆盖，无实际用途；需要自定义落库请改用 `logsink.Register`；
 - 修复：`go.sys.swagger.uri` 为空时，`strings.Contains(path, "")` 恒为真导致**全部接口日志被跳过**。
+
+### logs 运行日志的多目标输出
+
+v2 使用 `github.com/maczh/mgin/v2/pkg/logs` 和 `github.com/maczh/mgin/v2/pkg/logsink`。
+`NewApp` 加载日志配置，普通日志无需额外初始化。外部目标应在配置加载后先初始化发送端，
+再注册 `RecordHandler`，最后启动业务和请求处理；注册前的外部目标日志不会补发。
+
+`go.logger.outputs` 非空时替代旧的 `out/file` 输出选择；未配置时继续使用旧配置。
+每个目标独立选择 `text`/`json`、字段白名单和 `logtext` 文本模板：
+
+```yaml
+go:
+  logger:
+    level: info
+    outputs:
+      - target: console
+        format: text
+        fields: [time, level, goroutine_id, request_id, message]
+        logtext: "[{time}] [{level}] [g:{goroutine_id}] [{request_id}] {message}"
+      - target: file
+        file: ./logs/application
+        format: json
+        fields: [time, level, app, goroutine_id, request_id, file, line, message]
+      - target: elasticsearch
+        format: json
+      - target: kafka
+        format: json
+        fields: [time, level, app, goroutine_id, request_id, message]
+```
+
+`console`、`file` 是内置目标；其他名称对应启动时注册的运行日志 handler，名称必须与
+`target` 一致。Elasticsearch/Kafka 的连接、认证、索引、topic、超时等由外部插件管理，
+框架不会仅凭目标名称自动建立连接。文件仍按 `前缀.YYYY-MM-DD.log` 每日分文件。
+
+```go
+// 在开始处理请求前注册；sendToKafka 是业务或插件提供的发送函数。
+err := logs.RegisterHandler(logsink.NewRecordHandlerFunc("kafka", func(r *logsink.Record) error {
+    return sendToKafka(r.Data) // 已按该目标配置格式化的字节，不含末尾换行
+}))
+if err != nil {
+    return err
+}
+```
+
+可选字段：`time`（RFC3339Nano）、`level`、`app`、`request_id`、`goroutine_id`、
+`package`、`file`、`function`、`line`、`message`。不指定 `fields` 时包含全部字段；
+`logtext` 使用 `{字段名}`，被白名单排除的字段替换为空字符串，仅对 text 生效。
+`goroutine_id` 是产生日志的协程 ID，异步写入后保持原值；`request_id` 继续关联请求。
+旧文本输出也附加 `goroutine_id`。`logs.Debug/Info/Warn/Error` 的 `{}` 参数格式保持不变。
+
+运行日志 handler 使用 `RegisterRecord/EmitRecordTo/RecordStats/UnregisterRecord`，
+原来的 `Register/Emit/Stats/Unregister` 仍只处理 `PostLog`，两类 handler 可同名。
+`logs.RegisterHandler` 默认采用 `go.log.sink.queue/workers`，也可传入覆盖选项。
+队列满时丢弃并计数；`logsink.Close`（框架退出时调用）排空并关闭两类 handler。
+异步发送后不得修改 Record 或 Data。handler 内不要再次调用 logs，以免循环投递；
+应设置下游超时并通过返回 error 报告失败。
+
+框架 MySQL（包括多库）、SQLite 以及复用这些连接的 Casbin GORM 日志现在均使用
+`logs.NewGORMLogger()`，遵循相同的输出配置和 logs 级别过滤。
+GORM 默认记录错误及超过 200ms 的慢查询，忽略 record-not-found 错误；
+`mysql_debug` 或 GORM `.Debug()` 将 GORM 日志级别设为 Info，普通 SQL 还需
+`go.logger.level=info/debug` 才会输出。可通过 `NewGORMLogger` 的字段调整阈值。

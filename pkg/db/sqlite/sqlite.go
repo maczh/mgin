@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/maczh/mgin/v2/pkg/config"
-	"github.com/sadlil/gologger"
+	"github.com/maczh/mgin/v2/pkg/logs"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -17,7 +17,7 @@ type Sqlite struct {
 	dbFile string
 }
 
-var logger = gologger.GetLogger()
+var logger = logs.GetLogger()
 
 func (m *Sqlite) Init(dbFileName string) {
 	path, _ := filepath.Abs(filepath.Dir(os.Args[0]))
@@ -28,7 +28,11 @@ func (m *Sqlite) Init(dbFileName string) {
 	}
 	m.dbFile = dbFileName
 	if m.sqlite == nil {
-		m.sqlite, _ = gorm.Open(sqlite.Open(m.dbFile), &gorm.Config{})
+		var err error
+		m.sqlite, err = gorm.Open(sqlite.Open(m.dbFile), &gorm.Config{Logger: logs.NewGORMLogger()})
+		if err != nil {
+			logger.Error("SQLite打开失败: " + err.Error())
+		}
 	}
 }
 

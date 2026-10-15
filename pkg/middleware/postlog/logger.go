@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"mime"
 	"path"
 	"strings"
@@ -139,10 +140,10 @@ func Close() {
 func RequestLogger() gin.HandlerFunc {
 	initOnce.Do(func() {
 		logsink.SetDropLogger(func(name string, dropped uint64) {
-			logs.Warn("接口日志handler {} 队列已满，累计丢弃 {} 条，请调大 go.log.sink.queue 或排查下游性能", name, dropped)
+			log.Printf("logsink handler %s 队列已满，累计丢弃 %d 条", name, dropped)
 		})
 		logsink.SetErrorLogger(func(name string, err error) {
-			logs.Error("接口日志handler {} 处理失败:{}", name, err.Error())
+			log.Printf("logsink handler %s 处理失败: %v", name, err)
 		})
 		registerMongoHandler()
 	})
