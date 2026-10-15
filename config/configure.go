@@ -67,7 +67,18 @@ type jwtConfig struct {
 	Secret string `json:"secret" bson:"secret"`
 }
 
+// LogOutput configures one application log destination. External targets name a registered RecordHandler.
+type LogOutput struct {
+	Target  string   `json:"target"`
+	Format  string   `json:"format"`
+	Fields  []string `json:"fields"`
+	LogText string   `json:"logtext"`
+	File    string   `json:"file"`
+}
+
 type appLogger struct {
+	Outputs []LogOutput `json:"outputs" bson:"outputs"`
+
 	Level string `json:"level" bson:"level"`
 	Out   string `json:"out" bson:"out"`
 	File  string `json:"file" bson:"file"`
@@ -181,6 +192,11 @@ func (c *config) Init(cf string) {
 	}
 	if c.Log.Sink.Shutdown <= 0 {
 		c.Log.Sink.Shutdown = 3000
+	}
+	c.Logger.Outputs = nil
+	if err := c.Cnf.Unmarshal("go.logger.outputs", &c.Logger.Outputs); err != nil {
+		logger.Error("日志输出配置解析错误: " + err.Error())
+		c.Logger.Outputs = nil
 	}
 	c.Logger.Level = c.Cnf.String("go.logger.level")
 	c.Logger.Out = c.Cnf.String("go.logger.out")

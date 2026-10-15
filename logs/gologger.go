@@ -1,7 +1,11 @@
 package logs
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/maczh/mgin/config"
+	"github.com/maczh/mgin/middleware/trace"
 )
 
 const (
@@ -39,50 +43,24 @@ func GetLogger(selector ...string) GoLogger {
 	return GoLogger{loggers}
 }
 
-func (log GoLogger) Log(message string) {
-	for _, logger := range log.Loggers {
-		logPrinter(LogInstance{LogType: "LOG", Message: message, LoggerInit: logger})
+// write sends one event to the configured destinations.
+func (log GoLogger) write(level, message string) {
+	if len(config.Config.Logger.Outputs) > 0 {
+		levels := map[string]string{"LOG": "info", "MSG": "info", "INF": "info", "WRN": "warn", "DBG": "debug", "ERR": "error", "CRT": "error", "RSS": "info"}
+		writeRecord(captureRecord(levels[level], message), config.Config.Logger.Outputs)
+		return
+	}
+	message = fmt.Sprintf("[goroutine_id=%d] %s", trace.GetGoroutineID(), message)
+	for _, destination := range log.Loggers {
+		logPrinter(LogInstance{LogType: level, Message: message, LoggerInit: destination})
 	}
 }
 
-func (log GoLogger) Message(message string) {
-	for _, logger := range log.Loggers {
-		logPrinter(LogInstance{LogType: "MSG", Message: message, LoggerInit: logger})
-	}
-}
-
-func (log GoLogger) Info(message string) {
-	for _, logger := range log.Loggers {
-		logPrinter(LogInstance{LogType: "INF", Message: message, LoggerInit: logger})
-	}
-}
-
-func (log GoLogger) Warn(message string) {
-	for _, logger := range log.Loggers {
-		logPrinter(LogInstance{LogType: "WRN", Message: message, LoggerInit: logger})
-	}
-}
-
-func (log GoLogger) Debug(message string) {
-	for _, logger := range log.Loggers {
-		logPrinter(LogInstance{LogType: "DBG", Message: message, LoggerInit: logger})
-	}
-}
-
-func (log GoLogger) Error(message string) {
-	for _, logger := range log.Loggers {
-		logPrinter(LogInstance{LogType: "ERR", Message: message, LoggerInit: logger})
-	}
-}
-
-func (log GoLogger) Fatal(message string) {
-	for _, logger := range log.Loggers {
-		logPrinter(LogInstance{LogType: "CRT", Message: message, LoggerInit: logger})
-	}
-}
-
-func (log GoLogger) ReplaceMessage(message string) {
-	for _, logger := range log.Loggers {
-		logPrinter(LogInstance{LogType: "RSS", Message: message, LoggerInit: logger})
-	}
-}
+func (log GoLogger) Log(message string)            { log.write("LOG", message) }
+func (log GoLogger) Message(message string)        { log.write("MSG", message) }
+func (log GoLogger) Info(message string)           { log.write("INF", message) }
+func (log GoLogger) Warn(message string)           { log.write("WRN", message) }
+func (log GoLogger) Debug(message string)          { log.write("DBG", message) }
+func (log GoLogger) Error(message string)          { log.write("ERR", message) }
+func (log GoLogger) Fatal(message string)          { log.write("CRT", message); os.Exit(1) }
+func (log GoLogger) ReplaceMessage(message string) { log.write("RSS", message) }

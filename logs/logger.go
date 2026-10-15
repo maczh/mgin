@@ -7,7 +7,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/maczh/mgin/config"
 	"github.com/maczh/mgin/middleware/trace"
 )
 
@@ -20,26 +19,6 @@ type LogInstance struct {
 	LogType    string
 	Message    string
 	LoggerInit Logger
-}
-
-var logger GoLogger
-var logLevel = "error"
-
-func initConfig() {
-	l := config.Config.Logger.Out
-	if l != "" {
-		loggers := strings.Split(l, ",")
-		logger = GetLogger(loggers...)
-	} else {
-		logger = GetLogger()
-	}
-	level := config.Config.Logger.Level
-	if level != "" {
-		logLevel = level
-	}
-	if config.Config.App.Debug {
-		logLevel = "debug"
-	}
 }
 
 func toJSON(o any) string {
@@ -55,7 +34,7 @@ func toJSON(o any) string {
 	}
 }
 
-func OutPrint(format string, v []any) string {
+func formatMessage(format string, v []any) string {
 	for _, value := range v {
 		str := ""
 		if value == nil {
@@ -82,39 +61,19 @@ func OutPrint(format string, v []any) string {
 		}
 		format = strings.Replace(format, "{}", str, 1)
 	}
-	traceId := trace.GetRequestId()
-	if traceId != "" {
-		format = "[" + traceId + "] " + format
-	}
 	return format
 }
 
-func Debug(format string, v ...any) {
-	initConfig()
-	switch logLevel {
-	case "debug":
-		logger.Debug(OutPrint(format, v))
+// OutPrint formats placeholders and includes the current request ID.
+func OutPrint(format string, v []any) string {
+	message := formatMessage(format, v)
+	if id := trace.GetRequestId(); id != "" {
+		message = "[" + id + "] " + message
 	}
+	return message
 }
 
-func Info(format string, v ...any) {
-	initConfig()
-	switch logLevel {
-	case "debug", "info":
-		logger.Info(OutPrint(format, v))
-	}
-}
-func Warn(format string, v ...any) {
-	initConfig()
-	switch logLevel {
-	case "debug", "info", "warn":
-		logger.Warn(OutPrint(format, v))
-	}
-}
-func Error(format string, v ...any) {
-	initConfig()
-	switch logLevel {
-	case "debug", "info", "warn", "error":
-		logger.Error(OutPrint(format, v))
-	}
-}
+func Debug(format string, v ...any) { emit("debug", format, v) }
+func Info(format string, v ...any)  { emit("info", format, v) }
+func Warn(format string, v ...any)  { emit("warn", format, v) }
+func Error(format string, v ...any) { emit("error", format, v) }

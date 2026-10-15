@@ -2,9 +2,6 @@ package logs
 
 import (
 	"os"
-	"path"
-	"runtime"
-	"strings"
 	"time"
 )
 
@@ -29,24 +26,6 @@ type callerInfo struct {
 }
 
 func retrieveCallInfo() *callerInfo {
-	pc, file, line, _ := runtime.Caller(4)
-	_, fileName := path.Split(file)
-	parts := strings.Split(strings.ReplaceAll(runtime.FuncForPC(pc).Name(), "[...]", ""), ".")
-	pl := len(parts)
-	packageName := ""
-	funcName := parts[pl-1]
-
-	if parts[pl-2][0] == '(' {
-		funcName = parts[pl-2] + "." + funcName
-		packageName = strings.Join(parts[0:pl-2], ".")
-	} else {
-		packageName = strings.Join(parts[0:pl-1], ".")
-	}
-
-	return &callerInfo{
-		packageName: packageName,
-		fileName:    fileName,
-		funcName:    funcName,
-		line:        line,
-	}
+	r := captureRecord("", "")
+	return &callerInfo{packageName: r.Package, fileName: r.File, line: r.Line, funcName: r.Function}
 }

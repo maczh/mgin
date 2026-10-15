@@ -107,7 +107,7 @@ func (c *Color) Set() *Color {
 		return c
 	}
 
-	fmt.Fprintf(Output, c.format())
+	fmt.Fprint(Output, c.format())
 	return c
 }
 

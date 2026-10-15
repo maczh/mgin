@@ -1,4 +1,4 @@
-// Package logsink 提供 MGIN 接口访问日志(PostLog)的异步分发能力。
+// Package logsink 提供 MGIN 接口访问日志(PostLog)和运行日志(Record)的异步分发能力。
 //
 // 设计目标：
 //  1. 中间件 middleware/postlog 只负责产生日志并调用 Emit，不关心日志落到哪里；
@@ -85,7 +85,7 @@ var ErrInvalidHandler = errors.New("logsink: handler 不能为空且 Name 不能
 
 var (
 	mu       sync.RWMutex
-	registry = make(map[string]*sink)
+	registry = make(map[string]*sink[Entry])
 	order    []string
 )
 
@@ -214,27 +214,29 @@ func Close(timeout time.Duration) {
 	mu.Lock()
 	names := make([]string, len(order))
 	copy(names, order)
-	sinks := make([]*sink, 0, len(names))
+	sinks := make([]*sink[Entry], 0, len(names))
 	for _, name := range names {
 		sinks = append(sinks, registry[name])
 	}
-	registry = make(map[string]*sink)
+	registry = make(map[string]*sink[Entry])
 	order = nil
 	mu.Unlock()
 
 	for _, s := range sinks {
 		s.stop(timeout)
 	}
+	closeRecords(timeout)
 }
 
 // Reset 清空全部 Handler（不等待排空、不调用 Closer），仅用于测试。
 func Reset() {
+	resetRecords()
 	mu.Lock()
 	defer mu.Unlock()
 	for _, s := range registry {
 		s.halt()
 	}
-	registry = make(map[string]*sink)
+	registry = make(map[string]*sink[Entry])
 	order = nil
 }
 
@@ -259,11 +261,16 @@ func Stats() []HandlerStats {
 }
 
 // sink 一个 Handler 的运行实例。
-type sink struct {
+type typedHandler[T any] interface {
+	Name() string
+	Write(*T) error
+}
+
+type sink[T any] struct {
 	name    string
-	h       Handler
+	h       typedHandler[T]
 	workers int
-	ch      chan *Entry
+	ch      chan *T
 	done    chan struct{}
 	wg      sync.WaitGroup
 	once    sync.Once
@@ -276,22 +283,25 @@ type sink struct {
 	lastErrNotify  atomic.Int64
 }
 
-func newSink(h Handler, opt Options) *sink {
-	return &sink{
-		name: h.Name(),
-		h:    h,
-		ch:   make(chan *Entry, opt.QueueSize),
-		done: make(chan struct{}),
+func newSink[T any](h typedHandler[T], opt Options) *sink[T] {
+	return &sink[T]{
+		name:    h.Name(),
+		h:       h,
+		workers: opt.Workers,
+		ch:      make(chan *T, opt.QueueSize),
+		done:    make(chan struct{}),
 	}
 }
 
-func (s *sink) start() {
-	s.wg.Add(1)
-	go s.loop()
+func (s *sink[T]) start() {
+	for i := 0; i < s.workers; i++ {
+		s.wg.Add(1)
+		go s.loop()
+	}
 	// 多 worker 时其余协程共用同一队列，不保证顺序。
 }
 
-func (s *sink) loop() {
+func (s *sink[T]) loop() {
 	defer s.wg.Done()
 	for {
 		select {
@@ -305,7 +315,7 @@ func (s *sink) loop() {
 }
 
 // drain 处理关闭信号后队列中残留的日志。
-func (s *sink) drain() {
+func (s *sink[T]) drain() {
 	for {
 		select {
 		case entry := <-s.ch:
@@ -316,7 +326,7 @@ func (s *sink) drain() {
 	}
 }
 
-func (s *sink) handle(entry *Entry) {
+func (s *sink[T]) handle(entry *T) {
 	defer func() {
 		if r := recover(); r != nil {
 			s.failed.Add(1)
@@ -332,7 +342,7 @@ func (s *sink) handle(entry *Entry) {
 }
 
 // deliver 非阻塞投递，队列满则丢弃。
-func (s *sink) deliver(entry *Entry) bool {
+func (s *sink[T]) deliver(entry *T) bool {
 	if s.closed.Load() {
 		return false
 	}
@@ -346,7 +356,7 @@ func (s *sink) deliver(entry *Entry) bool {
 }
 
 // stop 停止接收并等待排空，随后调用 Closer。
-func (s *sink) stop(timeout time.Duration) {
+func (s *sink[T]) stop(timeout time.Duration) {
 	s.closed.Store(true)
 	s.once.Do(func() { close(s.done) })
 	if !waitTimeout(&s.wg, timeout) {
@@ -360,12 +370,12 @@ func (s *sink) stop(timeout time.Duration) {
 }
 
 // halt 立即停止，不等待排空（仅测试用）。
-func (s *sink) halt() {
+func (s *sink[T]) halt() {
 	s.closed.Store(true)
 	s.once.Do(func() { close(s.done) })
 }
 
-func (s *sink) stats() HandlerStats {
+func (s *sink[T]) stats() HandlerStats {
 	return HandlerStats{
 		Name:    s.name,
 		Queued:  len(s.ch),
@@ -375,7 +385,7 @@ func (s *sink) stats() HandlerStats {
 	}
 }
 
-func (s *sink) notifyDrop(total uint64) {
+func (s *sink[T]) notifyDrop(total uint64) {
 	fn := dropLogger.Load()
 	if fn == nil {
 		return
@@ -386,7 +396,7 @@ func (s *sink) notifyDrop(total uint64) {
 	(*fn)(s.name, total)
 }
 
-func (s *sink) notifyError(err error) {
+func (s *sink[T]) notifyError(err error) {
 	fn := errorLogger.Load()
 	if fn == nil {
 		return
