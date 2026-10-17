@@ -847,7 +847,7 @@ resp, err := client.Call("user-service", "/api/v1/user/get", &client.Options{
 
 // 泛型：直接解析为 models.Result[T]
 var user User
-result := client.CallT[User]("user-service", "/api/v1/user/get", &client.Options{
+result := client.CallResultT[User]("user-service", "/api/v1/user/get", &client.Options{
     Protocol: client.CONTENT_TYPE_JSON,
     Json:     map[string]any{"id": 1},
 })
@@ -857,14 +857,14 @@ if result.Status != 1 {
 user = result.Data
 
 // restful 风格
-result := client.CallT[Order]("order-service", "/api/v1/order/{oid}", &client.Options{
+result := client.CallResultT[Order]("order-service", "/api/v1/order/{oid}", &client.Options{
     Protocol: client.CONTENT_TYPE_RESTFUL,
     Method:   "GET",
     Path:     map[string]string{"oid": "1001"},
 })
 
 // 文件上传
-result := client.CallT[any]("file-service", "/upload", &client.Options{
+result := client.CallResultT[any]("file-service", "/upload", &client.Options{
     Files: []grequests.FileUpload{{FileName: "a.png", FileReader: f}},
 })
 ```
@@ -1092,7 +1092,7 @@ func GetUser(c *gin.Context) {
 }
 ```
 
-> 多语言数据源为外部 `x-lang` 微服务，框架在 `i18n.Init()` 时拉取并每 5 分钟刷新；内置中文消息 ID 见 `errcode` 包。
+> 多语言数据源为内置数据库字典，表名为 `<app.name>_i18n`。已配置 MySQL 时复用其连接，否则使用 SQLite；翻译直接查询字典。CRUD 与迁移配置见 [内置 i18n 字典](docs/i18n.md)。
 
 
 
@@ -1497,7 +1497,7 @@ A：未在 `GetConnection()` 后用 `ReturnConnection` 归还。务必 `defer db
 A：目标服务未注册到注册中心，或 `go.discovery.registry` 类型不匹配；确认服务名与分组正确。
 
 **Q：i18n 文本没生效？**
-A：`NewApp` 第四参数需为 `true`，且需配置 `x-lang` 微服务；内置中文走 `errcode` 常量兜底。
+A：`NewApp` 第四参数需为 `true`，或设置 `go.i18n.enabled: true`，并向 `<app.name>_i18n` 表添加对应消息与语言的字典条目；未命中返回原消息 ID。
 
 **Q：多库如何切换？**
 A：配置 `multidb:true` + `dbNames`；运行时 `GetConnection("test2")` 或 DAO 的 `Tag` 闭包返回库名。`IsMultiDB()` / `ListConnNames()` 可用于判断。
@@ -1948,7 +1948,7 @@ HTTP 请求 → postlog 中间件 → logsink.Emit(*models.PostLog)  ← 非阻�
 ```
 
 - 每个 handler 拥有**独立缓冲队列与消费协程**，慢 handler 拖不垮其它目标；
-- 队列满即丢弃并计数（60 秒限流的 warn 日志），**绝不让日志写不出去拖慢接口**；
+- 队列满时淘汰最早的待写日志并计数（60 秒限流的 warn 日志），**绝不让日志写不出去拖慢接口**；
 - handler 内部 panic 被 recover，返回 error 仅统计与告警；
 - `mgin.SafeExit()` 会先排空队列再关闭连接，减少退出时的日志丢失。
 
@@ -1960,8 +1960,8 @@ go:
     req: MyappRequestLog      # 非空且启用 mongodb 时自动注册内置 mongodb handler
     dbName: Partner-Id        # 多库时从 header 取该参数作库名标签
     sink:
-      queue: 1024             # 每个 handler 的队列长度，默认 1024
-      workers: 1              # 每个 handler 的消费协程数，默认 1（>1 不保证顺序）
+      queue: 100             # 每个 handler 的队列长度，默认/最大 100
+      workers: 1              # 固定单消费者，保证 FIFO
       shutdown: 3000          # 退出时等待队列排空的毫秒数，默认 3000
 ```
 
@@ -2089,3 +2089,7 @@ if err != nil {
 GORM 默认记录错误及超过 200ms 的慢查询，忽略 record-not-found 错误；
 `mysql_debug` 或 GORM `.Debug()` 将 GORM 日志级别设为 Info，普通 SQL 还需
 `go.logger.level=info/debug` 才会输出。可通过 `NewGORMLogger` 的字段调整阈值。
+
+VictoriaLogs 内置日志上报与 YAML 重定向配置见 [VictoriaLogs 接入说明](docs/victorialogs.md)。
+
+`client.CallT[T]` 返回 `vo.Response[T]`，`client.CallPageT[T]` 返回 `vo.ResponsePage[T]`；按 `Code == vo.SUCCESS` 判断成功。调用或解析失败返回 `Code: -1`。旧 `models.Result[T]` 协议请改用 `client.CallResultT[T]`。

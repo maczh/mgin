@@ -53,25 +53,25 @@ const (
 type Options struct {
 	// QueueSize 缓冲队列长度，<=0 使用 DefaultQueueSize。
 	QueueSize int
-	// Workers 消费协程数，<=0 使用 DefaultWorkers。大于 1 时不保证处理顺序。
+	// Workers 保留兼容字段，统一使用单协程以保证 FIFO。
 	Workers int
 }
 
 // Option 注册时的可选配置。
 type Option func(*Options)
 
-// WithQueueSize 设置该 Handler 的缓冲队列长度。
+// WithQueueSize 设置缓冲队列长度，最大 100。
 func WithQueueSize(n int) Option { return func(o *Options) { o.QueueSize = n } }
 
-// WithWorkers 设置该 Handler 的消费协程数。
+// WithWorkers 保留兼容；消费协程数固定为 1，保证 FIFO。
 func WithWorkers(n int) Option { return func(o *Options) { o.Workers = n } }
 
 func (o *Options) normalize() Options {
 	opt := Options{QueueSize: o.QueueSize, Workers: o.Workers}
-	if opt.QueueSize <= 0 {
+	if opt.QueueSize <= 0 || opt.QueueSize > DefaultQueueSize {
 		opt.QueueSize = DefaultQueueSize
 	}
-	if opt.Workers <= 0 {
+	if opt.Workers != DefaultWorkers {
 		opt.Workers = DefaultWorkers
 	}
 	return opt
@@ -186,7 +186,7 @@ func HandlerNames() []string {
 }
 
 // Emit 异步投递一条日志到所有 Handler。
-// 非阻塞：队列满时该条日志对该 Handler 丢弃并计数。返回是否至少投递成功一个 Handler。
+// 非阻塞：队列满时淘汰最早的待写日志并计数。返回是否至少投递成功一个 Handler。
 func Emit(entry *Entry) bool {
 	if entry == nil {
 		return false
@@ -267,17 +267,18 @@ type typedHandler[T any] interface {
 }
 
 type sink[T any] struct {
-	name    string
-	h       typedHandler[T]
-	workers int
-	ch      chan *T
-	done    chan struct{}
-	wg      sync.WaitGroup
-	once    sync.Once
-	closed  atomic.Bool
-	dropped atomic.Uint64
-	written atomic.Uint64
-	failed  atomic.Uint64
+	name      string
+	h         typedHandler[T]
+	workers   int
+	deliverMu sync.Mutex
+	ch        chan *T
+	done      chan struct{}
+	wg        sync.WaitGroup
+	once      sync.Once
+	closed    atomic.Bool
+	dropped   atomic.Uint64
+	written   atomic.Uint64
+	failed    atomic.Uint64
 
 	lastDropNotify atomic.Int64
 	lastErrNotify  atomic.Int64
@@ -298,7 +299,6 @@ func (s *sink[T]) start() {
 		s.wg.Add(1)
 		go s.loop()
 	}
-	// 多 worker 时其余协程共用同一队列，不保证顺序。
 }
 
 func (s *sink[T]) loop() {
@@ -341,23 +341,36 @@ func (s *sink[T]) handle(entry *T) {
 	s.written.Add(1)
 }
 
-// deliver 非阻塞投递，队列满则丢弃。
+// deliver 非阻塞投递，队列满则淘汰最早的待写日志。
 func (s *sink[T]) deliver(entry *T) bool {
+	s.deliverMu.Lock()
 	if s.closed.Load() {
+		s.deliverMu.Unlock()
 		return false
 	}
+	var dropped uint64
 	select {
 	case s.ch <- entry:
-		return true
 	default:
-		s.notifyDrop(s.dropped.Add(1))
-		return false
+		select {
+		case <-s.ch:
+			dropped = s.dropped.Add(1)
+		default:
+		}
+		s.ch <- entry
 	}
+	s.deliverMu.Unlock()
+	if dropped > 0 {
+		s.notifyDrop(dropped)
+	}
+	return true
 }
 
 // stop 停止接收并等待排空，随后调用 Closer。
 func (s *sink[T]) stop(timeout time.Duration) {
+	s.deliverMu.Lock()
 	s.closed.Store(true)
+	s.deliverMu.Unlock()
 	s.once.Do(func() { close(s.done) })
 	if !waitTimeout(&s.wg, timeout) {
 		s.notifyError(fmt.Errorf("关闭超时，丢弃队列中的日志"))
@@ -371,7 +384,9 @@ func (s *sink[T]) stop(timeout time.Duration) {
 
 // halt 立即停止，不等待排空（仅测试用）。
 func (s *sink[T]) halt() {
+	s.deliverMu.Lock()
 	s.closed.Store(true)
+	s.deliverMu.Unlock()
 	s.once.Do(func() { close(s.done) })
 }
 

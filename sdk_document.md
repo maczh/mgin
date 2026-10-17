@@ -805,7 +805,9 @@ func main() {
 该方法是 `Call` 方法的泛型版本，用于发起微服务调用并将响应结果解析为指定类型。
 
 ```go
-func CallT[T any](service, uri string, op *Options) models.Result[T]
+func CallT[T any](service, uri string, op *Options) vo.Response[T]
+func CallPageT[T any](service, uri string, op *Options) vo.ResponsePage[T]
+func CallResultT[T any](service, uri string, op *Options) models.Result[T]
 ```
 
 - **参数说明**：
@@ -813,7 +815,8 @@ func CallT[T any](service, uri string, op *Options) models.Result[T]
     - `uri`：目标微服务的接口路径。
     - `op`：调用选项，包含请求方法、协议、头部参数等。
 - **返回值说明**：
-    - `models.Result[T]`：泛型结果类型，包含响应数据和错误信息。
+    - `vo.Response[T]`：普通响应；`vo.ResponsePage[T]`：分页响应，数据为 `data.list/total/page/pageSize`。
+    - 调用或 JSON 解析失败返回 `Code: -1`，远端业务码和消息原样保留。旧 `models.Result[T]` 协议使用 `CallResultT`。
 - **调用范例**：
 
 ```go
@@ -822,7 +825,7 @@ package main
 import (
     "fmt"
     "github.com/maczh/mgin/client"
-    "github.com/maczh/mgin/models"
+    "github.com/maczh/mgin/models/vo"
 )
 
 type ResponseData struct {
@@ -836,7 +839,7 @@ func main() {
         Query:    map[string]string{"key": "value"},
     }
     result := client.CallT[ResponseData]("target-service", "/api/path", op)
-    if result.Code != 0 {
+    if result.Code != vo.SUCCESS {
         fmt.Println("调用失败:", result.Msg)
     } else {
         fmt.Println("调用成功:", result.Data.Message)
@@ -2326,3 +2329,4 @@ func (t Timestamp) Time() time.Time {
     - `*sftp.Client`：SFTP 客户端
     - `*ssh.Client`：SSH 客户端
     - `error`：加载 known_hosts 失败、连接失败或主机密钥不匹配时返回错误信息
+内置 i18n 使用 MySQL/SQLite 字典，CRUD 接口与配置见 [i18n 文档](docs/i18n.md)，无需外部 x-lang 服务。

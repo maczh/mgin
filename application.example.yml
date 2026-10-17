@@ -23,6 +23,7 @@ go:
     #   - target: file
     #     file: ./logs/myapp
     #     format: json
+    #   - target: victorialogs   # 内置目标，使用 go.log.victorialogs 连接配置
     #   - target: kafka
     #     format: json
     #     fields: [time, level, app, goroutine_id, request_id, message]
@@ -39,11 +40,33 @@ go:
       job: "go.job"
       s3: "go.s3"
 
+  # 内置国际化字典；也可由 NewApp(..., true) 启用
+  i18n:
+    enabled: false
+    default: zh-cn
+    dbName: ""               # MySQL 多库连接名，留空选第一个
+    sqlite: ""               # 未使用 MySQL/共享 SQLite 时的独立文件路径
+    api:
+      enabled: false         # true 自动挂载 /i18n CRUD；也可手动挂载路由组
+
   # ------------------------------------------------------------------
   # 接口日志中 GET 响应输出：full 完整输出，line 控制台/文件最多 120 字符，off 不输出也不保存响应
   # ------------------------------------------------------------------
   log:
     get: full
+    sink:
+      queue: 100             # 最大 100；满时淘汰最早待写日志
+      workers: 1             # 固定单消费者，保证 FIFO
+      shutdown: 3000
+    # 启用对应开关即可上报，无需应用注册 handler。
+    # 运行日志另在 go.logger.outputs 中配置 target: victorialogs。
+    victorialogs:
+      url: https://172.16.88.119:37624
+      api_token: ""          # 填写采集服务 token
+      api_crt: ""            # 使用 YAML | 块填写完整 api.crt PEM 证书
+      request: false         # PostLog 接口访问日志
+      client: false          # client.Call 调用结果及耗时，独立于 logger.level
+      timeout: 5000          # 每次 HTTP 请求超时，毫秒
 
   # ------------------------------------------------------------------
   # 2) 微服务注册/发现（registry + client）

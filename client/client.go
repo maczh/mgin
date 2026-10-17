@@ -1,6 +1,7 @@
 package client
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/gin-gonic/gin"
@@ -8,8 +9,10 @@ import (
 	"github.com/maczh/mgin/cache"
 	"github.com/maczh/mgin/config"
 	"github.com/maczh/mgin/logs"
+	"github.com/maczh/mgin/logsink"
 	"github.com/maczh/mgin/middleware/trace"
 	"github.com/maczh/mgin/models"
+	"github.com/maczh/mgin/models/vo"
 	"github.com/maczh/mgin/registry"
 	"github.com/maczh/mgin/utils"
 	"math/rand"
@@ -38,7 +41,25 @@ type Options struct {
 	Retry    bool                   `json:"retry"` //是否重试
 }
 
-func Call(service, uri string, op *Options) (string, error) {
+func Call(service, uri string, op *Options) (result string, callErr error) {
+	start := time.Now()
+	requestID := trace.GetRequestId()
+	defer func() {
+		if !config.Config.Log.VictoriaLogs.Client {
+			return
+		}
+		level := "info"
+		message := fmt.Sprintf("client %s %s %s (%dms)", service, op.Method, uri, time.Since(start).Milliseconds())
+		if callErr != nil {
+			level = "error"
+			message += ": " + callErr.Error()
+		}
+		logsink.EmitRecordTo(logs.VictoriaLogsClientTarget, &logsink.Record{
+			Time: start.Format(time.RFC3339Nano), App: config.Config.App.Name, Level: level,
+			Message: message, RequestID: requestID,
+		})
+	}()
+
 	if op.Protocol == "" {
 		op.Protocol = config.Config.Discovery.CallType
 	}
@@ -115,7 +136,8 @@ func Call(service, uri string, op *Options) (string, error) {
 	return resp.String(), nil
 }
 
-func CallT[T any](service, uri string, op *Options) models.Result[T] {
+// CallResultT 调用使用 status/data/msg 协议的旧版微服务。
+func CallResultT[T any](service, uri string, op *Options) models.Result[T] {
 	resp, err := Call(service, uri, op)
 	if err != nil {
 		return models.ErrorT[T](-1, err.Error())
@@ -126,6 +148,40 @@ func CallT[T any](service, uri string, op *Options) models.Result[T] {
 	var result models.Result[T]
 	utils.FromJSON(resp, &result)
 	return result
+}
+
+// CallT 调用微服务并解析 code/data/msg/srvTime 响应。
+func CallT[T any](service, uri string, op *Options) vo.Response[T] {
+	resp, err := Call(service, uri, op)
+	if err != nil {
+		return vo.ErrorT[T](-1, err.Error())
+	}
+	var result vo.Response[T]
+	if err := decodeResponse(resp, &result); err != nil {
+		return vo.ErrorT[T](-1, "Service response error: "+err.Error())
+	}
+	return result
+}
+
+// CallPageT 调用微服务并解析 data.list/total/page/pageSize 分页响应。
+func CallPageT[T any](service, uri string, op *Options) vo.ResponsePage[T] {
+	resp, err := Call(service, uri, op)
+	if err != nil {
+		return vo.ErrorPageT[T](-1, err.Error())
+	}
+	var result vo.ResponsePage[T]
+	if err := decodeResponse(resp, &result); err != nil {
+		return vo.ErrorPageT[T](-1, "Service response error: "+err.Error())
+	}
+	return result
+}
+
+func decodeResponse(resp string, result any) error {
+	resp = strings.TrimSpace(resp)
+	if !strings.HasPrefix(resp, "{") {
+		return errors.New("expected JSON object")
+	}
+	return json.Unmarshal([]byte(resp), result)
 }
 
 func getHostFromCache(serviceName string) (string, error) {

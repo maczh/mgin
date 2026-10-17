@@ -5,6 +5,7 @@ import (
 
 	"github.com/maczh/mgin/config"
 	"github.com/maczh/mgin/db"
+	"github.com/maczh/mgin/i18n"
 	"github.com/maczh/mgin/job"
 	"github.com/maczh/mgin/logs"
 	"github.com/maczh/mgin/middleware/postlog"
@@ -63,6 +64,9 @@ func (m *mgin) Use(dbConfigName string, dbInit dbInitFunc, dbClose dbCloseFunc, 
 }
 func Init(configFile string) {
 	config.Config.Init(configFile)
+	if err := logs.InitVictoriaLogs(); err != nil {
+		panic(err)
+	}
 	configs := config.Config.Config.Used
 	registry.Registry = registry.NewRegistry()
 
@@ -153,6 +157,7 @@ func (m *mgin) SafeExit() {
 
 	// 先排空接口日志队列并关闭各日志 handler，再关闭数据库连接
 	postlog.Close()
+	i18n.Close()
 
 	if strings.Contains(configs, "mysql") {
 		logger.Info("正在关闭MySQL连接")

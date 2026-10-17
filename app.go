@@ -111,8 +111,11 @@ func NewApp(configFile, appName, version string, xlang bool) *App {
 
 	// 国际化错误代码初始化
 	// 如果启用了国际化支持，则初始化国际化模块
+	app.i18n = app.i18n || config.Config.GetConfigBool("go.i18n.enabled")
 	if app.i18n {
-		i18n.Init()
+		if err := i18n.Init(); err != nil {
+			panic(err)
+		}
 	}
 	// 初始化应用的基础路由
 	app.baseRouter()
@@ -169,6 +172,10 @@ func (app *App) baseRouter() {
 	app.Router.NoRoute(func(c *gin.Context) {
 		c.JSON(http.StatusOK, i18n.Error(errcode.URI_NOT_FOUND, errcode.UrlNotFound))
 	})
+
+	if app.i18n && config.Config.GetConfigBool("go.i18n.api.enabled") {
+		i18n.RouterGroup(app.Router.Group("/i18n"))
+	}
 
 	// 定时任务管理路由组（job，类 xxl-job）按需挂载，例如：
 	if config.Config.GetConfigBool("go.job.enabled") {

@@ -84,7 +84,19 @@ type appLogger struct {
 	File  string `json:"file" bson:"file"`
 }
 
+// VictoriaLogsConfig configures the built-in HTTPS collector.
+type VictoriaLogsConfig struct {
+	URL      string `json:"url"`
+	APIToken string `json:"api_token" koanf:"api_token"`
+	APICert  string `json:"api_crt" koanf:"api_crt"`
+	Request  bool   `json:"request"`
+	Client   bool   `json:"client"`
+	Timeout  int    `json:"timeout"`
+}
+
 type appLog struct {
+	VictoriaLogs VictoriaLogsConfig `json:"victorialogs"`
+
 	RequestTableName string `json:"request" bson:"request"`
 	CallTableName    string `json:"call" bson:"call"`
 	LogDb            string `json:"logDb" bson:"logDb"`
@@ -98,7 +110,7 @@ type appLog struct {
 	} `json:"kafka" bson:"kafka"`
 	// Sink 接口日志异步总线的运行参数，作用于每一个日志 handler。
 	Sink struct {
-		Queue    int `json:"queue" bson:"queue"`       // 每个 handler 的队列长度，默认 1024
+		Queue    int `json:"queue" bson:"queue"`       // 每个 handler 的队列长度，默认/最大 100
 		Workers  int `json:"workers" bson:"workers"`   // 每个 handler 的消费协程数，默认 1
 		Shutdown int `json:"shutdown" bson:"shutdown"` // 进程退出时等待队列排空的毫秒数，默认 3000
 	} `json:"sink" bson:"sink"`
@@ -183,11 +195,13 @@ func (c *config) Init(cf string) {
 	if c.Log.Kafka.Topic == "" {
 		c.Log.Kafka.Topic = c.App.Name
 	}
+	c.Log.VictoriaLogs = VictoriaLogsConfig{}
+	c.Cnf.Unmarshal("go.log.victorialogs", &c.Log.VictoriaLogs)
 	c.Cnf.Unmarshal("go.log.sink", &c.Log.Sink)
-	if c.Log.Sink.Queue <= 0 {
-		c.Log.Sink.Queue = 1024
+	if c.Log.Sink.Queue <= 0 || c.Log.Sink.Queue > 100 {
+		c.Log.Sink.Queue = 100
 	}
-	if c.Log.Sink.Workers <= 0 {
+	if c.Log.Sink.Workers != 1 {
 		c.Log.Sink.Workers = 1
 	}
 	if c.Log.Sink.Shutdown <= 0 {

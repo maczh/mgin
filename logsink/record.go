@@ -122,7 +122,7 @@ func RecordHandlerNames() []string {
 }
 
 // EmitRecord 异步投递一条日志到所有 Handler。
-// 非阻塞：队列满时该条日志对该 Handler 丢弃并计数。返回是否至少投递成功一个 Handler。
+// 非阻塞：队列满时淘汰最早的待写日志并计数。返回是否至少投递成功一个 Handler。
 func EmitRecord(entry *Record) bool {
 	if entry == nil {
 		return false

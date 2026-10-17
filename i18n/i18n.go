@@ -1,96 +1,37 @@
 package i18n
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/maczh/mgin/cache"
-	"github.com/maczh/mgin/config"
-	"github.com/maczh/mgin/errcode"
-	"github.com/maczh/mgin/logs"
-	"github.com/maczh/mgin/middleware/xlang"
-	"github.com/maczh/mgin/models"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/maczh/mgin/errcode"
+	"github.com/maczh/mgin/middleware/xlang"
+	"github.com/maczh/mgin/models"
 )
 
-var appName, defaultLanguage string
-
-func Init() {
-	appName = config.Config.GetConfigString("go.xlang.appName")
-	if appName == "" {
-		appName = config.Config.App.Name
-	}
-	defaultLanguage = config.Config.GetConfigString("go.xlang.default")
-	if defaultLanguage == "" {
-		defaultLanguage = "zh-cn"
-	}
-	version, err := GetAppXLangVersion(appName)
+// GetString resolves a message from the built-in dictionary with language fallback.
+func GetString(messageID, language string) string {
+	s, err := GetStore()
 	if err != nil {
-		logs.Error(err.Error())
-		return
+		return ""
 	}
-	initCache(version)
-	//设置定时任务自动检查
-	ticker := time.NewTicker(time.Minute * 5)
-	go func() {
-		for _ = range ticker.C {
-			refreshXLangCache()
-		}
-	}()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	text, err := s.Translate(ctx, messageID, language)
+	if err != nil {
+		return ""
+	}
+	return text
 }
 
-func initCache(version string) {
-	cache.OnGetCache("x-lang").Add("version", version, 0)
-	//从公共应用加载公共常用多语言数据
-	langs, err := GetAppXLangStringsAll("default")
-	if err != nil {
-		logs.Error(err.Error())
-		return
-	}
-	for k, v := range langs {
-		cache.OnGetCache("x-lang").Add(k, v, 0)
-	}
-
-	//加载本程序所有多语言字符串数据
-	langs, err = GetAppXLangStringsAll(appName)
-	if err != nil {
-		logs.Error(err.Error())
-		return
-	}
-	for k, v := range langs {
-		cache.OnGetCache("x-lang").Add(k, v, 0)
-	}
-}
-
-func GetXLangString(stringId, lang string) string {
-	key := fmt.Sprintf("%s:%s", stringId, lang)
-	str, ok := cache.OnGetCache("x-lang").Value(key)
-	if ok {
-		return str.(string)
-	}
-	key = fmt.Sprintf("%s:%s", stringId, defaultLanguage)
-	str, ok = cache.OnGetCache("x-lang").Value(key)
-	if ok {
-		return str.(string)
-	}
-	return ""
-}
-
-func refreshXLangCache() {
-	version, err := GetAppXLangVersion(appName)
-	if err != nil {
-		logs.Error(err.Error())
-		return
-	}
-	oldVersion, ok := cache.OnGetCache("x-lang").Value("version")
-	if ok {
-		if oldVersion != version {
-			initCache(version)
-		}
-	}
-}
+// GetXLangString is kept for source compatibility and uses the local dictionary.
+// Deprecated: use GetString.
+func GetXLangString(messageID, language string) string { return GetString(messageID, language) }
 
 func Error(code int, messageId string) models.Result[any] {
 	return models.Error(code, String(messageId))
@@ -128,7 +69,7 @@ func SuccessWithPage[T any](data T, count, index, size, total int) models.Result
 // String 将messageId根据当前协程X-Lang参数转换成当前语言字符串
 func String(messageId string) string {
 	lang := xlang.GetCurrentLanguage()
-	s := GetXLangString(messageId, lang)
+	s := GetString(messageId, lang)
 	if s != "" {
 		return s
 	}

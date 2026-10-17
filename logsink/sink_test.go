@@ -2,6 +2,7 @@ package logsink
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -227,4 +228,31 @@ func droppedOf(name string) uint64 {
 		}
 	}
 	return 0
+}
+
+func TestQueueKeepsNewestAndFIFO(t *testing.T) {
+	h := &memHandler{name: "fifo"}
+	options := (&Options{QueueSize: 1000, Workers: 8}).normalize()
+	if options.QueueSize != 100 || options.Workers != 1 {
+		t.Fatalf("options: %+v", options)
+	}
+	s := newSink[Entry](h, options)
+	for i := 0; i < 105; i++ {
+		if !s.deliver(newEntry(fmt.Sprint(i))) {
+			t.Fatal("new log rejected")
+		}
+	}
+	if s.stats().Queued != 100 || s.stats().Dropped != 5 {
+		t.Fatalf("stats: %+v", s.stats())
+	}
+	s.start()
+	s.stop(time.Second)
+	if h.len() != 100 {
+		t.Fatalf("written=%d", h.len())
+	}
+	for i, e := range h.got {
+		if e.Uri != fmt.Sprint(i+5) {
+			t.Fatalf("entry %d: %s", i, e.Uri)
+		}
+	}
 }
