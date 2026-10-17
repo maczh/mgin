@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/maczh/mgin/v2/pkg/config"
+	"github.com/maczh/mgin/v2/pkg/i18n"
 	"github.com/maczh/mgin/v2/pkg/logs"
 	"github.com/maczh/mgin/v2/pkg/middleware/postlog"
 	"github.com/maczh/mgin/v2/pkg/plugin"
@@ -120,6 +121,9 @@ func isNilPlugin(p MginPlugin) bool {
 //  5. 兼容旧 initPlugins：把 s3 等组件用 m.UsePlugin 纳入旧生命周期
 func Init(configFile string) {
 	config.Config.Init(configFile)
+	if err := logs.InitVictoriaLogs(); err != nil {
+		panic(err)
+	}
 	registry.Registry = registry.NewRegistry()
 
 	// v2：填充 Runtime 运行时元数据（由本进程在启动时计算）。
@@ -201,6 +205,7 @@ func (m *mgin) SafeExit() {
 
 	// 先排空接口日志队列并关闭各日志 handler，再关闭数据库连接（plugin.CloseAll 会关掉 mongodb）
 	postlog.Close()
+	i18n.Close()
 
 	// v2：按 Order 逆序关闭所有已启用的内置组件。
 	if err := plugin.CloseAll(ctx); err != nil {

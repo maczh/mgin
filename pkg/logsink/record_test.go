@@ -31,22 +31,20 @@ func TestRecordAndPostLogIsolation(t *testing.T) {
 	}
 }
 
-func TestRecordWorkersRunConcurrently(t *testing.T) {
+func TestRecordWorkersPreserveFIFO(t *testing.T) {
 	Reset()
 	defer Reset()
-	started := make(chan struct{}, 2)
-	release := make(chan struct{})
-	defer close(release)
-	if err := RegisterRecord(NewRecordHandlerFunc("workers", func(*Record) error { started <- struct{}{}; <-release; return nil }), WithWorkers(2)); err != nil {
+	got := []string{}
+	if err := RegisterRecord(NewRecordHandlerFunc("workers", func(r *Record) error {
+		got = append(got, r.Message)
+		return nil
+	}), WithWorkers(2)); err != nil {
 		t.Fatal(err)
 	}
-	EmitRecord(&Record{})
-	EmitRecord(&Record{})
-	for i := 0; i < 2; i++ {
-		select {
-		case <-started:
-		case <-time.After(time.Second):
-			t.Fatal("configured workers did not run concurrently")
-		}
+	EmitRecord(&Record{Message: "first"})
+	EmitRecord(&Record{Message: "second"})
+	Close(time.Second)
+	if len(got) != 2 || got[0] != "first" || got[1] != "second" {
+		t.Fatalf("order=%v", got)
 	}
 }

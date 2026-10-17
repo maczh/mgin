@@ -231,7 +231,7 @@ func runInteractive(r *bufio.Reader, opts *ProjectOptions) error {
 	opts.ConfigCenter = singleFrom(r, "配置中心 (Config Center)", configCenterOptions, opts.ConfigCenter)
 	opts.JWT = askBool(r, "启用 JWT 鉴权", opts.JWT)
 	opts.Casbin = askBool(r, "启用 Casbin 接口级鉴权", opts.Casbin)
-	opts.I18n = askBool(r, "启用国际化 (i18n, 需 xlang 服务)", opts.I18n)
+	opts.I18n = askBool(r, "启用国际化 (i18n, 内置数据库字典)", opts.I18n)
 	opts.Sys = askBool(r, "启用内置系统管理模块", opts.Sys)
 	// v2 新能力交互问答
 	opts.Health = askBool(r, "v2: 启用 /health 探针 (K8s liveness/readiness/startup)", opts.Health)

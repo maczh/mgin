@@ -839,7 +839,7 @@ resp, err := client.Call("user-service", "/api/v1/user/get", &client.Options{
 
 // generic: parsed directly into models.Result[T]
 var user User
-result := client.CallT[User]("user-service", "/api/v1/user/get", &client.Options{
+result := client.CallResultT[User]("user-service", "/api/v1/user/get", &client.Options{
     Protocol: client.CONTENT_TYPE_JSON,
     Json:     map[string]any{"id": 1},
 })
@@ -849,14 +849,14 @@ if result.Status != 1 {
 user = result.Data
 
 // restful style
-result := client.CallT[Order]("order-service", "/api/v1/order/{oid}", &client.Options{
+result := client.CallResultT[Order]("order-service", "/api/v1/order/{oid}", &client.Options{
     Protocol: client.CONTENT_TYPE_RESTFUL,
     Method:   "GET",
     Path:     map[string]string{"oid": "1001"},
 })
 
 // file upload
-result := client.CallT[any]("file-service", "/upload", &client.Options{
+result := client.CallResultT[any]("file-service", "/upload", &client.Options{
     Files: []grequests.FileUpload{{FileName: "a.png", FileReader: f}},
 })
 ```
@@ -1079,7 +1079,7 @@ func GetUser(c *gin.Context) {
 }
 ```
 
-> The multilingual data source is an external `x-lang` microservice. MGin fetches it in `i18n.Init()` and refreshes every 5 minutes; built-in Chinese message IDs are in the `errcode` package.
+> Translations now use the built-in `<app.name>_i18n` table: configured MySQL first, otherwise SQLite. See [dictionary CRUD and migration](docs/i18n.md).
 
 
 
@@ -1483,7 +1483,7 @@ A: You didn't return the session after `GetConnection()`. Always `defer db.Mongo
 A: Target service isn't registered to the registry, or `go.discovery.registry` type mismatch; verify service name and group.
 
 **Q: i18n text not applied?**
-A: `NewApp`'s 4th arg must be `true`, and the `x-lang` microservice must be configured; built-in Chinese falls back to `errcode` constants.
+A: Enable the fourth argument of `NewApp`, `go.i18n.enabled`, or `go.framework.i18nEnabled`, then add dictionary entries to `<app.name>_i18n`. Missing entries fall back to the message ID.
 
 **Q: How to switch multi-DB?**
 A: Configure `multidb:true` + `dbNames`; at runtime `GetConnection("test2")` or the DAO's `Tag` closure returns the DB name. `IsMultiDB()` / `ListConnNames()` help detect.
@@ -1894,3 +1894,7 @@ Summary of capabilities added in the `jh` branch beyond `master-1.25` (chapters 
 | S3 storage | `storage/s3` | `s3` | see 23 |
 
 All new capabilities are opt-in via switches in `go.config.used`; when disabled they have no connection overhead or side effects.
+
+See [VictoriaLogs configuration](docs/victorialogs.md) for built-in collection.
+
+`pkg/client.CallT[T]` returns `pkg/vo.Response[T]`; `CallPageT[T]` returns `pkg/vo.ResponsePage[T]`. Check `Code == vo.SUCCESS`; call/decode errors return `Code: -1`. Use `CallResultT[T]` for the legacy protocol. Existing v2 `CallCtxT[T]` continues to return `models.Result[T]`.

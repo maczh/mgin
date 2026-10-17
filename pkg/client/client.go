@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -15,11 +16,13 @@ import (
 	"github.com/maczh/mgin/v2/pkg/config"
 	"github.com/maczh/mgin/v2/pkg/loadbalancer"
 	"github.com/maczh/mgin/v2/pkg/logs"
+	"github.com/maczh/mgin/v2/pkg/logsink"
 	"github.com/maczh/mgin/v2/pkg/middleware/trace"
 	"github.com/maczh/mgin/v2/pkg/models"
 	"github.com/maczh/mgin/v2/pkg/otel"
 	"github.com/maczh/mgin/v2/pkg/registry"
 	"github.com/maczh/mgin/v2/pkg/utils"
+	"github.com/maczh/mgin/v2/pkg/vo"
 	otelAttr "go.opentelemetry.io/otel/attribute"
 	otelTrace "go.opentelemetry.io/otel/trace"
 )
@@ -80,7 +83,25 @@ func CallCtx(ctx context.Context, service, uri string, op *Options) (string, err
 
 // callInternal 是 CallCtx 与 Call 共享的底层实现。ctx 在此函数内仅用于"占位 + 未来扩展"，
 // 当前 goroutine+timer 兑底由 resilience.go 提供的 CallResilientCtx 负责。
-func callInternal(ctx context.Context, service, uri string, op *Options) (string, error) {
+func callInternal(ctx context.Context, service, uri string, op *Options) (result string, callErr error) {
+	start := time.Now()
+	requestID := trace.GetRequestId()
+	defer func() {
+		if !config.Config.Log.VictoriaLogs.Client {
+			return
+		}
+		level := "info"
+		message := fmt.Sprintf("client %s %s %s (%dms)", service, op.Method, uri, time.Since(start).Milliseconds())
+		if callErr != nil {
+			level = "error"
+			message += ": " + callErr.Error()
+		}
+		logsink.EmitRecordTo(logs.VictoriaLogsClientTarget, &logsink.Record{
+			Time: start.Format(time.RFC3339Nano), App: config.Config.App.Name, Level: level,
+			Message: message, RequestID: requestID,
+		})
+	}()
+
 	// v2.1 增强：OTel 集成（可选）。
 	// 业务侧调用 otel.SetTracerProvider(...)
 	// 之后，callInternal 会自动开一个 client.call 的 span，并把 traceparent 注入 header。
@@ -182,11 +203,12 @@ func callInternal(ctx context.Context, service, uri string, op *Options) (string
 	return resp.String(), nil
 }
 
-func CallT[T any](service, uri string, op *Options) models.Result[T] {
+// CallResultT preserves the legacy status/data/msg response protocol.
+func CallResultT[T any](service, uri string, op *Options) models.Result[T] {
 	return CallCtxT[T](context.Background(), service, uri, op)
 }
 
-// CallCtxT 是 CallT 的 context 版本，语义对齐 CallCtx。
+// CallCtxT 保留 v2 原有的 models.Result[T] 响应协议，语义对齐 CallCtx。
 func CallCtxT[T any](ctx context.Context, service, uri string, op *Options) models.Result[T] {
 	resp, err := CallCtx(ctx, service, uri, op)
 	if err != nil {
@@ -198,6 +220,40 @@ func CallCtxT[T any](ctx context.Context, service, uri string, op *Options) mode
 	var result models.Result[T]
 	utils.FromJSON(resp, &result)
 	return result
+}
+
+// CallT 调用微服务并解析 code/data/msg/srvTime 响应。
+func CallT[T any](service, uri string, op *Options) vo.Response[T] {
+	resp, err := Call(service, uri, op)
+	if err != nil {
+		return vo.ErrorT[T](-1, err.Error())
+	}
+	var result vo.Response[T]
+	if err := decodeResponse(resp, &result); err != nil {
+		return vo.ErrorT[T](-1, "Service response error: "+err.Error())
+	}
+	return result
+}
+
+// CallPageT 调用微服务并解析 data.list/total/page/pageSize 分页响应。
+func CallPageT[T any](service, uri string, op *Options) vo.ResponsePage[T] {
+	resp, err := Call(service, uri, op)
+	if err != nil {
+		return vo.ErrorPageT[T](-1, err.Error())
+	}
+	var result vo.ResponsePage[T]
+	if err := decodeResponse(resp, &result); err != nil {
+		return vo.ErrorPageT[T](-1, "Service response error: "+err.Error())
+	}
+	return result
+}
+
+func decodeResponse(resp string, result any) error {
+	resp = strings.TrimSpace(resp)
+	if !strings.HasPrefix(resp, "{") {
+		return errors.New("expected JSON object")
+	}
+	return json.Unmarshal([]byte(resp), result)
 }
 
 func getHostFromCache(serviceName string) (string, error) {
