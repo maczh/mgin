@@ -39,7 +39,7 @@ type Closer interface {
 
 const (
 	// DefaultQueueSize 每个 Handler 默认的缓冲队列长度。
-	DefaultQueueSize = 100
+	DefaultQueueSize = 1024
 	// DefaultWorkers 每个 Handler 默认的消费协程数，1 保证日志按到达顺序处理。
 	DefaultWorkers = 1
 	// DefaultShutdownTimeout 关闭时等待队列排空的默认超时。
