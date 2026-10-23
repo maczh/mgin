@@ -14,7 +14,7 @@ import (
 // CasbinHandler 拦截器
 func CasbinHandler() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if !config.Config.Casbin.Enabled {
+		if config.Config == nil || !config.Config.Casbin.Enabled {
 			c.Next()
 			return
 		}
@@ -27,7 +27,8 @@ func CasbinHandler() gin.HandlerFunc {
 				return
 			}
 		}
-		if strings.Contains(c.Request.URL.Path, "/docs/") || strings.Contains(c.Request.URL.Path, "/swagger/") || strings.Contains(c.Request.URL.Path, config.Config.Sys.Swagger.Uri) {
+		swaggerURI := config.Config.Sys.Swagger.Uri
+		if strings.Contains(path, "/docs/") || strings.Contains(path, "/swagger/") || (swaggerURI != "" && strings.Contains(path, swaggerURI)) {
 			c.Next()
 			return
 		}
@@ -45,9 +46,23 @@ func CasbinHandler() gin.HandlerFunc {
 		roleId := claimID(mc["roleId"])
 		// 获取请求方法
 		act := c.Request.Method
-		casbin.Casbin.GetEnforcer().LoadPolicy()
-		userPerm, _ := casbin.Casbin.GetEnforcer().Enforce(userId, path, act)
-		rolePerm, _ := casbin.Casbin.GetEnforcer().Enforce(roleId, path, act)
+		enforcer := casbin.Casbin.GetEnforcer()
+		if enforcer == nil {
+			c.AbortWithStatusJSON(http.StatusInternalServerError, models.Error(500, "权限服务不可用"))
+			return
+		}
+		if err := enforcer.LoadPolicy(); err != nil {
+			c.AbortWithStatusJSON(http.StatusInternalServerError, models.Error(500, "权限策略加载失败"))
+			return
+		}
+		userPerm, err := enforcer.Enforce(userId, path, act)
+		if err != nil {
+			userPerm = false
+		}
+		rolePerm, err := enforcer.Enforce(roleId, path, act)
+		if err != nil {
+			rolePerm = false
+		}
 		if !(userPerm || rolePerm) {
 			c.AbortWithStatusJSON(http.StatusForbidden, models.Error(403, "无访问权限"))
 			return

@@ -25,7 +25,10 @@ func JwtAuthorize() gin.HandlerFunc {
 			}
 		}
 		// 从请求头中获取token
-		tokenStr := c.GetHeader("Authorization")
+		tokenStr := strings.TrimSpace(c.GetHeader("Authorization"))
+		if strings.HasPrefix(strings.ToLower(tokenStr), "bearer ") {
+			tokenStr = strings.TrimSpace(tokenStr[len("Bearer "):])
+		}
 		if tokenStr == "" {
 			c.AbortWithStatus(http.StatusUnauthorized)
 			return
@@ -33,7 +36,13 @@ func JwtAuthorize() gin.HandlerFunc {
 
 		// 解析token
 		token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, errors.New("unexpected jwt signing method")
+			}
 			if config.Config == nil {
+				return nil, errors.New("jwt secret not configured")
+			}
+			if config.Config.Jwt.Secret == "" {
 				return nil, errors.New("jwt secret not configured")
 			}
 			return []byte(config.Config.Jwt.Secret), nil
@@ -44,6 +53,9 @@ func JwtAuthorize() gin.HandlerFunc {
 			return
 		}
 
+		if claims, ok := token.Claims.(jwt.MapClaims); ok {
+			c.Set("claims", claims)
+		}
 		// token验证通过，继续处理请求
 		c.Next()
 	}

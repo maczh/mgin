@@ -20,16 +20,16 @@ import (
 )
 
 type EtcdClient struct {
-	client     *clientv3.Client
-	leaseID    clientv3.LeaseID
-	cluster    string
-	group      string
-	prefix     string
-	lan        bool
-	lanNetwork string
-	conf       *koanf.Koanf
-	confUrl    string
-	confData   []byte
+	client        *clientv3.Client
+	leaseID       clientv3.LeaseID
+	cluster       string
+	group         string
+	prefix        string
+	lan           bool
+	lanNetwork    string
+	conf          *koanf.Koanf
+	confUrl       string
+	confData      []byte
 	instanceId    string
 	registeredKey string
 	apiUrl        string

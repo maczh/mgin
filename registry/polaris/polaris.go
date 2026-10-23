@@ -158,6 +158,10 @@ func (c *PolarisClient) GetServiceURL(servicename string, namespaces ...string) 
 			},
 			Params: query,
 		}))
+		if err != nil {
+			logger.Error("Polaris 查询服务实例失败:" + err.Error())
+			continue
+		}
 		var res QueryInstanceResponse
 		err = resp.JSON(&res)
 		if err != nil {

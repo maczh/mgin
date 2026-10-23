@@ -39,6 +39,7 @@ var logger = gologger.GetLogger()
 type nacosHeartbeatWorker struct {
 	ticker    *time.Ticker
 	quit      chan struct{}
+	quitOnce  sync.Once
 	wg        *sync.WaitGroup
 	failCount int
 	maxFails  int
@@ -48,7 +49,6 @@ func (w *nacosHeartbeatWorker) Start(nc *NacosClient) {
 	defer w.wg.Done()
 	w.ticker = time.NewTicker(5 * time.Second)
 	defer w.ticker.Stop()
-	w.quit = make(chan struct{})
 	if w.maxFails <= 0 {
 		w.maxFails = 3
 	}
@@ -147,6 +147,7 @@ func (n *NacosClient) Register(nacosConfigData []byte) {
 		// 启动心跳线程
 		n.worker = &nacosHeartbeatWorker{
 			wg:       &sync.WaitGroup{},
+			quit:     make(chan struct{}),
 			maxFails: 3,
 		}
 		n.worker.wg.Add(1)
@@ -232,13 +233,11 @@ func (n *NacosClient) GetServiceURL(servicename string, groupName ...string) (st
 
 func (n *NacosClient) DeRegister() {
 	if n.worker != nil {
-		select {
-		case <-n.worker.quit:
-			// 已经关闭，避免重复 close 导致 panic
-		default:
-			close(n.worker.quit)
-		}
+		n.worker.quitOnce.Do(func() { close(n.worker.quit) })
 		n.worker.wg.Wait()
+	}
+	if n.nsurl == "" || n.param == nil {
+		return
 	}
 	_, err := grequests.DoRegularRequest(http.MethodDelete, n.nsurl, &grequests.RequestOptions{
 		Params: n.param,

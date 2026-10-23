@@ -85,7 +85,7 @@ func (m *MysqlClient) Init(mysqlConfigData []byte) {
 				return
 			}
 		}
-		if m.mysql == nil {
+		if !m.multi && m.mysql == nil {
 			logger.Error("mysql connection error")
 			return
 		}
@@ -116,14 +116,22 @@ func (m *MysqlClient) Init(mysqlConfigData []byte) {
 				lifetime = 60
 			}
 			if !m.multi {
-				sqldb, _ := m.mysql.DB()
+				sqldb, err := m.mysql.DB()
+				if err != nil || sqldb == nil {
+					logger.Error("mysql connection pool error")
+					return
+				}
 				sqldb.SetConnMaxIdleTime(time.Duration(idleTimeout) * time.Second)
 				sqldb.SetMaxIdleConns(idle)
 				sqldb.SetMaxOpenConns(max)
 				sqldb.SetConnMaxLifetime(time.Duration(lifetime) * time.Minute)
 			} else {
-				for k, _ := range m.mysqls {
-					sqldb, _ := m.mysqls[k].DB()
+				for k := range m.mysqls {
+					sqldb, err := m.mysqls[k].DB()
+					if err != nil || sqldb == nil {
+						logger.Error(k + " mysql connection pool error")
+						continue
+					}
 					sqldb.SetConnMaxIdleTime(time.Duration(idleTimeout) * time.Second)
 					sqldb.SetMaxIdleConns(idle)
 					sqldb.SetMaxOpenConns(max)
@@ -164,7 +172,7 @@ func mySqlsCheck(m *MysqlClient) error {
 			return errors.New("mySQL connection error")
 		}
 	}
-	for k, _ := range m.mysqls {
+	for k := range m.mysqls {
 		sqldb, err := m.mysqls[k].DB()
 		if err != nil || sqldb == nil {
 			m.Close()
@@ -210,6 +218,13 @@ func mySqlCheck(m *MysqlClient) (*gorm.DB, error) {
 		m.Close()
 		m.Init(m.confData)
 		if m.mysql == nil {
+			return nil, errors.New("mySQL connection error")
+		}
+		sqldb, err = m.mysql.DB()
+		if err != nil || sqldb == nil {
+			return nil, errors.New("mySQL connection error")
+		}
+		if err = sqldb.Ping(); err != nil {
 			return nil, errors.New("mySQL connection error")
 		}
 	}

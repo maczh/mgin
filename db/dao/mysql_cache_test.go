@@ -99,6 +99,27 @@ func TestMySQLDaoClearCacheOnlyClearsTable(t *testing.T) {
 	}
 }
 
+func TestMySQLDaoWhereCacheKeyAndInvalidation(t *testing.T) {
+	store := cacheStore.OnMemCache("dao-where-cache-test")
+	userDAO := (&MySQLDao[cachedUser]{}).WithCache(CacheConfig{
+		Enabled: true,
+		Store:   store,
+	})
+	first, ok := userDAO.whereCacheKey("where_all", "name = ?", "alice")
+	if !ok {
+		t.Fatal("expected a where cache key")
+	}
+	second, ok := userDAO.whereCacheKey("where_all", "name = ?", "bob")
+	if !ok || first == second {
+		t.Fatal("different where arguments must produce different cache keys")
+	}
+	store.Set(first, []byte(`[]`), 0)
+	userDAO.clearCache()
+	if store.IsExist(first) {
+		t.Fatal("expected where cache to be invalidated")
+	}
+}
+
 type otherCachedEntity struct {
 	ID int
 }

@@ -99,7 +99,9 @@ func GetGoroutineID() uint64 {
 func getHeaders(c *gin.Context) map[string]string {
 	headers := make(map[string]string)
 	for k, v := range c.Request.Header {
-		headers[k] = v[0]
+		if len(v) > 0 {
+			headers[k] = v[0]
+		}
 	}
 	return headers
 }

@@ -88,12 +88,24 @@ type XssMwJson map[string]interface{}
 
 // XssMw implements the Gin Middleware interface.
 func (mw *XssMw) RemoveXss() gin.HandlerFunc {
-
-	// TODO - should make this overwriteable in case user does not want any safe fields
-	mw.FieldsToSkip = append(mw.FieldsToSkip, "password")
+	// Keep the middleware configuration immutable after construction. Mutating
+	// FieldsToSkip here caused duplicate entries and a data race when a shared
+	// middleware was initialized concurrently.
+	clone := *mw
+	clone.FieldsToSkip = append([]string(nil), mw.FieldsToSkip...)
+	hasPassword := false
+	for _, field := range clone.FieldsToSkip {
+		if field == "password" {
+			hasPassword = true
+			break
+		}
+	}
+	if !hasPassword {
+		clone.FieldsToSkip = append(clone.FieldsToSkip, "password")
+	}
 
 	return func(c *gin.Context) {
-		mw.callRemoveXss(c)
+		clone.callRemoveXss(c)
 		return
 	}
 }

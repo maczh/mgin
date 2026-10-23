@@ -18,6 +18,9 @@ type RegistryClient interface {
 
 func NewRegistry() RegistryClient {
 	var client RegistryClient
+	if config.Config == nil {
+		return &noopRegistryClient{}
+	}
 	switch config.Config.Discovery.Registry {
 	case "nacos":
 		client = NewCachedRegistry(&nacos.NacosClient{})

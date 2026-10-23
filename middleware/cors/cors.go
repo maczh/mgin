@@ -17,17 +17,22 @@ func Cors(headers ...string) gin.HandlerFunc {
 		origin := c.Request.Header.Get("Origin")
 		if origin != "" {
 			c.Header("Access-Control-Allow-Origin", origin)
+			c.Header("Vary", "Origin")
 		} else {
 			c.Header("Access-Control-Allow-Origin", "*")
+			c.Header("Access-Control-Allow-Credentials", "false")
 		}
 		c.Header("Access-Control-Allow-Headers", allowHeaders)
 		c.Header("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE, PATCH, HEAD, UPDATE")
 		c.Header("Access-Control-Expose-Headers", "Content-Length, Access-Control-Allow-Origin, Access-Control-Allow-Headers, Content-Type")
-		c.Header("Access-Control-Allow-Credentials", "true")
+		if origin != "" {
+			c.Header("Access-Control-Allow-Credentials", "true")
+		}
 
 		//放行所有OPTIONS方法
 		if method == "OPTIONS" {
 			c.AbortWithStatus(http.StatusNoContent)
+			return
 		}
 		// 处理请求
 		c.Next()

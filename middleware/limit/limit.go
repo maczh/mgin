@@ -12,11 +12,15 @@ func MaxAllowed(n int) gin.HandlerFunc {
 		}
 	}
 	sem := make(chan struct{}, n)
-	acquire := func() { sem <- struct{}{} }
 	release := func() { <-sem }
 	return func(c *gin.Context) {
-		acquire()       // before request
-		defer release() // after request
+		select {
+		case sem <- struct{}{}:
+		case <-c.Request.Context().Done():
+			c.AbortWithStatus(499)
+			return
+		}
+		defer release()
 		c.Next()
 
 	}

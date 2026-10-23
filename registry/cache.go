@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"strings"
 	"sync"
 	"time"
 
@@ -29,10 +30,10 @@ const (
 type CachedRegistry struct {
 	delegate RegistryClient
 
-	mu      sync.Mutex
-	entries map[string]*cacheEntry
+	mu       sync.Mutex
+	entries  map[string]*cacheEntry
 	inflight map[string]*singleFlight
-	ttl     time.Duration
+	ttl      time.Duration
 
 	refresh *time.Ticker
 	stop    chan struct{}
@@ -55,11 +56,17 @@ type singleFlight struct {
 
 // NewCachedRegistry 用装饰器包裹真实注册中心客户端。
 func NewCachedRegistry(delegate RegistryClient) *CachedRegistry {
-	ttl := config.Config.Discovery.CacheTTL
+	if delegate == nil {
+		delegate = &noopRegistryClient{}
+	}
+	var ttl, refresh time.Duration
+	if config.Config != nil {
+		ttl = config.Config.Discovery.CacheTTL
+		refresh = config.Config.Discovery.CacheRefresh
+	}
 	if ttl <= 0 {
 		ttl = defaultCacheTTL
 	}
-	refresh := config.Config.Discovery.CacheRefresh
 	if refresh <= 0 {
 		refresh = defaultCacheRefresh
 	}
@@ -77,11 +84,7 @@ func NewCachedRegistry(delegate RegistryClient) *CachedRegistry {
 
 // GetServiceURL 实现 RegistryClient：优先返回缓存，缺失/过期时回源并缓存。
 func (c *CachedRegistry) GetServiceURL(servicename string, groupName ...string) (string, string) {
-	firstGroup := ""
-	if len(groupName) > 0 {
-		firstGroup = groupName[0]
-	}
-	key := servicename + "\x00" + firstGroup
+	key := servicename + "\x00" + strings.Join(groupName, "\x00")
 
 	c.mu.Lock()
 	if entry, ok := c.entries[key]; ok {
@@ -142,14 +145,22 @@ func (c *CachedRegistry) GetServiceURL(servicename string, groupName ...string) 
 
 // Register / DeRegister 直接透传给真实客户端，并在关闭时优雅停止后台刷新。
 func (c *CachedRegistry) Register(registryConfigData []byte) {
+	if c.delegate == nil {
+		return
+	}
 	c.delegate.Register(registryConfigData)
 }
 
 func (c *CachedRegistry) DeRegister() {
-	c.delegate.DeRegister()
 	c.once.Do(func() {
 		c.refresh.Stop()
 		close(c.stop)
+		c.mu.Lock()
+		c.entries = make(map[string]*cacheEntry)
+		c.mu.Unlock()
+		if c.delegate != nil {
+			c.delegate.DeRegister()
+		}
 	})
 }
 

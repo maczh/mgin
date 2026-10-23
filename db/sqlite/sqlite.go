@@ -46,6 +46,17 @@ func (m *Sqlite) Close() {
 }
 
 func (m *Sqlite) Check() error {
+	conn, err := m.GetConnection()
+	if err != nil {
+		return err
+	}
+	sqldb, err := conn.DB()
+	if err != nil {
+		return fmt.Errorf("SQLite获取连接失败: %w", err)
+	}
+	if err = sqldb.Ping(); err != nil {
+		return fmt.Errorf("SQLite连接检查失败: %w", err)
+	}
 	return nil
 }
 

@@ -49,6 +49,9 @@ func getGoroutineID() uint64 {
 }
 
 func defaultLanguage() string {
+	if config.Config == nil {
+		return "zh-cn"
+	}
 	language := strings.ToLower(strings.ReplaceAll(strings.TrimSpace(config.Config.GetConfigString("go.i18n.default")), "_", "-"))
 	if language == "" {
 		return "zh-cn"
