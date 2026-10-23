@@ -78,12 +78,23 @@ func Call(service, uri string, op *Options) (string, error) {
 //   - 用于超时/取消的"上层兜底"（业务可在外层用 select 控制）
 //   - 链路 trace header 由 trace.GetHeaders() 透传，与 ctx 无关
 func CallCtx(ctx context.Context, service, uri string, op *Options) (string, error) {
+	if op == nil {
+		return "", errors.New("client: Options 参数不能为空")
+	}
+	if ctx == nil { ctx = context.Background() }
 	return callInternal(ctx, service, uri, op)
 }
 
 // callInternal 是 CallCtx 与 Call 共享的底层实现。ctx 在此函数内仅用于"占位 + 未来扩展"，
 // 当前 goroutine+timer 兑底由 resilience.go 提供的 CallResilientCtx 负责。
 func callInternal(ctx context.Context, service, uri string, op *Options) (result string, callErr error) {
+	if op == nil { return "", errors.New("client: Options 参数不能为空") }
+	if ctx == nil { ctx = context.Background() }
+	select { case <-ctx.Done(): return "", ctx.Err(); default: }
+	// Call fills defaults and headers below; never mutate caller-owned options,
+	// which are commonly reused by concurrent handlers.
+	options := *op
+	op = &options
 	start := time.Now()
 	requestID := trace.GetRequestId()
 	defer func() {
@@ -147,10 +158,14 @@ func callInternal(ctx context.Context, service, uri string, op *Options) (result
 			return "", err
 		}
 		// 其它情况（如 GetServices 无可用数据）回落到 v1 单实例路径
-		host, op.Group = registry.Registry.GetServiceURL(service, op.Group)
+		if registry.Registry != nil {
+			host, op.Group = registry.Registry.GetServiceURL(service, op.Group)
+		}
 	} else if host == "" {
 		// 回退 v1 路径：单实例 GetServiceURL（向后兼容：旧注册中心或单实例部署）。
-		host, op.Group = registry.Registry.GetServiceURL(service, op.Group)
+		if registry.Registry != nil {
+			host, op.Group = registry.Registry.GetServiceURL(service, op.Group)
+		}
 	}
 	if host == "" {
 		//cache.OnGetCache("service", false).Add(fmt.Sprintf("%s@%s", service, op.Group), host, 5*time.Minute)

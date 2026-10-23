@@ -28,8 +28,8 @@ type (
 )
 
 var (
-	storeKey  string
-	manageKey string
+	storeKey  = "github.com/maczh/mgin/session/store-key"
+	manageKey = "github.com/maczh/mgin/session/manage-key"
 
 	// DefaultConfig is the default Recover middleware config.
 	DefaultConfig = Config{
@@ -55,14 +55,14 @@ func NewWithConfig(config Config, opt ...session.Option) gin.HandlerFunc {
 		config.ErrorHandleFunc = DefaultConfig.ErrorHandleFunc
 	}
 
-	manageKey = config.ManageKey
-	if manageKey == "" {
-		manageKey = DefaultConfig.ManageKey
+	localManageKey := config.ManageKey
+	if localManageKey == "" {
+		localManageKey = DefaultConfig.ManageKey
 	}
 
-	storeKey = config.StoreKey
-	if storeKey == "" {
-		storeKey = DefaultConfig.StoreKey
+	localStoreKey := config.StoreKey
+	if localStoreKey == "" {
+		localStoreKey = DefaultConfig.StoreKey
 	}
 
 	manage := session.NewManager(opt...)
@@ -72,40 +72,54 @@ func NewWithConfig(config Config, opt ...session.Option) gin.HandlerFunc {
 			return
 		}
 
-		ctx.Set(manageKey, manage)
+		ctx.Set(localManageKey, manage)
+		ctx.Set(manageKey, localManageKey)
 		store, err := manage.Start(context.Background(), ctx.Writer, ctx.Request)
 		if err != nil {
 			config.ErrorHandleFunc(ctx, err)
 			return
 		}
-		ctx.Set(storeKey, store)
+		ctx.Set(localStoreKey, store)
+		ctx.Set(storeKey, localStoreKey)
 		ctx.Next()
 	}
 }
 
 // FromContext Get session storage from context
 func FromContext(ctx *gin.Context) session.Store {
-	v, ok := ctx.Get(storeKey)
+	key := DefaultConfig.StoreKey
+	if configured, ok := ctx.Get(storeKey); ok {
+		if s, ok := configured.(string); ok && s != "" { key = s }
+	}
+	v, ok := ctx.Get(key)
 	if ok {
-		return v.(session.Store)
+		if store, valid := v.(session.Store); valid { return store }
 	}
 	return nil
 }
 
 // Destroy a session
 func Destroy(ctx *gin.Context) error {
-	v, ok := ctx.Get(manageKey)
+	key := DefaultConfig.ManageKey
+	if configured, ok := ctx.Get(manageKey); ok { if s, valid := configured.(string); valid && s != "" { key = s } }
+	v, ok := ctx.Get(key)
 	if !ok {
 		return fmt.Errorf("invalid session manager")
 	}
-	return v.(*session.Manager).Destroy(nil, ctx.Writer, ctx.Request)
+	manager, valid := v.(*session.Manager)
+	if !valid || manager == nil { return fmt.Errorf("invalid session manager") }
+	return manager.Destroy(nil, ctx.Writer, ctx.Request)
 }
 
 // Refresh a session and return to session storage
 func Refresh(ctx *gin.Context) (session.Store, error) {
-	v, ok := ctx.Get(manageKey)
+	key := DefaultConfig.ManageKey
+	if configured, ok := ctx.Get(manageKey); ok { if s, valid := configured.(string); valid && s != "" { key = s } }
+	v, ok := ctx.Get(key)
 	if !ok {
 		return nil, fmt.Errorf("invalid session manager")
 	}
-	return v.(*session.Manager).Refresh(nil, ctx.Writer, ctx.Request)
+	manager, valid := v.(*session.Manager)
+	if !valid || manager == nil { return nil, fmt.Errorf("invalid session manager") }
+	return manager.Refresh(nil, ctx.Writer, ctx.Request)
 }

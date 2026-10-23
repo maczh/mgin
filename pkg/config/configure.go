@@ -202,6 +202,7 @@ func (c *config) GetShutdownTimeout() time.Duration {
 }
 
 func (c *config) Init(cf string) {
+	if c == nil { return }
 	if cf == "" {
 		cf = config_file
 	}
@@ -212,6 +213,8 @@ func (c *config) Init(cf string) {
 	err := c.Cnf.Load(f, yaml.Parser())
 	if err != nil {
 		logger.Error("读取配置文件错误:" + err.Error())
+		c.Cnf = nil
+		return
 	}
 	c.App.Name = c.Cnf.String("go.application.name")
 	c.App.Project = c.Cnf.String("go.application.project")
@@ -372,6 +375,10 @@ func (c *config) GetConfigUrl(prefix string) string {
 	case "polaris":
 		if strings.Contains(prefix, "@") {
 			strs := strings.Split(prefix, "@v")
+			if len(strs) != 2 || strs[0] == "" || strs[1] == "" {
+				logger.Error("Polaris配置前缀版本格式错误: " + prefix)
+				return ""
+			}
 			prefix = strs[0]
 			version := strs[1]
 			configUrl = configUrl + "/config/v1/configfiles/release?namespace=default&group=" + c.App.Project + "&name=" + prefix + "-" + c.Config.Env + ".yml&release_name=" + version
@@ -401,6 +408,7 @@ func (c *config) GetConfigUrl(prefix string) string {
 }
 
 func (c *config) GetConfigData(prefix string) []byte {
+	if c == nil || c.Cnf == nil { return nil }
 	switch c.Config.Type {
 	case "etcd":
 		cli, err := clientv3.New(clientv3.Config{Endpoints: []string{c.Config.Server}})
@@ -424,17 +432,18 @@ func (c *config) GetConfigData(prefix string) []byte {
 			},
 		}))
 		if err != nil {
-			fmt.Println(err.Error())
+			logger.Error("获取Polaris配置失败:" + err.Error())
 			return nil
 		}
+		if resp == nil || resp.StatusCode < 200 || resp.StatusCode >= 300 { return nil }
 		res := polaris_config_resp{}
 		err = resp.JSON(&res)
 		if err != nil {
-			fmt.Println(err.Error())
+			logger.Error("解析Polaris配置失败:" + err.Error())
 			return nil
 		}
 		if res.Code != 200000 {
-			fmt.Println(res.Info)
+			logger.Error("Polaris配置返回错误:" + res.Info)
 			return nil
 		}
 		return []byte(res.ConfigFileRelease.Content)
@@ -446,7 +455,7 @@ func (c *config) GetConfigData(prefix string) []byte {
 		return data
 	default:
 		resp, err := grequests.DoRegularRequest("GET", c.GetConfigUrl(prefix), nil)
-		if err != nil {
+		if err != nil || resp == nil || resp.StatusCode < 200 || resp.StatusCode >= 300 {
 			return nil
 		}
 		return resp.Bytes()

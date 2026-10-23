@@ -149,7 +149,7 @@ func (c *CachedRegistry) GetServices(servicename string, groupName ...string) ([
 		if err != nil && len(urls) == 0 {
 			return nil, err
 		}
-		return urls, nil
+		return append([]string(nil), urls...), nil
 	}
 	// 2) 已有协程在回源，等待其完成
 	if g, ok := c.inflight[key]; ok {
@@ -172,7 +172,7 @@ func (c *CachedRegistry) GetServices(servicename string, groupName ...string) ([
 			close(g.done)
 			c.mu.Unlock()
 			logs.Warn("服务发现刷新失败，复用旧实例列表 key={} err={}", key, err.Error())
-			return old.urls, nil
+			return append([]string(nil), old.urls...), nil
 		}
 		c.entries[key] = &cacheEntry{
 			service:   servicename,
@@ -185,7 +185,7 @@ func (c *CachedRegistry) GetServices(servicename string, groupName ...string) ([
 		c.entries[key] = &cacheEntry{
 			service:   servicename,
 			groups:    groupName,
-			urls:      urls,
+			urls:      append([]string(nil), urls...),
 			fetchedAt: time.Now(),
 			err:       err,
 		}
@@ -197,7 +197,7 @@ func (c *CachedRegistry) GetServices(servicename string, groupName ...string) ([
 	if err != nil && len(urls) == 0 {
 		return nil, err
 	}
-	return urls, nil
+	return append([]string(nil), urls...), nil
 }
 
 // readAfterRefresh 在等待其他协程回源完成后读取最新结果。
@@ -211,7 +211,7 @@ func (c *CachedRegistry) readAfterRefresh(key string) ([]string, error) {
 	if e.err != nil && len(e.urls) == 0 {
 		return nil, e.err
 	}
-	return e.urls, nil
+	return append([]string(nil), e.urls...), nil
 }
 
 // refreshLoop 后台定时刷新所有已知 key（预热），使缓存始终温热。

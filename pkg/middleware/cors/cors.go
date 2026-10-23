@@ -14,20 +14,19 @@ func Cors(headers ...string) gin.HandlerFunc {
 		if len(headers) > 0 && headers[0] != "" {
 			allowHeaders = fmt.Sprintf("%s, %s", allowHeaders, strings.Join(headers, ","))
 		}
-		origin := c.Request.Header.Get("Origin")
-		if origin != "" {
-			c.Header("Access-Control-Allow-Origin", origin)
-		} else {
-			c.Header("Access-Control-Allow-Origin", "*")
-		}
+		// Do not reflect an arbitrary Origin while advertising credentials. That
+		// combination lets any website make credentialed cross-origin requests.
+		c.Header("Access-Control-Allow-Origin", "*")
+		c.Header("Vary", "Origin")
 		c.Header("Access-Control-Allow-Headers", allowHeaders)
 		c.Header("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE, PATCH, HEAD, UPDATE")
 		c.Header("Access-Control-Expose-Headers", "Content-Length, Access-Control-Allow-Origin, Access-Control-Allow-Headers, Content-Type")
-		c.Header("Access-Control-Allow-Credentials", "true")
+		c.Header("Access-Control-Allow-Credentials", "false")
 
 		//放行所有OPTIONS方法
 		if method == "OPTIONS" {
 			c.AbortWithStatus(http.StatusNoContent)
+			return
 		}
 		// 处理请求
 		c.Next()

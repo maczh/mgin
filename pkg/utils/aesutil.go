@@ -17,10 +17,16 @@ func PKCS5Padding(cipherText []byte, blockSize int) []byte {
 
 func PKCS5UnPadding(origData []byte) ([]byte, error) {
 	length := len(origData)
+	if length == 0 {
+		return nil, errors.New("解密数据为空")
+	}
 	unPadding := int(origData[length-1])
-	if (length - unPadding) < 0 {
+	if unPadding == 0 || unPadding > length || unPadding > 16 {
 		return origData, errors.New("解密错误")
 	} else {
+		for _, b := range origData[length-unPadding:] {
+			if int(b) != unPadding { return origData, errors.New("解密错误") }
+		}
 		return origData[:(length - unPadding)], nil
 	}
 }
@@ -31,6 +37,7 @@ func AESBase64Encrypt(origin_data string, key string, iv []byte) (base64_result 
 		logs.Error("AES加密错误:{}", err.Error())
 		return
 	}
+	if len(iv) != block.BlockSize() { return "", errors.New("AES IV长度错误") }
 	encrypt := cipher.NewCBCEncrypter(block, iv)
 	var source []byte = PKCS5Padding([]byte(origin_data), 16)
 	var dst []byte = make([]byte, len(source))
@@ -46,6 +53,7 @@ func AESBase64Decrypt(encrypt_data string, key string, iv []byte) (string, error
 		logs.Error("AES加密错误:{}", err.Error())
 		return "", err
 	}
+	if len(iv) != block.BlockSize() { return "", errors.New("AES IV长度错误") }
 	encrypt := cipher.NewCBCDecrypter(block, iv)
 
 	var source []byte
@@ -53,6 +61,7 @@ func AESBase64Decrypt(encrypt_data string, key string, iv []byte) (string, error
 		logs.Error("AES解密错误:{}", err.Error())
 		return "", err
 	}
+	if len(source) == 0 || len(source)%block.BlockSize() != 0 { return "", errors.New("AES密文长度错误") }
 	var dst []byte = make([]byte, len(source))
 	encrypt.CryptBlocks(dst, source)
 	oridata, err := PKCS5UnPadding(dst)
@@ -69,6 +78,7 @@ func AesEncrypt(origData []byte, key []byte) ([]byte, error) {
 	}
 
 	blockSize := block.BlockSize()
+	if len(key) < blockSize { return nil, errors.New("AES密钥长度错误") }
 	origData = PKCS5Padding(origData, blockSize)
 	blockMode := cipher.NewCBCEncrypter(block, key[:blockSize])
 	encrypted := make([]byte, len(origData))
@@ -92,6 +102,7 @@ func AesDecrypt(encrypted []byte, key []byte) ([]byte, error) {
 	}
 
 	blockSize := block.BlockSize()
+	if len(key) < blockSize || len(encrypted) == 0 || len(encrypted)%blockSize != 0 { return nil, errors.New("AES密文或密钥长度错误") }
 	blockMode := cipher.NewCBCDecrypter(block, key[:blockSize])
 	origData := make([]byte, len(encrypted))
 	blockMode.CryptBlocks(origData, encrypted)

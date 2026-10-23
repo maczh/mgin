@@ -55,6 +55,8 @@ func (m *Manager) Reload() {
 
 // ReloadWith 使用给定配置替换当前配置，并清空已有限流器
 func (m *Manager) ReloadWith(cfg *Config) {
+	if m == nil { return }
+	if cfg == nil { cfg = (&Config{}).normalize() }
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.cfg = cfg
@@ -64,6 +66,7 @@ func (m *Manager) ReloadWith(cfg *Config) {
 
 // Config 返回当前生效的限流配置
 func (m *Manager) Config() *Config {
+	if m == nil { return nil }
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.cfg
@@ -87,6 +90,7 @@ func (m *Manager) startGC() {
 
 // gc 清理超过空闲时间未被访问的限流器
 func (m *Manager) gc() {
+	if m == nil { return }
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if len(m.limiters) == 0 {

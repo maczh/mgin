@@ -114,9 +114,13 @@ func sftpConnect(user, password, host string, port int, hostKeyCallback ssh.Host
 }
 
 func SftpUploadFile(sftpClient *sftp.Client, localFilePath string, remotePath string) {
+	if sftpClient == nil || localFilePath == "" {
+		return
+	}
 	srcFile, err := os.Open(localFilePath)
 	if err != nil {
 		logs.Error("本地文件{}打开错误:{}", localFilePath, err.Error())
+		return
 	}
 	defer srcFile.Close()
 
@@ -125,7 +129,7 @@ func SftpUploadFile(sftpClient *sftp.Client, localFilePath string, remotePath st
 	dstFile, err := sftpClient.Create(path.Join(remotePath, remoteFileName))
 	if err != nil {
 		logs.Error("远程文件:{}{}创建错误:{}", remotePath, remoteFileName, err.Error())
-
+		return
 	}
 	defer dstFile.Close()
 

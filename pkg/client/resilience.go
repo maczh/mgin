@@ -138,7 +138,13 @@ func CallResilientCtx(ctx context.Context, service, uri string, op *Options, ro 
 		}
 		delay := backoffDelay(i, ro)
 		logs.Warn("微服务{}调用{}失败({})，{}后进行第{}次重试", service, uri, err.Error(), delay, i+1)
-		time.Sleep(delay)
+		timer := time.NewTimer(delay)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return "", ctx.Err()
+		case <-timer.C:
+		}
 	}
 
 	// 熔断计数以“整个操作的最终结果”为准，避免单次抖动就把熔断器打穿

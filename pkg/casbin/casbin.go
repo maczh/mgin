@@ -18,6 +18,7 @@ import (
 type casbinService struct {
 	SyncedCachedEnforcer *casbin.SyncedCachedEnforcer
 	Once                 sync.Once
+	initMu               sync.Mutex
 	UnAuthPath           []CasbinInfo
 }
 
@@ -37,6 +38,8 @@ type CasbinInfo struct {
 // @param: RoleID uint, casbinInfos []request.CasbinInfo
 // @return: error
 func (s *casbinService) UpdateCasbin(RoleID uint, casbinInfos []CasbinInfo) error {
+	enforcer := s.GetEnforcer()
+	if enforcer == nil { return errors.New("casbin未初始化") }
 	roleId := fmt.Sprintf("%d", RoleID)
 	s.ClearCasbin(0, roleId)
 	rules := [][]string{}
@@ -50,8 +53,8 @@ func (s *casbinService) UpdateCasbin(RoleID uint, casbinInfos []CasbinInfo) erro
 		}
 	}
 
-	enforcer := s.GetEnforcer()
-	success, _ := enforcer.AddPolicies(rules)
+	success, err := enforcer.AddPolicies(rules)
+	if err != nil { return err }
 	if !success {
 		return errors.New("添加失败")
 	}
@@ -74,7 +77,9 @@ func (s *casbinService) UpdateCasbinApi(oldPath, oldMethod, path, method string)
 		"v1": path,
 		"v2": method,
 	}).Error
+	if err != nil { return err }
 	enforcer := s.GetEnforcer()
+	if enforcer == nil { return errors.New("casbin未初始化") }
 	err = enforcer.LoadPolicy()
 	if err != nil {
 		return err
@@ -90,6 +95,7 @@ func (s *casbinService) UpdateCasbinApi(oldPath, oldMethod, path, method string)
 // @return: pathMap []request.CasbinInfo
 func (s *casbinService) GetPolicyPathByRoleId(RoleId uint) (pathMap []CasbinInfo, err error) {
 	enforcer := s.GetEnforcer()
+	if enforcer == nil { return nil, errors.New("casbin未初始化") }
 	roleId := strconv.Itoa(int(RoleId))
 	// 处理可能出现的错误
 	policies, err := enforcer.GetFilteredPolicy(0, roleId)
@@ -116,6 +122,7 @@ func (s *casbinService) GetPolicyPathByRoleId(RoleId uint) (pathMap []CasbinInfo
 // @return: bool
 func (s *casbinService) ClearCasbin(v int, p ...string) bool {
 	enforcer := s.GetEnforcer()
+	if enforcer == nil { return false }
 	result, err := enforcer.RemoveFilteredPolicy(v, p...)
 	if err != nil {
 		logs.Error("清除失败:{}", err.Error())
@@ -170,12 +177,17 @@ func (s *casbinService) AddPolicy(rules [][]string) error {
 
 func (s *casbinService) FreshCasbin() (err error) {
 	e := s.GetEnforcer()
+	if e == nil { return errors.New("casbin未初始化") }
 	err = e.LoadPolicy()
 	return err
 }
 
 func (s *casbinService) GetEnforcer() *casbin.SyncedCachedEnforcer {
-	s.Once.Do(func() {
+	if s == nil { return nil }
+	s.initMu.Lock()
+	defer s.initMu.Unlock()
+	if s.SyncedCachedEnforcer != nil { return s.SyncedCachedEnforcer }
+	func() {
 		conn, err := db.Mysql.GetConnection()
 		if err != nil {
 			logs.Error("获取数据库连接失败!", err)
@@ -195,9 +207,14 @@ func (s *casbinService) GetEnforcer() *casbin.SyncedCachedEnforcer {
 			logs.Error("加载casbin模型失败!{}", err.Error())
 			return
 		}
-		s.SyncedCachedEnforcer, _ = casbin.NewSyncedCachedEnforcer(m, a)
+		var createErr error
+		s.SyncedCachedEnforcer, createErr = casbin.NewSyncedCachedEnforcer(m, a)
+		if createErr != nil || s.SyncedCachedEnforcer == nil {
+			logs.Error("创建casbin enforcer失败", createErr)
+			return
+		}
 		s.SyncedCachedEnforcer.SetExpireTime(60 * 60)
 		_ = s.SyncedCachedEnforcer.LoadPolicy()
-	})
+	}()
 	return s.SyncedCachedEnforcer
 }

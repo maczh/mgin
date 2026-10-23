@@ -86,7 +86,8 @@ func OnMemCache(cachename string) ICache {
 		mc.cache.Delete(cachename)
 	}
 	cache := new(MemCache)
-	mc.cache.Store(cachename, cache)
+	actual, _ := mc.cache.LoadOrStore(cachename, cache)
+	if existing, ok := actual.(ICache); ok && existing != nil { return existing }
 	return cache
 }
 

@@ -23,7 +23,7 @@ func (m *Sqlite) Init(dbFileName string) {
 	path, _ := filepath.Abs(filepath.Dir(os.Args[0]))
 	if dbFileName == "" {
 		dbFileName = fmt.Sprintf("%s/%s.db", path, config.Config.App.Name)
-	} else if !(dbFileName[:1] == "/" || dbFileName[1:2] == ":") {
+	} else if !filepath.IsAbs(dbFileName) && !(len(dbFileName) >= 2 && dbFileName[1:2] == ":") {
 		dbFileName = fmt.Sprintf("%s/%s", path, dbFileName)
 	}
 	m.dbFile = dbFileName

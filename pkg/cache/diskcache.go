@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"sync"
 	"time"
 
 	"git.mills.io/prologic/bitcask"
@@ -8,6 +9,7 @@ import (
 
 type DiskCache struct {
 	db *bitcask.Bitcask
+	closeOnce sync.Once
 }
 
 func (d *DiskCache) Add(key any, value any, lifeSpan time.Duration) {
@@ -101,7 +103,7 @@ func (d *DiskCache) Range(f func(key, value any) bool) {
 	}
 	for _, key := range keys {
 		v, _ := d.Value(key)
-		f(key, v)
+		if !f(key, v) { return }
 	}
 	return
 }
@@ -122,6 +124,5 @@ func (d *DiskCache) Close() {
 	if d == nil || d.db == nil {
 		return
 	}
-	d.db.Sync()
-	d.db.Close()
+	d.closeOnce.Do(func() { _ = d.db.Sync(); _ = d.db.Close() })
 }

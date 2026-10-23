@@ -135,15 +135,20 @@ func (m *MysqlClient) Init(mysqlConfigData []byte) {
 }
 
 func (m *MysqlClient) Close() {
+	if m == nil {
+		return
+	}
 	if m.multi {
 		for k, _ := range m.mysqls {
 			sqldb, _ := m.mysqls[k].DB()
 			sqldb.Close()
 			delete(m.mysqls, k)
 		}
-	} else {
+	} else if m.mysql != nil {
 		sqldb, _ := m.mysql.DB()
-		sqldb.Close()
+		if sqldb != nil {
+			sqldb.Close()
+		}
 		m.mysql = nil
 	}
 }

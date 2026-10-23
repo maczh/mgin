@@ -25,6 +25,7 @@ type MySQLDao[E schema.Tabler] struct {
 	ctx   *context.Context
 	Tag   func() string
 	cache *CacheConfig
+	tx    *gorm.DB
 }
 
 type QueryOption struct {
@@ -47,7 +48,40 @@ func (m *MySQLDao[E]) Debug() *MySQLDao[E] {
 		debug: true,
 		Tag:   m.Tag,
 		cache: m.cache,
+		ctx:   m.ctx,
+		tx:    m.tx,
 	}
+}
+
+// WithTx returns a DAO copy bound to the supplied transaction.
+func (m *MySQLDao[E]) WithTx(tx *gorm.DB) *MySQLDao[E] {
+	clone := *m
+	clone.tx = tx
+	return &clone
+}
+
+func (m *MySQLDao[E]) connection() (*gorm.DB, error) {
+	if m == nil {
+		return nil, errors.New("DAO为空")
+	}
+	conn := m.tx
+	var err error
+	if conn == nil {
+		if m.Tag == nil {
+			m.Tag = notag
+		}
+		conn, err = db.Mysql.GetConnection(m.Tag())
+		if err != nil {
+			return nil, err
+		}
+	}
+	if m.debug {
+		conn = conn.Debug()
+	}
+	if m.ctx != nil && *m.ctx != nil {
+		conn = conn.WithContext(*m.ctx)
+	}
+	return conn, nil
 }
 
 func (m *MySQLDao[E]) WithContext(ctx *context.Context) *MySQLDao[E] {
@@ -176,7 +210,7 @@ func (m *MySQLDao[E]) storeCached(key string, value interface{}) {
 }
 
 func (m *MySQLDao[E]) clearCache() {
-	if !m.cacheEnabled() {
+	if m.tx != nil || !m.cacheEnabled() {
 		return
 	}
 	prefix := m.cacheTablePrefix()
@@ -190,22 +224,64 @@ func (m *MySQLDao[E]) clearCache() {
 
 // Where mysql动态查询数据
 func (m *MySQLDao[E]) Where(query interface{}, args ...interface{}) *gorm.DB {
-	if m.Tag == nil {
-		m.Tag = notag
-	}
-	conn, err := db.Mysql.GetConnection(m.Tag())
+	conn, err := m.connection()
 	if err != nil {
 		logger.Error("数据库连接失败: " + err.Error())
 		return nil
 	}
-	if m.debug {
-		conn = conn.Debug()
-	}
-	if m.ctx != nil {
-		conn = conn.WithContext(*m.ctx)
-	}
 	var e E
 	return conn.Model(e).Where(query, args...)
+}
+
+func (m *MySQLDao[E]) whereCacheKey(op string, query interface{}, args ...interface{}) (string, bool) {
+	if m == nil || m.tx != nil {
+		return "", false
+	}
+	return m.cacheKey(op, struct { Query interface{}; Args []interface{} }{query, args})
+}
+
+// WhereAll, WhereOne and WhereCount are cached conditional queries.
+func (m *MySQLDao[E]) WhereAll(query interface{}, args ...interface{}) ([]E, error) {
+	var result []E
+	key, ok := m.whereCacheKey("where_all", query, args...)
+	if ok && m.loadCached(key, &result) { return result, nil }
+	conn := m.Where(query, args...); if conn == nil { return nil, errors.New("数据库连接失败") }
+	result = make([]E, 0)
+	if err := conn.Find(&result).Error; err != nil { return nil, errors.New("数据库查询失败") }
+	if ok { m.storeCached(key, result) }
+	return result, nil
+}
+
+func (m *MySQLDao[E]) WhereOne(query interface{}, args ...interface{}) (*E, error) {
+	var result E
+	key, ok := m.whereCacheKey("where_one", query, args...)
+	if ok && m.loadCached(key, &result) { return &result, nil }
+	conn := m.Where(query, args...); if conn == nil { return nil, errors.New("数据库连接失败") }
+	if err := conn.First(&result).Error; err != nil { if errors.Is(err, gorm.ErrRecordNotFound) { return nil, nil }; return nil, errors.New("数据库查询失败") }
+	if ok { m.storeCached(key, result) }
+	return &result, nil
+}
+
+func (m *MySQLDao[E]) WhereCount(query interface{}, args ...interface{}) (int64, error) {
+	var count int64
+	key, ok := m.whereCacheKey("where_count", query, args...)
+	if ok && m.loadCached(key, &count) { return count, nil }
+	conn := m.Where(query, args...); if conn == nil { return 0, errors.New("数据库连接失败") }
+	var entity E
+	if err := conn.Model(&entity).Count(&count).Error; err != nil { return 0, errors.New("数据库查询失败") }
+	if ok { m.storeCached(key, count) }
+	return count, nil
+}
+
+func (m *MySQLDao[E]) WhereExists(query interface{}, args ...interface{}) bool {
+	var result E
+	key, ok := m.whereCacheKey("where_exists", query, args...)
+	var exists bool
+	if ok && m.loadCached(key, &exists) { return exists }
+	conn := m.Where(query, args...); if conn == nil { return false }
+	exists = conn.First(&result).Error == nil
+	if ok { m.storeCached(key, exists) }
+	return exists
 }
 
 // Create mysql动态插入数据
@@ -213,7 +289,7 @@ func (receiver *MySQLDao[E]) Create(entity *E) error {
 	if receiver.Tag == nil {
 		receiver.Tag = notag
 	}
-	conn, err := db.Mysql.GetConnection(receiver.Tag())
+	conn, err := receiver.connection()
 	if err != nil {
 		logger.Error("数据库连接失败: " + err.Error())
 		return errors.New("数据库连接失败")
@@ -221,7 +297,7 @@ func (receiver *MySQLDao[E]) Create(entity *E) error {
 	if receiver.debug {
 		conn = conn.Debug()
 	}
-	if receiver.ctx != nil {
+	if receiver.ctx != nil && *receiver.ctx != nil {
 		conn = conn.WithContext(*receiver.ctx)
 	}
 	err = conn.Create(entity).Error
@@ -238,7 +314,7 @@ func (receiver *MySQLDao[E]) MultiCreate(entities []*E) error {
 	if receiver.Tag == nil {
 		receiver.Tag = notag
 	}
-	conn, err := db.Mysql.GetConnection(receiver.Tag())
+	conn, err := receiver.connection()
 	if err != nil {
 		logger.Error("数据库连接失败: " + err.Error())
 		return errors.New("数据库连接失败")
@@ -246,7 +322,7 @@ func (receiver *MySQLDao[E]) MultiCreate(entities []*E) error {
 	if receiver.debug {
 		conn = conn.Debug()
 	}
-	if receiver.ctx != nil {
+	if receiver.ctx != nil && *receiver.ctx != nil {
 		conn = conn.WithContext(*receiver.ctx)
 	}
 	err = conn.Create(entities).Error
@@ -263,7 +339,7 @@ func (receiver *MySQLDao[E]) Delete(entity E) error {
 	if receiver.Tag == nil {
 		receiver.Tag = notag
 	}
-	conn, err := db.Mysql.GetConnection(receiver.Tag())
+	conn, err := receiver.connection()
 	if err != nil {
 		logger.Error("数据库连接失败: " + err.Error())
 		return errors.New("数据库连接失败")
@@ -272,7 +348,7 @@ func (receiver *MySQLDao[E]) Delete(entity E) error {
 	if receiver.debug {
 		conn = conn.Debug()
 	}
-	if receiver.ctx != nil {
+	if receiver.ctx != nil && *receiver.ctx != nil {
 		conn = conn.WithContext(*receiver.ctx)
 	}
 	err = conn.Where(entity).Delete(&e).Error
@@ -289,7 +365,7 @@ func (receiver *MySQLDao[E]) Updates(entity *E) error {
 	if receiver.Tag == nil {
 		receiver.Tag = notag
 	}
-	conn, err := db.Mysql.GetConnection(receiver.Tag())
+	conn, err := receiver.connection()
 	if err != nil {
 		logger.Error("数据库连接失败: " + err.Error())
 		return errors.New("数据库连接失败")
@@ -297,7 +373,7 @@ func (receiver *MySQLDao[E]) Updates(entity *E) error {
 	if receiver.debug {
 		conn = conn.Debug()
 	}
-	if receiver.ctx != nil {
+	if receiver.ctx != nil && *receiver.ctx != nil {
 		conn = conn.WithContext(*receiver.ctx)
 	}
 	err = conn.Updates(entity).Error
@@ -314,7 +390,7 @@ func (receiver *MySQLDao[E]) Save(entity *E) error {
 	if receiver.Tag == nil {
 		receiver.Tag = notag
 	}
-	conn, err := db.Mysql.GetConnection(receiver.Tag())
+	conn, err := receiver.connection()
 	if err != nil {
 		logger.Error("数据库连接失败: " + err.Error())
 		return errors.New("数据库连接失败")
@@ -322,7 +398,7 @@ func (receiver *MySQLDao[E]) Save(entity *E) error {
 	if receiver.debug {
 		conn = conn.Debug()
 	}
-	if receiver.ctx != nil {
+	if receiver.ctx != nil && *receiver.ctx != nil {
 		conn = conn.WithContext(*receiver.ctx)
 	}
 	err = conn.Save(entity).Error
@@ -339,7 +415,7 @@ func (receiver *MySQLDao[E]) All(entity E, opts ...QueryOption) ([]E, error) {
 	if receiver.Tag == nil {
 		receiver.Tag = notag
 	}
-	conn, err := db.Mysql.GetConnection(receiver.Tag())
+	conn, err := receiver.connection()
 	if err != nil {
 		logger.Error("数据库连接失败: " + err.Error())
 		return nil, errors.New("数据库连接失败")
@@ -356,7 +432,7 @@ func (receiver *MySQLDao[E]) All(entity E, opts ...QueryOption) ([]E, error) {
 	if receiver.debug {
 		conn = conn.Debug()
 	}
-	if receiver.ctx != nil {
+	if receiver.ctx != nil && *receiver.ctx != nil {
 		conn = conn.WithContext(*receiver.ctx)
 	}
 	if opts != nil && len(opts) > 0 {
@@ -387,7 +463,7 @@ func (receiver *MySQLDao[E]) One(entity E) (*E, error) {
 	if receiver.Tag == nil {
 		receiver.Tag = notag
 	}
-	conn, err := db.Mysql.GetConnection(receiver.Tag())
+	conn, err := receiver.connection()
 	if err != nil {
 		logger.Error("数据库连接失败: " + err.Error())
 		return nil, errors.New("数据库连接失败")
@@ -400,7 +476,7 @@ func (receiver *MySQLDao[E]) One(entity E) (*E, error) {
 	if receiver.debug {
 		conn = conn.Debug()
 	}
-	if receiver.ctx != nil {
+	if receiver.ctx != nil && *receiver.ctx != nil {
 		conn = conn.WithContext(*receiver.ctx)
 	}
 	err = conn.Where(entity).First(&result).Error
@@ -422,7 +498,7 @@ func (receiver *MySQLDao[E]) Exists(entity E) bool {
 	if receiver.Tag == nil {
 		receiver.Tag = notag
 	}
-	conn, err := db.Mysql.GetConnection(receiver.Tag())
+	conn, err := receiver.connection()
 	if err != nil {
 		logger.Error("数据库连接失败: " + err.Error())
 		return false
@@ -436,7 +512,7 @@ func (receiver *MySQLDao[E]) Exists(entity E) bool {
 	if receiver.debug {
 		conn = conn.Debug()
 	}
-	if receiver.ctx != nil {
+	if receiver.ctx != nil && *receiver.ctx != nil {
 		conn = conn.WithContext(*receiver.ctx)
 	}
 	err = conn.Where(entity).First(&result).Error
@@ -452,7 +528,7 @@ func (receiver *MySQLDao[E]) Count(entity E) (int64, error) {
 	if receiver.Tag == nil {
 		receiver.Tag = notag
 	}
-	conn, err := db.Mysql.GetConnection(receiver.Tag())
+	conn, err := receiver.connection()
 	if err != nil {
 		logger.Error("数据库连接失败: " + err.Error())
 		return 0, errors.New("数据库连接失败")
@@ -465,7 +541,7 @@ func (receiver *MySQLDao[E]) Count(entity E) (int64, error) {
 	if receiver.debug {
 		conn = conn.Debug()
 	}
-	if receiver.ctx != nil {
+	if receiver.ctx != nil && *receiver.ctx != nil {
 		conn = conn.WithContext(*receiver.ctx)
 	}
 	err = conn.Model(&entity).Where(entity).Count(&count).Error
@@ -488,7 +564,10 @@ func (receiver *MySQLDao[E]) Pager(conn *gorm.DB, page, size int) ([]E, *models.
 		return nil, nil, errors.New("数据库连接为空")
 	}
 	if page < 1 {
-		page = 1
+		return nil, nil, errors.New("页码必须大于0")
+	}
+	if size < 0 {
+		return nil, nil, errors.New("分页大小不能小于0")
 	}
 	// 默认分页大小为20条
 	if size <= 0 {
@@ -503,7 +582,7 @@ func (receiver *MySQLDao[E]) Pager(conn *gorm.DB, page, size int) ([]E, *models.
 	if receiver.debug {
 		conn = conn.Debug()
 	}
-	if receiver.ctx != nil {
+	if receiver.ctx != nil && *receiver.ctx != nil {
 		conn = conn.WithContext(*receiver.ctx)
 	}
 	var e E
@@ -529,7 +608,7 @@ func (receiver *MySQLDao[E]) Alias(alias string) *gorm.DB {
 	if receiver.Tag == nil {
 		receiver.Tag = notag
 	}
-	conn, err := db.Mysql.GetConnection(receiver.Tag())
+	conn, err := receiver.connection()
 	if err != nil {
 		logger.Error("数据库连接失败: " + err.Error())
 		return nil
@@ -542,7 +621,7 @@ func (receiver *MySQLDao[E]) DB() *gorm.DB {
 	if receiver.Tag == nil {
 		receiver.Tag = notag
 	}
-	conn, err := db.Mysql.GetConnection(receiver.Tag())
+	conn, err := receiver.connection()
 	if err != nil {
 		logger.Error("数据库连接失败: " + err.Error())
 		return nil
