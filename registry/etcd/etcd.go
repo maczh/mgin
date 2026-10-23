@@ -14,6 +14,7 @@ import (
 	"github.com/knadh/koanf/providers/rawbytes"
 	"github.com/maczh/mgin/cache"
 	"github.com/maczh/mgin/config"
+	registryModel "github.com/maczh/mgin/registry/model"
 	"github.com/maczh/mgin/utils"
 	"github.com/sadlil/gologger"
 	clientv3 "go.etcd.io/etcd/client/v3"
@@ -32,6 +33,7 @@ type EtcdClient struct {
 	confData      []byte
 	instanceId    string
 	registeredKey string
+	keyTemplate   string
 	apiUrl        string
 	ctx           context.Context
 	cancel        context.CancelFunc
@@ -60,6 +62,10 @@ func (c *EtcdClient) Register(etcdConfigData []byte) {
 		ipstr := c.conf.String("go.etcd.server")
 		portstr := c.conf.String("go.etcd.port")
 		c.prefix = c.conf.String("go.etcd.prefix")
+		c.keyTemplate = c.conf.String("go.etcd.keyTemplate")
+		if c.keyTemplate == "" {
+			c.keyTemplate = "{prefix}/{group}/{service}/{instance}"
+		}
 		c.group = c.conf.String("go.etcd.group")
 		if c.group == "" {
 			c.group = config.Config.App.Project
@@ -80,7 +86,10 @@ func (c *EtcdClient) Register(etcdConfigData []byte) {
 			logger.Error("Etcd 注册中心地址配置为空")
 			return
 		}
-		serverConfig := clientv3.Config{Endpoints: etcd_urls, DialTimeout: 5 * time.Second}
+		serverConfig := clientv3.Config{
+			Endpoints: etcd_urls, DialTimeout: 5 * time.Second,
+			Username: c.conf.String("go.etcd.username"), Password: c.conf.String("go.etcd.password"),
+		}
 		logger.Debug("Etcd客户端配置: " + toJSON(serverConfig))
 		c.client, err = clientv3.New(serverConfig)
 		if err != nil {
@@ -103,7 +112,7 @@ func (c *EtcdClient) Register(etcdConfigData []byte) {
 			protocol = "https://"
 		}
 		apiUrl := fmt.Sprintf("%s%s:%d", protocol, ip, port)
-		prefix := fmt.Sprintf("%s/%s/%s/", c.prefix, c.group, config.Config.App.Name)
+		prefix := c.servicePrefix(c.group, config.Config.App.Name)
 		resp, err := c.client.Get(context.Background(), prefix, clientv3.WithPrefix())
 		if err != nil {
 			logger.Error("Etcd获取服务失败:" + err.Error())
@@ -131,7 +140,7 @@ func (c *EtcdClient) Register(etcdConfigData []byte) {
 		}
 		c.leaseID = respGrant.ID
 		c.instanceId = utils.NewUUIDString()
-		key := fmt.Sprintf("%s/%s/%s/%s", c.prefix, c.group, config.Config.App.Name, c.instanceId)
+		key := c.serviceKey(c.group, config.Config.App.Name, c.instanceId)
 		logger.Debug("etcd服务的key: " + key + "，值：" + apiUrl)
 		res, regerr := c.client.Put(context.Background(), key, apiUrl, clientv3.WithLease(c.leaseID))
 		if regerr != nil {
@@ -159,7 +168,7 @@ func (c *EtcdClient) GetServiceURL(servicename string, groupName ...string) (str
 		return "", currentGroup
 	}
 	for _, group := range groupName {
-		prefix := fmt.Sprintf("%s/%s/%s/", c.prefix, group, servicename)
+		prefix := c.servicePrefix(group, servicename)
 		logger.Debug("查询前缀: " + prefix)
 		resp, err := c.client.Get(context.Background(), prefix, clientv3.WithPrefix())
 		if err != nil {
@@ -183,6 +192,27 @@ func (c *EtcdClient) GetServiceURL(servicename string, groupName ...string) (str
 	return "", currentGroup
 }
 
+func (c *EtcdClient) GetServiceInstances(servicename string, groupName ...string) ([]registryModel.ServiceInstance, string) {
+	group := c.group
+	if len(groupName) > 0 && groupName[0] != "" {
+		group = groupName[0]
+	}
+	if c.client == nil {
+		return nil, group
+	}
+	resp, err := c.client.Get(context.Background(), c.servicePrefix(group, servicename), clientv3.WithPrefix())
+	if err != nil {
+		return nil, group
+	}
+	instances := make([]registryModel.ServiceInstance, 0, len(resp.Kvs))
+	for _, kv := range resp.Kvs {
+		if len(kv.Value) > 0 {
+			instances = append(instances, registryModel.ServiceInstance{URL: string(kv.Value), Weight: 1})
+		}
+	}
+	return instances, group
+}
+
 func (c *EtcdClient) DeRegister() {
 	if c.client == nil {
 		logger.Error("Etcd 未初始化，无法注销服务")
@@ -194,7 +224,7 @@ func (c *EtcdClient) DeRegister() {
 	key := c.registeredKey
 	if key == "" {
 		// 兜底：按 instanceId 拼出 key（极端情况下 registeredKey 未记录）
-		key = fmt.Sprintf("%s/%s/%s/%s", c.prefix, c.group, config.Config.App.Name, c.instanceId)
+		key = c.serviceKey(c.group, config.Config.App.Name, c.instanceId)
 	}
 	resp, err := c.client.Delete(context.Background(), key)
 	if err != nil {
@@ -202,6 +232,67 @@ func (c *EtcdClient) DeRegister() {
 		return
 	}
 	logger.Debug("Etcd注销服务结果: " + toJSON(resp))
+}
+
+func (c *EtcdClient) serviceKey(group, service, instance string) string {
+	return strings.TrimSuffix(strings.NewReplacer("{prefix}", c.prefix, "{group}", group, "{service}", service, "{instance}", instance).Replace(c.keyTemplate), "/")
+}
+func (c *EtcdClient) servicePrefix(group, service string) string {
+	return c.serviceKey(group, service, "") + "/"
+}
+
+// SubscribeOffline watches delete events and reports the affected service.
+// The callback is invoked asynchronously so a slow cache consumer never
+// blocks etcd's watch loop.
+func (c *EtcdClient) SubscribeOffline(callback func(service, group string)) error {
+	if c.client == nil || callback == nil {
+		return fmt.Errorf("etcd is not initialized")
+	}
+	watchCtx := context.Background()
+	if c.ctx != nil {
+		watchCtx = c.ctx
+	}
+	go func() {
+		watch := c.client.Watch(watchCtx, strings.TrimSuffix(c.prefix, "/")+"/", clientv3.WithPrefix())
+		for response := range watch {
+			for _, event := range response.Events {
+				if event.Type != clientv3.EventTypeDelete {
+					continue
+				}
+				parts := strings.Split(strings.Trim(string(event.Kv.Key), "/"), "/")
+				if len(parts) < 4 {
+					continue
+				}
+				service := parts[len(parts)-2]
+				group := parts[len(parts)-3]
+				go callback(service, group)
+			}
+		}
+	}()
+	return nil
+}
+
+func (c *EtcdClient) WatchService(service, group string, callback func()) (func(), error) {
+	if c.client == nil || callback == nil {
+		return nil, fmt.Errorf("etcd is not initialized")
+	}
+	if group == "" {
+		group = c.group
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	prefix := c.servicePrefix(group, service)
+	go func() {
+		watch := c.client.Watch(ctx, prefix, clientv3.WithPrefix())
+		for response := range watch {
+			for _, event := range response.Events {
+				if event.Type == clientv3.EventTypeDelete {
+					callback()
+					return
+				}
+			}
+		}
+	}()
+	return cancel, nil
 }
 
 // keepAliveLoop 持续续约租约；当租约通道关闭或续约失败时自动重建租约并重新注册，

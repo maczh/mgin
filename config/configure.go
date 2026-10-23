@@ -119,10 +119,12 @@ type appLog struct {
 }
 
 type discovery struct {
-	Registry     string        `json:"registry" bson:"registry"`
-	CallType     string        `json:"callType" bson:"callType"`
-	CacheTTL     time.Duration `json:"cacheTTL" bson:"cacheTTL"`
-	CacheRefresh time.Duration `json:"cacheRefresh" bson:"cacheRefresh"`
+	Registry          string        `json:"registry" bson:"registry"`
+	CallType          string        `json:"callType" bson:"callType"`
+	CacheTTL          time.Duration `json:"cacheTTL" bson:"cacheTTL"`
+	CacheRefresh      time.Duration `json:"cacheRefresh" bson:"cacheRefresh"`
+	CircuitFailures   int           `json:"circuitFailures" bson:"circuitFailures"`
+	CircuitOpenWindow time.Duration `json:"circuitOpenWindow" bson:"circuitOpenWindow"`
 }
 
 type sys struct {
@@ -249,6 +251,15 @@ func (c *config) Init(cf string) {
 	if c.Discovery.CacheRefresh <= 0 {
 		c.Discovery.CacheRefresh = 60 * time.Second
 	}
+	c.Discovery.CircuitFailures = c.Cnf.Int("go.discovery.circuitFailures")
+	c.Discovery.CircuitOpenWindow = 30 * time.Second
+	if raw := c.Cnf.String("go.discovery.circuitOpenWindow"); raw != "" {
+		if parsed, err := time.ParseDuration(raw); err == nil && parsed > 0 {
+			c.Discovery.CircuitOpenWindow = parsed
+		}
+	} else if seconds := c.Cnf.Int("go.discovery.circuitOpenWindow"); seconds > 0 {
+		c.Discovery.CircuitOpenWindow = time.Duration(seconds) * time.Second
+	}
 	c.Jwt.Secret = c.Cnf.String("go.jwt.secret")
 	c.Sys.Enabled = c.Cnf.Bool("go.sys.enabled")
 	c.Sys.Initdb = c.Cnf.Bool("go.sys.initdb")
@@ -319,6 +330,23 @@ func (c *config) GetConfigBool(name string) bool {
 	} else {
 		return false
 	}
+}
+
+// GetConfigDuration returns a duration config value. Values may be expressed
+// as Go duration strings (for example "500ms") or as seconds for numeric YAML.
+func (c *config) GetConfigDuration(name string, fallback time.Duration) time.Duration {
+	if c == nil || c.Cnf == nil || !c.Cnf.Exists(name) {
+		return fallback
+	}
+	if value := c.Cnf.String(name); value != "" {
+		if d, err := time.ParseDuration(value); err == nil && d > 0 {
+			return d
+		}
+	}
+	if seconds := c.Cnf.Int(name); seconds > 0 {
+		return time.Duration(seconds) * time.Second
+	}
+	return fallback
 }
 
 func (c *config) Exists(name string) bool {

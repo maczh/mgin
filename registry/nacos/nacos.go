@@ -13,6 +13,7 @@ import (
 	jsoniter "github.com/json-iterator/go"
 	"github.com/levigross/grequests"
 	"github.com/maczh/mgin/config"
+	registryModel "github.com/maczh/mgin/registry/model"
 	"github.com/sadlil/gologger"
 
 	"github.com/knadh/koanf"
@@ -22,6 +23,7 @@ import (
 
 type NacosClient struct {
 	nsurl      string
+	endpoints  []string
 	group      string
 	cluster    string
 	lan        bool
@@ -100,8 +102,23 @@ func (n *NacosClient) Register(nacosConfigData []byte) {
 		if n.ver == "" {
 			n.ver = "v1"
 		}
-		n.nsurl = fmt.Sprintf("http://%s:%s/nacos/%s/ns/instance", ipstr, portstr, n.ver)
+		ips := strings.Split(ipstr, ",")
+		ports := strings.Split(portstr, ",")
+		for i, ip := range ips {
+			if i < len(ports) && strings.TrimSpace(ip) != "" {
+				n.endpoints = append(n.endpoints, fmt.Sprintf("http://%s:%s/nacos/%s/ns/instance", strings.TrimSpace(ip), strings.TrimSpace(ports[i]), n.ver))
+			}
+		}
+		if len(n.endpoints) > 0 {
+			n.nsurl = n.endpoints[0]
+		} else {
+			n.nsurl = fmt.Sprintf("http://%s:%s/nacos/%s/ns/instance", ipstr, portstr, n.ver)
+		}
 		n.group = n.conf.String("go.nacos.group")
+		n.param = make(map[string]string)
+		if username := n.conf.String("go.nacos.username"); username != "" {
+			n.param = map[string]string{"username": username, "password": n.conf.String("go.nacos.password")}
+		}
 		if n.group == "" {
 			n.group = "DEFAULT_GROUP"
 		}
@@ -124,7 +141,7 @@ func (n *NacosClient) Register(nacosConfigData []byte) {
 			port = uint64(config.Config.App.PortSSL)
 			metadata["ssl"] = "true"
 		}
-		n.param = map[string]string{
+		for k, v := range map[string]string{
 			"ip":          ip,
 			"port":        fmt.Sprintf("%d", port),
 			"weight":      "1",
@@ -132,6 +149,8 @@ func (n *NacosClient) Register(nacosConfigData []byte) {
 			"groupName":   n.group,
 			"serviceName": config.Config.App.Name,
 			"meta":        toJSON(metadata),
+		} {
+			n.param[k] = v
 		}
 		resp, err := grequests.DoRegularRequest(http.MethodPost, n.nsurl, &grequests.RequestOptions{
 			Params: n.param,
@@ -158,6 +177,17 @@ func (n *NacosClient) Register(nacosConfigData []byte) {
 }
 
 func (n *NacosClient) GetServiceURL(servicename string, groupName ...string) (string, string) {
+	if len(n.endpoints) > 1 {
+		for _, endpoint := range n.endpoints {
+			copyClient := *n
+			copyClient.nsurl = endpoint
+			copyClient.endpoints = nil
+			if url, group := copyClient.GetServiceURL(servicename, groupName...); url != "" {
+				return url, group
+			}
+		}
+		return "", ""
+	}
 	var instance InstanceResp
 	var err error
 	query := map[string]string{
@@ -229,6 +259,71 @@ func (n *NacosClient) GetServiceURL(servicename string, groupName ...string) (st
 		return url, strs[0]
 	}
 	return "", ""
+}
+
+func (n *NacosClient) GetServiceInstances(service string, groupName ...string) ([]registryModel.ServiceInstance, string) {
+	group := n.group
+	if len(groupName) > 0 && groupName[0] != "" {
+		group = groupName[0]
+	}
+	resp, err := grequests.Get(n.nsurl+"/list", grequests.FromRequestOptions(&grequests.RequestOptions{Params: map[string]string{"serviceName": service, "groupName": group}}))
+	if err != nil || resp.StatusCode != 200 {
+		return nil, group
+	}
+	var result InstanceResp
+	if err := resp.JSON(&result); err != nil {
+		return nil, group
+	}
+	out := make([]registryModel.ServiceInstance, 0, len(result.Hosts))
+	for _, host := range result.Hosts {
+		if !host.Healthy || !host.Enabled || host.Marked {
+			continue
+		}
+		protocol := "http://"
+		if host.Metadata["ssl"] == "true" {
+			protocol = "https://"
+		}
+		weight := host.Weight
+		if weight <= 0 {
+			weight = 1
+		}
+		out = append(out, registryModel.ServiceInstance{URL: fmt.Sprintf("%s%s:%d", protocol, host.IP, host.Port), Weight: weight, Metadata: host.Metadata})
+	}
+	return out, group
+}
+
+// SubscribeOffline provides a portable fallback for Nacos installations that
+// do not expose a client-side instance event stream. It emits only on a
+// healthy-to-empty transition, so cache consumers are not invalidated repeatedly.
+func (n *NacosClient) SubscribeOffline(callback func(service, group string)) error {
+	_, err := n.WatchService(config.Config.App.Name, "", func() { callback(config.Config.App.Name, "") })
+	return err
+}
+
+func (n *NacosClient) WatchService(service, group string, callback func()) (func(), error) {
+	if callback == nil || n.nsurl == "" {
+		return nil, fmt.Errorf("nacos is not initialized")
+	}
+	stop := make(chan struct{})
+	go func() {
+		wasAvailable := true
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-stop:
+				return
+			case <-ticker.C:
+				url, _ := n.GetServiceURL(service, group)
+				available := url != ""
+				if wasAvailable && !available {
+					callback()
+				}
+				wasAvailable = available
+			}
+		}
+	}()
+	return func() { close(stop) }, nil
 }
 
 func (n *NacosClient) DeRegister() {

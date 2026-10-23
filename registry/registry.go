@@ -4,8 +4,10 @@ import (
 	"github.com/maczh/mgin/config"
 	"github.com/maczh/mgin/registry/consul"
 	"github.com/maczh/mgin/registry/etcd"
+	registryModel "github.com/maczh/mgin/registry/model"
 	"github.com/maczh/mgin/registry/nacos"
 	"github.com/maczh/mgin/registry/polaris"
+	"time"
 )
 
 var Registry RegistryClient
@@ -14,6 +16,39 @@ type RegistryClient interface {
 	Register(registryConfigData []byte)
 	GetServiceURL(servicename string, groupName ...string) (string, string)
 	DeRegister()
+}
+
+// ServiceInstance is the common discovery model used by optional registry
+// extensions. Existing RegistryClient implementations remain source compatible.
+type ServiceInstance = registryModel.ServiceInstance
+
+// InstanceProvider is optional. Backends that can return the complete healthy
+// instance set may implement it; the legacy URL API remains the fallback.
+type InstanceProvider interface {
+	GetServiceInstances(service string, group ...string) ([]ServiceInstance, string)
+}
+
+type OfflineSubscriber interface {
+	SubscribeOffline(func(service, group string)) error
+}
+
+type ServiceWatcher interface {
+	WatchService(service, group string, callback func()) (cancel func(), err error)
+}
+
+type SelectionStrategy string
+
+const (
+	StrategyRandom     SelectionStrategy = "random"
+	StrategyRoundRobin SelectionStrategy = "round_robin"
+	StrategyWeighted   SelectionStrategy = "weighted"
+)
+
+// RegistryOptions controls local discovery behavior without changing the
+// historical constructor or RegistryClient contract.
+type RegistryOptions struct {
+	TTL, Refresh time.Duration
+	Strategy     SelectionStrategy
 }
 
 func NewRegistry() RegistryClient {

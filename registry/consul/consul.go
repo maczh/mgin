@@ -16,12 +16,14 @@ import (
 	"github.com/knadh/koanf/parsers/yaml"
 	"github.com/knadh/koanf/providers/rawbytes"
 	"github.com/maczh/mgin/config"
+	registryModel "github.com/maczh/mgin/registry/model"
 	"github.com/sadlil/gologger"
 )
 
 // ConsulClient 是实现 RegistryClient 接口的结构体
 type ConsulClient struct {
 	client     *api.Client
+	clients    []*api.Client
 	cluster    string
 	group      string
 	lan        bool
@@ -75,13 +77,20 @@ func (c *ConsulClient) Register(etcdConfigData []byte) {
 			logger.Error("Consul 注册中心地址配置为空")
 			return
 		}
-		serverConfig := api.DefaultConfig()
-		serverConfig.Address = consul_urls[0]
-		c.client, err = api.NewClient(serverConfig)
-		if err != nil {
-			logger.Error("Consul 服务连接失败:" + err.Error())
+		for _, address := range consul_urls {
+			serverConfig := api.DefaultConfig()
+			serverConfig.Address = address
+			serverConfig.Token = c.conf.String("go.consul.token")
+			client, clientErr := api.NewClient(serverConfig)
+			if clientErr == nil {
+				c.clients = append(c.clients, client)
+			}
+		}
+		if len(c.clients) == 0 {
+			logger.Error("Consul 服务连接失败")
 			return
 		}
+		c.client = c.clients[0]
 		localip, err := localIPv4s(c.lan, c.lanNetwork)
 		if err != nil || len(localip) == 0 {
 			logger.Error("Consul 注册中心获取本机IP失败")
@@ -133,26 +142,105 @@ func (c *ConsulClient) GetServiceURL(servicename string, groupName ...string) (s
 		groupName[0] = c.group
 	}
 	currentGroup := groupName[0]
+	clients := c.clients
+	if len(clients) == 0 {
+		clients = []*api.Client{c.client}
+	}
 	for _, group := range groupName {
-		services, _, err := c.client.Health().Service(servicename, group, true, &api.QueryOptions{})
-		if err != nil {
-			continue
+		for _, consulClient := range clients {
+			services, _, err := consulClient.Health().Service(servicename, group, true, &api.QueryOptions{})
+			if err != nil || len(services) == 0 {
+				continue
+			}
+			currentGroup = group
+			//fmt.Printf("服务查询结果: %s\n", toJSON(services))
+			r := rand.New(rand.NewSource(time.Now().UnixNano()))
+			service := services[r.Intn(len(services))]
+			protocol := "http://"
+			if len(service.Service.Tags) >= 3 {
+				protocol = service.Service.Tags[2]
+			}
+			address := fmt.Sprintf("%s%s:%d", protocol, service.Service.Address, service.Service.Port)
+			return address, currentGroup
 		}
-		if len(services) == 0 {
-			continue
-		}
-		currentGroup = group
-		//fmt.Printf("服务查询结果: %s\n", toJSON(services))
-		r := rand.New(rand.NewSource(time.Now().UnixNano()))
-		service := services[r.Intn(len(services))]
-		protocol := "http://"
-		if len(service.Service.Tags) >= 3 {
-			protocol = service.Service.Tags[2]
-		}
-		address := fmt.Sprintf("%s%s:%d", protocol, service.Service.Address, service.Service.Port)
-		return address, currentGroup
 	}
 	return "", currentGroup
+}
+
+func (c *ConsulClient) GetServiceInstances(servicename string, groupName ...string) ([]registryModel.ServiceInstance, string) {
+	group := c.group
+	if len(groupName) > 0 && groupName[0] != "" {
+		group = groupName[0]
+	}
+	clients := c.clients
+	if len(clients) == 0 && c.client != nil {
+		clients = []*api.Client{c.client}
+	}
+	for _, client := range clients {
+		services, _, err := client.Health().Service(servicename, group, true, &api.QueryOptions{})
+		if err != nil || len(services) == 0 {
+			continue
+		}
+		out := make([]registryModel.ServiceInstance, 0, len(services))
+		for _, service := range services {
+			protocol := "http://"
+			if len(service.Service.Tags) >= 3 {
+				protocol = service.Service.Tags[2]
+			}
+			weight := 1
+			for _, tag := range service.Service.Tags {
+				if strings.HasPrefix(tag, "weight=") {
+					if _, err := fmt.Sscanf(tag, "weight=%d", &weight); err != nil {
+						weight = 1
+					}
+				}
+			}
+			out = append(out, registryModel.ServiceInstance{URL: fmt.Sprintf("%s%s:%d", protocol, service.Service.Address, service.Service.Port), Weight: weight})
+		}
+		return out, group
+	}
+	return nil, group
+}
+
+// WatchService polls Consul health with edge-triggered semantics. The cancel
+// function is safe to call once and is used by CachedRegistry on shutdown.
+func (c *ConsulClient) WatchService(service, group string, callback func()) (func(), error) {
+	if c.client == nil || callback == nil {
+		return nil, fmt.Errorf("consul is not initialized")
+	}
+	if group == "" {
+		group = c.group
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		available := true
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				found := false
+				clients := c.clients
+				if len(clients) == 0 {
+					clients = []*api.Client{c.client}
+				}
+				for _, client := range clients {
+					instances, _, err := client.Health().Service(service, group, true, &api.QueryOptions{})
+					if err == nil && len(instances) > 0 {
+						found = true
+						break
+					}
+				}
+				if available && !found {
+					callback()
+				}
+				available = found
+			}
+		}
+	}()
+	return cancel, nil
 }
 
 // DeRegister 方法用于从 Consul 注销服务

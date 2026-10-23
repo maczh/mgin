@@ -500,6 +500,7 @@ go mod tidy && go build -o demo . && ./demo
 | [编码规范与协作流程](docs/development/10-contributing/02-coding-standards.md) | 风格、错误与日志规范、配置/中间件扩展清单、Git 工作流、评审清单 |
 | [测试策略](docs/development/10-contributing/03-testing-strategy.md) | 测试分层、现有用例清单、运行方式、实测基线、CI 建议 |
 | [版本发布与变更记录规范](docs/development/10-contributing/04-release-process.md) | 版本号、分支模型、发布步骤、CHANGELOG 约定、回滚 |
+| [演进路线图 v1.26→v3.0](docs/development/09-advanced/04-evolution-roadmap.md) | 行业能力基线、差距分析、分版本能力建设与优先级 |
 | [i18n 使用说明](docs/i18n.md) | 字典表与 API 细节 |
 | [VictoriaLogs 接入](docs/victorialogs.md) | 日志上报配置 |
 | [注册中心优化说明](docs/registry_optimization_jh_overview.md) | 本地缓存与热刷新设计 |

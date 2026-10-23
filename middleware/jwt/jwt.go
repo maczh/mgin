@@ -30,7 +30,7 @@ func JwtAuthorize() gin.HandlerFunc {
 			tokenStr = strings.TrimSpace(tokenStr[len("Bearer "):])
 		}
 		if tokenStr == "" {
-			c.AbortWithStatus(http.StatusUnauthorized)
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"code": http.StatusUnauthorized, "msg": "unauthorized"})
 			return
 		}
 
@@ -49,7 +49,7 @@ func JwtAuthorize() gin.HandlerFunc {
 		})
 
 		if err != nil || token == nil || !token.Valid {
-			c.AbortWithStatus(http.StatusUnauthorized)
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"code": http.StatusUnauthorized, "msg": "invalid token"})
 			return
 		}
 

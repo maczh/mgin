@@ -200,6 +200,20 @@ func (r *RedisClient) redisCheck(dbName string) error {
 }
 
 func (r *RedisClient) Check() error {
+	if len(r.clients) == 0 {
+		return errors.New("redis connection is not initialized")
+	}
+	if r.multi {
+		for name, client := range r.clients {
+			if client == nil { return fmt.Errorf("redis %s connection is nil", name) }
+			if err := client.Ping().Err(); err != nil { return fmt.Errorf("redis %s ping failed: %w", name, err) }
+		}
+		return nil
+	}
+	client := r.clients["0"]
+	if client == nil { return errors.New("redis connection is not initialized") }
+	if err := client.Ping().Err(); err != nil { return fmt.Errorf("redis ping failed: %w", err) }
+	return nil
 	//var err error
 	//if r.client == nil && len(r.clients) == 0 {
 	//	r.Init("")

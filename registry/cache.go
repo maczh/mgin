@@ -1,8 +1,10 @@
 package registry
 
 import (
+	"math/rand"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/maczh/mgin/config"
@@ -34,6 +36,9 @@ type CachedRegistry struct {
 	entries  map[string]*cacheEntry
 	inflight map[string]*singleFlight
 	ttl      time.Duration
+	strategy SelectionStrategy
+	sequence uint64
+	watchers map[string]func()
 
 	refresh *time.Ticker
 	stop    chan struct{}
@@ -74,12 +79,109 @@ func NewCachedRegistry(delegate RegistryClient) *CachedRegistry {
 		delegate: delegate,
 		entries:  make(map[string]*cacheEntry),
 		inflight: make(map[string]*singleFlight),
+		watchers: make(map[string]func()),
 		ttl:      ttl,
 		stop:     make(chan struct{}),
 	}
+	c.strategy = StrategyRandom
+	if config.Config != nil {
+		if v := config.Config.GetConfigString("go.discovery.strategy"); v != "" {
+			c.strategy = SelectionStrategy(v)
+		}
+	}
 	c.refresh = time.NewTicker(refresh)
 	go c.backgroundRefresh()
+	if subscriber, ok := delegate.(OfflineSubscriber); ok {
+		_ = subscriber.SubscribeOffline(func(service, group string) { c.Invalidate(service, group) })
+	}
 	return c
+}
+
+// Invalidate removes all cached groups for a service. An empty group matches
+// every group and is useful for registry events that omit group metadata.
+func (c *CachedRegistry) Invalidate(service, group string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for key, entry := range c.entries {
+		if entry.service == service && (group == "" || entry.group == group) {
+			delete(c.entries, key)
+		}
+	}
+}
+
+func (c *CachedRegistry) watch(service, group string) {
+	watcher, ok := c.delegate.(ServiceWatcher)
+	if !ok {
+		return
+	}
+	key := service + "\x00" + group
+	c.mu.Lock()
+	if _, exists := c.watchers[key]; exists {
+		c.mu.Unlock()
+		return
+	}
+	c.watchers[key] = nil
+	c.mu.Unlock()
+	cancel, err := watcher.WatchService(service, group, func() { c.Invalidate(service, group) })
+	if err != nil || cancel == nil {
+		c.mu.Lock()
+		delete(c.watchers, key)
+		c.mu.Unlock()
+		return
+	}
+	c.mu.Lock()
+	c.watchers[key] = cancel
+	c.mu.Unlock()
+}
+
+// GetServiceInstances exposes a complete instance list when the delegate
+// supports it, applying the configured local selection strategy.
+func (c *CachedRegistry) GetServiceInstances(service string, group ...string) ([]ServiceInstance, string) {
+	p, ok := c.delegate.(InstanceProvider)
+	if !ok {
+		url, grp := c.GetServiceURL(service, group...)
+		if url == "" {
+			return nil, grp
+		}
+		return []ServiceInstance{{URL: url, Weight: 1}}, grp
+	}
+	instances, grp := p.GetServiceInstances(service, group...)
+	return selectInstances(instances, c.strategy, &c.sequence), grp
+}
+
+func selectInstances(in []ServiceInstance, strategy SelectionStrategy, sequence *uint64) []ServiceInstance {
+	if len(in) < 2 {
+		return in
+	}
+	copyIn := append([]ServiceInstance(nil), in...)
+	switch strategy {
+	case StrategyRoundRobin:
+		i := int(atomic.AddUint64(sequence, 1)-1) % len(copyIn)
+		return []ServiceInstance{copyIn[i]}
+	case StrategyWeighted:
+		total := 0
+		for _, v := range copyIn {
+			w := v.Weight
+			if w < 1 {
+				w = 1
+			}
+			total += w
+		}
+		if total > 0 {
+			n := int(atomic.AddUint64(sequence, 1)-1) % total
+			for _, v := range copyIn {
+				w := v.Weight
+				if w < 1 {
+					w = 1
+				}
+				if n < w {
+					return []ServiceInstance{v}
+				}
+				n -= w
+			}
+		}
+	}
+	return []ServiceInstance{copyIn[rand.Intn(len(copyIn))]}
 }
 
 // GetServiceURL 实现 RegistryClient：优先返回缓存，缺失/过期时回源并缓存。
@@ -95,6 +197,19 @@ func (c *CachedRegistry) GetServiceURL(servicename string, groupName ...string) 
 			return url, grp
 		}
 	}
+	c.mu.Unlock()
+	if provider, ok := c.delegate.(InstanceProvider); ok {
+		instances, group := provider.GetServiceInstances(servicename, groupName...)
+		selected := selectInstances(instances, c.strategy, &c.sequence)
+		if len(selected) > 0 && selected[0].URL != "" {
+			c.mu.Lock()
+			c.entries[key] = &cacheEntry{url: selected[0].URL, group: group, service: servicename, groupArgs: groupName, expiresAt: time.Now().Add(c.ttl), lastAccess: time.Now()}
+			c.mu.Unlock()
+			c.watch(servicename, group)
+			return selected[0].URL, group
+		}
+	}
+	c.mu.Lock()
 	sf, exists := c.inflight[key]
 	if !exists {
 		sf = &singleFlight{}
@@ -117,6 +232,7 @@ func (c *CachedRegistry) GetServiceURL(servicename string, groupName ...string) 
 	}
 
 	url, grp := c.delegate.GetServiceURL(servicename, groupName...)
+	c.watch(servicename, grp)
 	c.mu.Lock()
 	if url != "" {
 		c.entries[key] = &cacheEntry{
@@ -156,6 +272,12 @@ func (c *CachedRegistry) DeRegister() {
 		c.refresh.Stop()
 		close(c.stop)
 		c.mu.Lock()
+		for key, cancel := range c.watchers {
+			if cancel != nil {
+				cancel()
+			}
+			delete(c.watchers, key)
+		}
 		c.entries = make(map[string]*cacheEntry)
 		c.mu.Unlock()
 		if c.delegate != nil {

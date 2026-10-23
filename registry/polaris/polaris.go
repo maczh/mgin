@@ -10,6 +10,7 @@ import (
 	"github.com/levigross/grequests"
 	"github.com/maczh/mgin/cache"
 	"github.com/maczh/mgin/config"
+	registryModel "github.com/maczh/mgin/registry/model"
 	"github.com/sadlil/gologger"
 	"io"
 	"math/rand"
@@ -19,16 +20,17 @@ import (
 )
 
 type PolarisClient struct {
-	apiBaseUrl string
-	namespace  string
-	token      string
-	weight     int
-	lan        bool
-	lanNetwork string
-	conf       *koanf.Koanf
-	confUrl    string
-	confData   []byte
-	instanceId string
+	apiBaseUrl  string
+	apiBaseUrls []string
+	namespace   string
+	token       string
+	weight      int
+	lan         bool
+	lanNetwork  string
+	conf        *koanf.Koanf
+	confUrl     string
+	confData    []byte
+	instanceId  string
 }
 
 var logger = gologger.GetLogger()
@@ -52,7 +54,17 @@ func (c *PolarisClient) Register(registryConfigData []byte) {
 		c.lanNetwork = c.conf.String("go.polaris.lanNet")
 		ipstr := c.conf.String("go.polaris.server")
 		portstr := c.conf.String("go.polaris.port")
-		c.apiBaseUrl = fmt.Sprintf("http://%s:%s", ipstr, portstr)
+		ips, ports := strings.Split(ipstr, ","), strings.Split(portstr, ",")
+		for i, ip := range ips {
+			if i < len(ports) && strings.TrimSpace(ip) != "" {
+				c.apiBaseUrls = append(c.apiBaseUrls, fmt.Sprintf("http://%s:%s", strings.TrimSpace(ip), strings.TrimSpace(ports[i])))
+			}
+		}
+		if len(c.apiBaseUrls) > 0 {
+			c.apiBaseUrl = c.apiBaseUrls[0]
+		} else {
+			c.apiBaseUrl = fmt.Sprintf("http://%s:%s", ipstr, portstr)
+		}
 		c.namespace = c.conf.String("go.polaris.namespace")
 		if c.namespace == "" {
 			c.namespace = "default"
@@ -139,6 +151,17 @@ func (c *PolarisClient) Register(registryConfigData []byte) {
 }
 
 func (c *PolarisClient) GetServiceURL(servicename string, namespaces ...string) (string, string) {
+	if len(c.apiBaseUrls) > 1 {
+		for _, endpoint := range c.apiBaseUrls {
+			copyClient := *c
+			copyClient.apiBaseUrl = endpoint
+			copyClient.apiBaseUrls = nil
+			if url, namespace := copyClient.GetServiceURL(servicename, namespaces...); url != "" {
+				return url, namespace
+			}
+		}
+		return "", ""
+	}
 	if len(namespaces) == 0 {
 		namespaces = append(namespaces, c.namespace)
 	}
@@ -186,6 +209,70 @@ func (c *PolarisClient) GetServiceURL(servicename string, namespaces ...string) 
 		return fmt.Sprintf("%s://%s:%d", protocol, ins.Host, ins.Port), currentNameSpace
 	}
 	return "", currentNameSpace
+}
+
+func (c *PolarisClient) GetServiceInstances(service string, namespaces ...string) ([]registryModel.ServiceInstance, string) {
+	namespace := c.namespace
+	if len(namespaces) > 0 && namespaces[0] != "" {
+		namespace = namespaces[0]
+	}
+	resp, err := grequests.Get(fmt.Sprintf("%s/naming/v1/instances", c.apiBaseUrl), grequests.FromRequestOptions(&grequests.RequestOptions{Headers: map[string]string{"X-Polaris-Token": c.token}, Params: map[string]string{"service": service, "namespace": namespace}}))
+	if err != nil {
+		return nil, namespace
+	}
+	var result QueryInstanceResponse
+	if err := resp.JSON(&result); err != nil || result.Code != SUCCESS {
+		return nil, namespace
+	}
+	out := make([]registryModel.ServiceInstance, 0, len(result.Instances))
+	for _, in := range result.Instances {
+		if !in.Healthy || in.Isolate {
+			continue
+		}
+		proto := in.Protocol
+		if proto == "" {
+			proto = "http"
+		}
+		w := in.Weight
+		if w <= 0 {
+			w = 1
+		}
+		out = append(out, registryModel.ServiceInstance{URL: fmt.Sprintf("%s://%s:%d", proto, in.Host, in.Port), Weight: w, Metadata: in.Metadata})
+	}
+	return out, namespace
+}
+
+// SubscribeOffline polls Polaris health because the HTTP naming API does not
+// provide a portable client watch stream. Notifications are edge-triggered.
+func (c *PolarisClient) SubscribeOffline(callback func(service, group string)) error {
+	_, err := c.WatchService(config.Config.App.Name, "", func() { callback(config.Config.App.Name, "") })
+	return err
+}
+
+func (c *PolarisClient) WatchService(service, namespace string, callback func()) (func(), error) {
+	if callback == nil || c.apiBaseUrl == "" {
+		return nil, fmt.Errorf("polaris is not initialized")
+	}
+	stop := make(chan struct{})
+	go func() {
+		wasAvailable := true
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-stop:
+				return
+			case <-ticker.C:
+				url, _ := c.GetServiceURL(service, namespace)
+				available := url != ""
+				if wasAvailable && !available {
+					callback()
+				}
+				wasAvailable = available
+			}
+		}
+	}()
+	return func() { close(stop) }, nil
 }
 
 func (c *PolarisClient) DeRegister() {
