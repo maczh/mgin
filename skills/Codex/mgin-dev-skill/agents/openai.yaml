@@ -1,0 +1,5 @@
+interface:
+  display_name: "MGIN 微服务开发"
+  short_description: "基于本地 mgin 框架与寄海项目实践开发、维护和排查 Go 微服务"
+  default_prompt: "使用 $mgin-dev-skill，参考本地 mgin 框架和寄海微服务范例完成当前开发任务。"
+
