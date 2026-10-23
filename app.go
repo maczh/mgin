@@ -2,8 +2,10 @@ package mgin
 
 import (
 	"context"
+	"crypto/subtle"
 	"flag"
 	"fmt"
+	"net"
 
 	nice "github.com/ekyoung/gin-nice-recovery"
 	"github.com/gin-gonic/gin"
@@ -183,8 +185,66 @@ func (app *App) baseRouter() {
 		app.Router.Group("/job")
 		job.RouterGroup(app.Router.Group("/job"))
 	}
+	// The reload endpoint is opt-in and must have a dedicated token.
+	if config.Config.Config.ReloadToken != "" {
+		app.Router.PUT("/cfg/reload", app.reloadConfig)
+	}
 	// 详见 README 第 22 章。未挂载时不影响定时任务调度本身的运行。
 
+}
+
+func (app *App) reloadConfig(c *gin.Context) {
+	if app == nil || app.MGin == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": -1, "msg": "框架未初始化"})
+		return
+	}
+	if !isInternalRequest(c.Request) {
+		c.JSON(http.StatusForbidden, gin.H{"code": -1, "msg": "仅允许内网或本机请求"})
+		return
+	}
+	configuredToken := config.Config.Config.ReloadToken
+	if configuredToken == "" || !validReloadToken(c, configuredToken) {
+		c.JSON(http.StatusUnauthorized, gin.H{"code": -1, "msg": "配置重载认证失败"})
+		return
+	}
+	if err := app.MGin.Reload(app.configFile); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": -1, "msg": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "配置重载成功"})
+}
+
+func validReloadToken(c *gin.Context, configured string) bool {
+	token := strings.TrimSpace(c.GetHeader("X-MGin-Reload-Token"))
+	if token == "" {
+		const bearer = "Bearer "
+		auth := strings.TrimSpace(c.GetHeader("Authorization"))
+		if len(auth) >= len(bearer) && strings.EqualFold(auth[:len(bearer)], bearer) {
+			token = strings.TrimSpace(auth[len(bearer):])
+		}
+	}
+	if token == "" || len(token) != len(configured) {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(token), []byte(configured)) == 1
+}
+
+// isInternalRequest intentionally checks the peer address instead of proxy
+// headers. Forwarded headers are client-controlled unless a trusted proxy has
+// already terminated and authenticated the request.
+func isInternalRequest(r *http.Request) bool {
+	if r == nil {
+		return false
+	}
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		host = r.RemoteAddr
+	}
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return false
+	}
+	return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast()
 }
 
 // mountHealth 按配置挂载健康检查探针（/health/live /health/ready /health/startup）。

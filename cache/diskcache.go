@@ -1,22 +1,33 @@
 package cache
 
 import (
-	"git.mills.io/prologic/bitcask"
+	"sync"
 	"time"
+
+	"git.mills.io/prologic/bitcask"
 )
 
 type DiskCache struct {
-	db *bitcask.Bitcask
+	mu     sync.RWMutex
+	db     *bitcask.Bitcask
+	closed bool
 }
 
 func (d *DiskCache) Add(key any, value any, lifeSpan time.Duration) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	if d.closed {
+		return
+	}
 	k, err := anyToString(key)
 	if err != nil {
 		logger.Error("key to string failed: " + err.Error())
+		return
 	}
 	v, err := anyToString(value)
 	if err != nil {
 		logger.Error("value to string failed: " + err.Error())
+		return
 	}
 	if lifeSpan <= 0 {
 		err := d.db.Put([]byte(k), []byte(v))
@@ -34,9 +45,15 @@ func (d *DiskCache) Add(key any, value any, lifeSpan time.Duration) {
 }
 
 func (d *DiskCache) Value(key any) (any, bool) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	if d.closed {
+		return nil, false
+	}
 	k, err := anyToString(key)
 	if err != nil {
 		logger.Error("key to string failed: " + err.Error())
+		return nil, false
 	}
 	if d.db.Has([]byte(k)) {
 		v, err := d.db.Get([]byte(k))
@@ -50,14 +67,25 @@ func (d *DiskCache) Value(key any) (any, bool) {
 }
 
 func (d *DiskCache) IsExist(key any) bool {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	if d.closed {
+		return false
+	}
 	k, err := anyToString(key)
 	if err != nil {
 		logger.Error("key to string failed: " + err.Error())
+		return false
 	}
 	return d.db.Has([]byte(k))
 }
 
 func (d *DiskCache) Clear() bool {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	if d.closed {
+		return false
+	}
 	err := d.db.DeleteAll()
 	if err != nil {
 		return false
@@ -75,26 +103,45 @@ func (d *DiskCache) Set(key any, value any, duration time.Duration) {
 
 func (d *DiskCache) Range(f func(key, value any) bool) {
 	//函数不同，暂不支持
+	d.mu.RLock()
+	if d.closed {
+		d.mu.RUnlock()
+		return
+	}
 	keys := make([]string, 0)
 	for k := range d.db.Keys() {
 		keys = append(keys, string(k))
 	}
+	d.mu.RUnlock()
 	for _, key := range keys {
-		v, _ := d.Value(key)
-		f(key, v)
+		v, ok := d.Value(key)
+		if ok && !f(key, v) {
+			return
+		}
 	}
-	return
 }
 
 func (d *DiskCache) Delete(key any) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	if d.closed {
+		return
+	}
 	k, err := anyToString(key)
 	if err != nil {
 		logger.Error("key to string failed: " + err.Error())
+		return
 	}
 	d.db.Delete([]byte(k))
 }
 
 func (d *DiskCache) Close() {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.closed {
+		return
+	}
 	d.db.Sync()
 	d.db.Close()
+	d.closed = true
 }

@@ -1,7 +1,9 @@
 package mgin
 
 import (
+	"errors"
 	"strings"
+	"sync"
 
 	"github.com/maczh/mgin/config"
 	"github.com/maczh/mgin/db"
@@ -15,6 +17,7 @@ import (
 
 type mgin struct {
 	plugins map[string]plugin
+	reloadMu sync.Mutex
 }
 
 type MginPlugin interface {
@@ -62,55 +65,93 @@ func (m *mgin) Use(dbConfigName string, dbInit dbInitFunc, dbClose dbCloseFunc, 
 	dbInit(cnfData)
 	logs.Info("{}连接成功", dbConfigName)
 }
+
+// Reload reloads the application configuration and recreates all resources
+// owned by the framework. Calls are serialized because database clients,
+// registries and plugin connections are process-wide singletons.
+func (m *mgin) Reload(configFile string) error {
+	m.reloadMu.Lock()
+	defer m.reloadMu.Unlock()
+
+	oldUsed := config.Config.Config.Used
+	oldRegistry := registry.Registry
+	config.Config.Init(configFile)
+	if config.Config.Cnf == nil {
+		return errors.New("配置文件加载失败，保留现有连接")
+	}
+
+	// Stop the old resources only after the new configuration has loaded.
+	m.closeResources(oldUsed, oldRegistry)
+	initResources(m)
+	return nil
+}
+
+func initResources(m *mgin) {
+	configs := config.Config.Config.Used
+	registry.Registry = registry.NewRegistry()
+
+	if strings.Contains(configs, "mysql") {
+		db.Mysql.Init(config.Config.GetConfigData(config.Config.Config.Prefix.Mysql))
+	}
+	if strings.Contains(configs, "sqlite") {
+		db.Sqlite.Init(config.Config.Config.Prefix.Sqlite)
+	}
+	if strings.Contains(configs, "mongodb") {
+		db.Mongo.Init(config.Config.GetConfigData(config.Config.Config.Prefix.Mongodb))
+	}
+	if strings.Contains(configs, "redis") {
+		db.Redis.Init(config.Config.GetConfigData(config.Config.Config.Prefix.Redis))
+	}
+	if strings.Contains(configs, "nacos") {
+		registry.Registry.Register(config.Config.GetConfigData(config.Config.Config.Prefix.Nacos))
+	}
+	if strings.Contains(configs, "etcd") {
+		registry.Registry.Register(config.Config.GetConfigData(config.Config.Config.Prefix.Etcd))
+	}
+	if strings.Contains(configs, "consul") {
+		registry.Registry.Register(config.Config.GetConfigData(config.Config.Config.Prefix.Consul))
+	}
+	if strings.Contains(configs, "job") {
+		if err := job.Start(); err != nil {
+			logs.Error("定时任务调度器启动失败: {}", err.Error())
+		}
+	}
+	if m != nil {
+		for name, pl := range m.plugins {
+			if !strings.Contains(configs, name) || pl.InitFunc == nil {
+				continue
+			}
+			data := config.Config.GetConfigData(config.Config.GetConfigString("go.config.prefix." + name))
+			if data == nil {
+				logs.Error("{}配置错误，无法获取配置地址", name)
+				continue
+			}
+			pl.InitFunc(data)
+		}
+	}
+}
+
+func (m *mgin) closeResources(configs string, currentRegistry registry.RegistryClient) {
+	if strings.Contains(configs, "mysql") { db.Mysql.Close() }
+	if strings.Contains(configs, "sqlite") { db.Sqlite.Close() }
+	if strings.Contains(configs, "mongodb") { db.Mongo.Close() }
+	if strings.Contains(configs, "redis") { db.Redis.Close() }
+	if currentRegistry != nil && (strings.Contains(configs, "nacos") || strings.Contains(configs, "etcd") || strings.Contains(configs, "consul") || strings.Contains(configs, "polaris")) {
+		currentRegistry.DeRegister()
+	}
+	if strings.Contains(configs, "job") { job.Stop() }
+	if m != nil {
+		for name, pl := range m.plugins {
+			if strings.Contains(configs, name) && pl.CloseFunc != nil { pl.CloseFunc() }
+		}
+	}
+}
 func Init(configFile string) {
 	config.Config.Init(configFile)
 	if err := logs.InitVictoriaLogs(); err != nil {
 		panic(err)
 	}
-	configs := config.Config.Config.Used
-	registry.Registry = registry.NewRegistry()
-
-	if strings.Contains(configs, "mysql") {
-		logger.Info("正在连接MySQL")
-		db.Mysql.Init(config.Config.GetConfigData(config.Config.Config.Prefix.Mysql))
-		logger.Info("连接MySQL成功")
-	}
-	if strings.Contains(configs, "sqlite") {
-		logger.Info("正在连接SQLite")
-		db.Sqlite.Init(config.Config.Config.Prefix.Sqlite)
-		logger.Info("连接SQLite成功")
-	}
-	if strings.Contains(configs, "mongodb") {
-		logger.Info("正在连接MongoDB")
-		db.Mongo.Init(config.Config.GetConfigData(config.Config.Config.Prefix.Mongodb))
-		logger.Info("连接MongoDB成功")
-	}
-	if strings.Contains(configs, "redis") {
-		logger.Info("正在连接Redis")
-		db.Redis.Init(config.Config.GetConfigData(config.Config.Config.Prefix.Redis))
-		logger.Info("连接Redis成功")
-	}
-	if strings.Contains(configs, "nacos") {
-		logger.Info("正在注册到Nacos")
-		registry.Registry.Register(config.Config.GetConfigData(config.Config.Config.Prefix.Nacos))
-		logger.Info("注册到Nacos成功")
-	}
-	if strings.Contains(configs, "etcd") {
-		logger.Info("正在注册到Etcd")
-		registry.Registry.Register(config.Config.GetConfigData(config.Config.Config.Prefix.Etcd))
-		logger.Info("注册到Etcd成功")
-	}
-	if strings.Contains(configs, "consul") {
-		logger.Info("正在注册到consul")
-		registry.Registry.Register(config.Config.GetConfigData(config.Config.Config.Prefix.Consul))
-		logger.Info("注册到consul成功")
-	}
-	if strings.Contains(configs, "job") {
-		logger.Info("正在启动定时任务调度器")
-		if err := job.Start(); err != nil {
-			logs.Error("定时任务调度器启动失败: {}", err.Error())
-		}
-	}
+	initResources(nil)
 	return
 }
 

@@ -4,6 +4,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/rand"
+	"net/url"
+	"strings"
+	"time"
+
 	"github.com/gin-gonic/gin"
 	"github.com/levigross/grequests"
 	"github.com/maczh/mgin/cache"
@@ -15,10 +20,6 @@ import (
 	"github.com/maczh/mgin/models/vo"
 	"github.com/maczh/mgin/registry"
 	"github.com/maczh/mgin/utils"
-	"math/rand"
-	"net/url"
-	"strings"
-	"time"
 )
 
 const (
@@ -42,6 +43,20 @@ type Options struct {
 }
 
 func Call(service, uri string, op *Options) (result string, callErr error) {
+	if op == nil {
+		return "", errors.New("client options cannot be nil")
+	}
+	// Call may be used concurrently with a shared Options value. Work on a
+	// shallow copy and never mutate the caller's options or headers.
+	options := *op
+	op = &options
+	if op.Header != nil {
+		op.Header = cloneHeader(op.Header)
+	}
+	return call(service, uri, op)
+}
+
+func call(service, uri string, op *Options) (result string, callErr error) {
 	start := time.Now()
 	requestID := trace.GetRequestId()
 	defer func() {
@@ -73,7 +88,7 @@ func Call(service, uri string, op *Options) (result string, callErr error) {
 	u := uri
 	if op.Protocol == "restful" && len(op.Path) > 0 {
 		for k, v := range op.Path {
-			u = strings.ReplaceAll(uri, fmt.Sprintf("{%s}", k), url.PathEscape(v))
+			u = strings.ReplaceAll(u, fmt.Sprintf("{%s}", k), url.PathEscape(v))
 		}
 	}
 	if op.Method == "" {
@@ -81,6 +96,9 @@ func Call(service, uri string, op *Options) (result string, callErr error) {
 	}
 	host := ""
 	var err error
+	if registry.Registry == nil {
+		return "", errors.New("服务注册中心未初始化")
+	}
 	//host, err := getHostFromCache(fmt.Sprintf("%s@%s", service, op.Group))
 	//if err != nil || host == "" {
 	host, op.Group = registry.Registry.GetServiceURL(service, op.Group)
@@ -96,7 +114,7 @@ func Call(service, uri string, op *Options) (result string, callErr error) {
 	}
 	var resp *grequests.Response
 	url := fmt.Sprintf("%s%s", host, u)
-	logs.Debug("微服务{}请求: {} {}\n请求头: {}\nQuery:{}\n请求参数: {}\n请求体:{}", service, op.Method, url, op.Header, op.Query, op.Data, op.Json)
+	logs.Debug("微服务{}请求: {} {}", service, op.Method, url)
 	switch op.Protocol {
 	case CONTENT_TYPE_FORM:
 		headers["Content-Type"] = gin.MIMEPOSTForm
@@ -120,20 +138,37 @@ func Call(service, uri string, op *Options) (result string, callErr error) {
 			Headers: headers,
 			Files:   op.Files,
 		}))
+	default:
+		return "", fmt.Errorf("unsupported client protocol %q", op.Protocol)
 	}
 	if err != nil {
 		logs.Error("微服务{}请求错误:{}", service, err.Error())
 		if op.Retry {
 			op.Retry = false
-			return Call(service, uri, op)
+			return call(service, uri, op)
 		}
 		if strings.Contains(err.Error(), "dial tcp") {
 			return "", errors.New("微服务获取" + service + "服务主机IP端口失败")
 		}
 		return "", err
 	}
-	logs.Debug("微服务{}返回结果:{}", service, resp.String())
+	if resp == nil {
+		return "", errors.New("service returned no response")
+	}
+	if !resp.Ok {
+		return "", fmt.Errorf("service returned HTTP %d", resp.StatusCode)
+	}
+	logs.Debug("微服务{}返回 HTTP {}", service, resp.StatusCode)
 	return resp.String(), nil
+}
+
+func cloneHeader(header any) any {
+	values := utils.AnyToMap(header)
+	copyValues := make(map[string]string, len(values))
+	for k, v := range values {
+		copyValues[k] = v
+	}
+	return copyValues
 }
 
 // CallResultT 调用使用 status/data/msg 协议的旧版微服务。
@@ -142,7 +177,7 @@ func CallResultT[T any](service, uri string, op *Options) models.Result[T] {
 	if err != nil {
 		return models.ErrorT[T](-1, err.Error())
 	}
-	if len(resp) == 0 || resp[:1] != "{" {
+	if err := decodeResponse(resp, &struct{}{}); err != nil {
 		return models.ErrorT[T](-1, "Service error")
 	}
 	var result models.Result[T]
@@ -199,11 +234,17 @@ func getHostFromCache(serviceName string) (string, error) {
 		return "", errors.New("服务缓存格式错误")
 	}
 	hosts := strings.Split(hostStr, ",")
-	if len(hosts) == 0 {
+	available := make([]string, 0, len(hosts))
+	for _, host := range hosts {
+		if host = strings.TrimSpace(host); host != "" {
+			available = append(available, host)
+		}
+	}
+	if len(available) == 0 {
 		return "", errors.New("无此服务缓存")
 	}
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	return hosts[r.Intn(len(hosts))], nil
+	return available[r.Intn(len(available))], nil
 }
 
 //func subscribeNacos(serviceName, groupName string) {

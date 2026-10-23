@@ -1,14 +1,16 @@
 package cache
 
 import (
-	"github.com/huandu/go-clone"
 	"sync"
 	"time"
+
+	"github.com/huandu/go-clone"
 )
 
 type MemCache struct {
 	items sync.Map
 	close chan struct{}
+	stop  sync.Once
 }
 
 /*
@@ -55,6 +57,9 @@ func (c *MemCache) Clear() bool {
 func New(cleaningInterval time.Duration) *MemCache {
 	cache := &MemCache{
 		close: make(chan struct{}),
+	}
+	if cleaningInterval <= 0 {
+		return cache
 	}
 
 	go func() {
@@ -142,6 +147,8 @@ func (cache *MemCache) Delete(key any) {
 
 // Close closes the cache and frees up resources.
 func (cache *MemCache) Close() {
-	cache.close <- struct{}{}
-	cache.items = sync.Map{}
+	if cache == nil {
+		return
+	}
+	cache.stop.Do(func() { close(cache.close) })
 }

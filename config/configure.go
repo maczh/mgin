@@ -3,10 +3,10 @@ package config
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/knadh/koanf"
@@ -18,6 +18,7 @@ import (
 )
 
 type config struct {
+	mu        sync.RWMutex
 	Cnf       *koanf.Koanf
 	WorkDir   string    `json:"-" bson:"-"`
 	App       app       `json:"app" bson:"app"`
@@ -45,6 +46,7 @@ type appConfig struct {
 	Server string `json:"server" bson:"server"`
 	Type   string `json:"type" bson:"type"`
 	Token  string `json:"token" bson:"token"` //polaris使用的token
+	ReloadToken string `json:"reloadToken" bson:"reloadToken"`
 	Path   string `json:"path" bson:"path"`
 	Env    string `json:"env" bson:"env"`
 	Used   string `json:"used" bson:"used"`
@@ -144,8 +146,11 @@ var Config = &config{}
 var logger = gologger.GetLogger()
 
 const config_file = "./application.yml"
+const configRequestTimeout = 10 * time.Second
 
 func (c *config) Init(cf string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if cf == "" {
 		cf = config_file
 	}
@@ -156,7 +161,22 @@ func (c *config) Init(cf string) {
 	err := c.Cnf.Load(f, yaml.Parser())
 	if err != nil {
 		logger.Error("读取配置文件错误:" + err.Error())
+		// Do not expose a partially loaded configuration. Callers can safely
+		// retry Init after fixing the file.
+		c.Cnf = nil
+		return
 	}
+	// Init may be called more than once in tests or during controlled reloads.
+	// Clear all typed fields first so removed keys cannot survive a reload.
+	c.WorkDir = filepath.Dir(cf)
+	c.App = app{}
+	c.Config = appConfig{}
+	c.Log = appLog{}
+	c.Logger = appLogger{}
+	c.Discovery = discovery{}
+	c.Jwt = jwtConfig{}
+	c.Sys = sys{}
+	c.Casbin = casbin{}
 	c.App.Name = c.Cnf.String("go.application.name")
 	c.App.Project = c.Cnf.String("go.application.project")
 	if c.App.Project == "" {
@@ -171,6 +191,7 @@ func (c *config) Init(cf string) {
 	c.Config.Server = c.Cnf.String("go.config.server")
 	c.Config.Type = c.Cnf.String("go.config.server_type")
 	c.Config.Token = c.Cnf.String("go.config.token")
+	c.Config.ReloadToken = strings.TrimSpace(c.Cnf.String("go.config.reload.token"))
 	c.Config.Path = c.Cnf.String("go.config.path")
 	c.Config.Env = c.Cnf.String("go.config.env")
 	c.Config.Used = c.Cnf.String("go.config.used")
@@ -221,11 +242,11 @@ func (c *config) Init(cf string) {
 		c.Discovery.CallType = "x-form"
 	}
 	c.Discovery.CacheTTL = time.Duration(c.Cnf.Int("go.discovery.cacheTTL")) * time.Second
-	if c.Discovery.CacheTTL == 0 {
+	if c.Discovery.CacheTTL <= 0 {
 		c.Discovery.CacheTTL = 60 * time.Second
 	}
 	c.Discovery.CacheRefresh = time.Duration(c.Cnf.Int("go.discovery.cacheRefresh")) * time.Second
-	if c.Discovery.CacheRefresh == 0 {
+	if c.Discovery.CacheRefresh <= 0 {
 		c.Discovery.CacheRefresh = 60 * time.Second
 	}
 	c.Jwt.Secret = c.Cnf.String("go.jwt.secret")
@@ -249,6 +270,8 @@ func (c *config) Init(cf string) {
 }
 
 func (c *config) GetConfigString(name string) string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	if c.Cnf == nil {
 		return ""
 	}
@@ -260,6 +283,8 @@ func (c *config) GetConfigString(name string) string {
 }
 
 func (c *config) GetConfigStringArray(name string) []string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	if c.Cnf == nil {
 		return nil
 	}
@@ -271,6 +296,8 @@ func (c *config) GetConfigStringArray(name string) []string {
 }
 
 func (c *config) GetConfigInt(name string) int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	if c.Cnf == nil {
 		return 0
 	}
@@ -282,6 +309,8 @@ func (c *config) GetConfigInt(name string) int {
 }
 
 func (c *config) GetConfigBool(name string) bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	if c.Cnf == nil {
 		return false
 	}
@@ -293,6 +322,8 @@ func (c *config) GetConfigBool(name string) bool {
 }
 
 func (c *config) Exists(name string) bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	if c.Cnf == nil {
 		return false
 	}
@@ -300,13 +331,19 @@ func (c *config) Exists(name string) bool {
 }
 
 func (c *config) GetConfigUrl(prefix string) string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	configUrl := c.Config.Server
 	switch c.Config.Type {
 	case "nacos":
 		configUrl = configUrl + "nacos/v1/cs/configs?group=" + c.App.Project + "&dataId=" + prefix + "-" + c.Config.Env + ".yml"
 	case "polaris":
 		if strings.Contains(prefix, "@") {
-			strs := strings.Split(prefix, "@v")
+			strs := strings.SplitN(prefix, "@v", 2)
+			if len(strs) != 2 || strs[0] == "" || strs[1] == "" {
+				logger.Error("非法 Polaris 配置版本前缀: " + prefix)
+				return ""
+			}
 			prefix = strs[0]
 			version := strs[1]
 			configUrl = configUrl + "/config/v1/configfiles/release?namespace=default&group=" + c.App.Project + "&name=" + prefix + "-" + c.Config.Env + ".yml&release_name=" + version
@@ -338,11 +375,14 @@ func (c *config) GetConfigUrl(prefix string) string {
 func (c *config) GetConfigData(prefix string) []byte {
 	switch c.Config.Type {
 	case "etcd":
-		cli, err := clientv3.New(clientv3.Config{Endpoints: []string{c.Config.Server}})
+		cli, err := clientv3.New(clientv3.Config{Endpoints: []string{c.Config.Server}, DialTimeout: 5 * time.Second})
 		if err != nil {
 			return nil
 		}
-		resp, err := cli.Get(context.Background(), fmt.Sprintf("/config/%s/%s-%s.yml", c.App.Project, prefix, c.Config.Env))
+		defer cli.Close()
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		resp, err := cli.Get(ctx, fmt.Sprintf("/config/%s/%s-%s.yml", c.App.Project, prefix, c.Config.Env))
 		if err != nil {
 			return nil
 		}
@@ -352,35 +392,48 @@ func (c *config) GetConfigData(prefix string) []byte {
 		}
 		return resp.Kvs[0].Value
 	case "polaris":
+		ctx, cancel := context.WithTimeout(context.Background(), configRequestTimeout)
+		defer cancel()
 		resp, err := grequests.Get(c.GetConfigUrl(prefix), grequests.FromRequestOptions(&grequests.RequestOptions{
+			Context: ctx,
 			Headers: map[string]string{
 				"X-Polaris-Token": c.Config.Token,
 			},
 		}))
 		if err != nil {
-			fmt.Println(err.Error())
+			logger.Error("Polaris 配置请求失败: " + err.Error())
+			return nil
+		}
+		if !resp.Ok {
+			logger.Error(fmt.Sprintf("Polaris 配置请求返回 HTTP %d", resp.StatusCode))
 			return nil
 		}
 		res := polaris_config_resp{}
 		err = resp.JSON(&res)
 		if err != nil {
-			fmt.Println(err.Error())
+			logger.Error("Polaris 配置响应解析失败: " + err.Error())
 			return nil
 		}
 		if res.Code != 200000 {
-			fmt.Println(res.Info)
+			logger.Error("Polaris 配置中心返回错误: " + res.Info)
 			return nil
 		}
 		return []byte(res.ConfigFileRelease.Content)
 	case "file":
-		data, err := ioutil.ReadFile(c.GetConfigUrl(prefix))
+		data, err := os.ReadFile(c.GetConfigUrl(prefix))
 		if err != nil {
 			return nil
 		}
 		return data
 	default:
-		resp, err := grequests.DoRegularRequest("GET", c.GetConfigUrl(prefix), nil)
+		ctx, cancel := context.WithTimeout(context.Background(), configRequestTimeout)
+		defer cancel()
+		resp, err := grequests.DoRegularRequest("GET", c.GetConfigUrl(prefix), grequests.FromRequestOptions(&grequests.RequestOptions{Context: ctx}))
 		if err != nil {
+			return nil
+		}
+		if !resp.Ok {
+			logger.Error(fmt.Sprintf("配置中心请求返回 HTTP %d", resp.StatusCode))
 			return nil
 		}
 		return resp.Bytes()

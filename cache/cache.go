@@ -3,13 +3,15 @@ package cache
 import (
 	"crypto/md5"
 	"fmt"
-	"git.mills.io/prologic/bitcask"
-	"github.com/sadlil/gologger"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
+
+	"git.mills.io/prologic/bitcask"
+	"github.com/sadlil/gologger"
 )
 
 type Cache struct {
@@ -28,8 +30,12 @@ var mc = &Cache{}
 var logger = gologger.GetLogger()
 
 func OnDiskCache(cachePath string) ICache {
-	mc.cacheType.Store(cachePath, "disk")
-	key := md5Encode(cachePath)
+	path, err := diskPath(cachePath)
+	if err != nil {
+		logger.Error(fmt.Sprintf("invalid cache path: %s", err.Error()))
+		return nil
+	}
+	key := md5Encode(path)
 	//if mc == nil {
 	//	mc = new(Cache)
 	//	mc.cache = make(map[string]*MemCache)
@@ -39,21 +45,18 @@ func OnDiskCache(cachePath string) ICache {
 	if db, ok := mc.db.Load(key); ok {
 		return db.(ICache)
 	}
-	path, _ := filepath.Abs(filepath.Dir(os.Args[0]))
-	if cachePath == "" {
-		cachePath = fmt.Sprintf("%s/cache.db", path)
-	} else {
-		if !(strings.HasPrefix(cachePath, "/") || cachePath[1:2] == ":") {
-			cachePath = fmt.Sprintf("%s/%s", path, cachePath)
-		}
-	}
-	db, err := bitcask.Open(cachePath, bitcask.WithSync(true), bitcask.WithAutoRecovery(true))
+	db, err := bitcask.Open(path, bitcask.WithSync(true), bitcask.WithAutoRecovery(true))
 	if err != nil {
 		logger.Error(fmt.Sprintf("file %s open failed: %s", cachePath, err.Error()))
 		return nil
 	}
 	diskCache := &DiskCache{db: db}
-	mc.db.Store(key, diskCache)
+	actual, loaded := mc.db.LoadOrStore(key, diskCache)
+	if loaded {
+		_ = db.Close()
+		return actual.(ICache)
+	}
+	mc.cacheType.Store(path, "disk")
 	return diskCache
 }
 
@@ -79,11 +82,27 @@ func OnMemCache(cachename string) ICache {
 	//}
 	if c, ok := mc.cache.Load(cachename); ok {
 		return c.(ICache)
-	} else {
-		c = new(MemCache)
-		mc.cache.Store(cachename, c)
-		return c.(ICache)
 	}
+	c := ICache(New(time.Minute))
+	actual, _ := mc.cache.LoadOrStore(cachename, c)
+	if actual != c {
+		c.Close()
+	}
+	return actual.(ICache)
+}
+
+func diskPath(cachePath string) (string, error) {
+	base, err := filepath.Abs(filepath.Dir(os.Args[0]))
+	if err != nil {
+		return "", err
+	}
+	if cachePath == "" {
+		return filepath.Join(base, "cache.db"), nil
+	}
+	if filepath.IsAbs(cachePath) || strings.HasPrefix(cachePath, "/") || cachePath[1:2] == ":" {
+		return filepath.Clean(cachePath), nil
+	}
+	return filepath.Join(base, cachePath), nil
 }
 
 func CloseCache() {
