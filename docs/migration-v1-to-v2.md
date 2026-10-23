@@ -25,7 +25,7 @@ mgin v2.0 把全部对外框架包从仓库顶层收拢到 `pkg/` 目录，形�
 | `github.com/maczh/mgin/logs` | `github.com/maczh/mgin/pkg/logs` | 顶层别名壳仍可用，建议改用 pkg/logs |
 | `github.com/maczh/mgin/job` | `github.com/maczh/mgin/pkg/job` | 定时任务调度 |
 | `github.com/maczh/mgin/db` | `github.com/maczh/mgin/pkg/db` | 数据源门面 + db/dao、db/mysql 等子包 |
-| `github.com/maczh/mgin/storage` | `github.com/maczh/mgin/pkg/storage` | storage/s3 等 |
+| `github.com/maczh/mgin/storage` | `github.com/maczh/mgin/pkg/storage` | storage/s3 等（**当前 v2 代码中不存在该目录，仅适用于曾自行扩展的项目**） |
 | `github.com/maczh/mgin/cache` | `github.com/maczh/mgin/pkg/cache` | 缓存 |
 
 > 子包路径一并跟随上移，例如：

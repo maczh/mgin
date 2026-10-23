@@ -1,5 +1,11 @@
 # MGin Microservice Framework — Application Documentation
 
+> **Document status (v2 baseline)**: this is the legacy v1 manual kept for historical reference and is
+> **not authoritative for the current API**. See [`README.md`](README.md) and [`docs/`](docs) for the
+> verified behavior. Features described here that do **not** exist in the current code include S3 object
+> storage, PostgreSQL/ClickHouse/Elasticsearch/Kafka data sources, and the "11 built-in plugins" list.
+> For upgrades see [`docs/migration-v1-to-v2.md`](docs/migration-v1-to-v2.md).
+>
 > Version: based on `github.com/maczh/mgin/v2` (Go 1.25), latest features v1.20.x
 > Audience: engineers building, developing, and operating RESTful microservices with MGin
 > Module path: `github.com/maczh/mgin/v2`

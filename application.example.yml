@@ -1,6 +1,15 @@
 # MGin 应用配置示例（v2 分支）
 # 复制本文件为 application.yml 并按需修改即可运行。
-# 本示例重点演示三大新增能力的配置：ratelimit（限流）/ job（定时任务）/ s3（对象存储）。
+#
+# 【一致性说明】
+# 1) 本文件中的 ratelimit（限流）/ job（定时任务）/ health / metrics 配置均被代码读取。
+# 2) s3（对象存储）在**当前代码中未实现**：pkg/storage 不存在、RegisterBuiltins 未注册 S3、
+#    无 aws-sdk-go-v2 依赖。下方 go.s3 节点仅作占位，配置后不会生效。
+# 3) OTel 不走配置开关：需业务调用 otel.SetTracerProvider()；下方 otel 节点不会被读取。
+# 4) 健康探针的真实开关键是 go.health.enabled / go.health.autoStarted；
+#    /metrics 需显式调用 app.EnableMetrics()（仅配 go.metrics.enabled 不会挂载）。
+# 5) go.framework.* 中目前只有 i18nEnabled 被代码消费，其余字段仅被加载。
+# 6) 优雅关闭超时属于 go.application.shutdownTimeout（不是 go.framework.shutdownTimeout）。
 
 go:
   application:
@@ -124,8 +133,9 @@ go:
     timezone: "Asia/Shanghai"
 
   # ------------------------------------------------------------------
-  # 3) S3 对象存储插件（storage/s3，基于 aws-sdk-go-v2）
-  #    endpoint 填 AWS S3 或 MinIO 等兼容服务的地址
+  # 3) S3 对象存储（**当前代码未实现，仅保留配置占位，不会被消费**）
+  #    如需对象存储，请在业务侧自行引入 SDK 与实现。
+  #    endpoint 填 AWS S3 或 MinIO 等兼容服务的地址（示例）
   # ------------------------------------------------------------------
   s3:
     enabled: true
@@ -171,21 +181,23 @@ go:
 
   # ------------------------------------------------------------------
   # 5) v2 框架元配置（go.framework.*）
-  #    描述"框架行为开关"，与 go.application.*（业务配置）解耦。
-  #    全部字段为可选，未配置时由各组件按合理默认回退。
-  #    老项目无需关心本节，框架不读时所有开关保持关闭。
+  #    这 5 个字段都会被 pkg/config 加载，但**目前只有 i18nEnabled 被代码消费**。
+  #    其余字段请改用对应的实际开关：
+  #      health     -> go.health.enabled / App.EnableHealth()
+  #      ratelimit  -> go.ratelimit.enabled
+  #      recover    -> 恒挂载（无开关）
+  #      logRequests-> 恒挂载（无开关）
   # ------------------------------------------------------------------
   framework:
-    # 是否在 NewApp 阶段默认挂载 /health/live /health/ready /health/startup 探针。
-    # 业务也可调用 App.EnableHealth() 在代码中显式启用。
+    # 【未消费】健康探针默认开关，请使用 go.health.enabled。
     healthEnabled: false
-    # 是否启用 xlang 国际化中间件（NewApp 的 xlang 参数也可控制）。
+    # 【生效】等价于 go.i18n.enabled 或 NewApp(..., true)。
     i18nEnabled: false
-    # 是否启用单例限流中间件（middleware/ratelimit）。
+    # 【未消费】请使用 go.ratelimit.enabled。
     ratelimitEnabled: false
-    # 是否启用 panic 恢复中间件（gin-nice-recovery）。
+    # 【未消费】Recovery 恒挂载。
     recoverEnabled: true
-    # 是否启用接口日志（middleware/postlog）。
+    # 【未消费】postlog 恒挂载。
     logRequests: true
 
   # ------------------------------------------------------------------
@@ -203,32 +215,31 @@ go:
   #   startedAt: <框架在 NewApp 时填入>
   #   pid: <框架在 NewApp 时填入>
 
-# ------------------------------------------------------------------
-# 5) Prometheus 指标（pkg/metrics，v2.1 新增）
-#    启用后框架在主引擎上最先挂载（早于所有中间件），因此不会被 casbin / jwt
-#    等鉴权中间件拦截，Prometheus 抓取不会返回 401。
-#    端点: GET /metrics
-#    关键指标:
-#      mgin_http_requests_total{method,path,status}
-#      mgin_http_request_duration_seconds{method,path}
-#      mgin_http_requests_in_flight
-#      mgin_build_info{version,commit,go_version}
-#      mgin_plugin_health{name}
-#      mgin_dependency_up{name}
-# ------------------------------------------------------------------
-metrics:
-  enabled: false
-  # 业务可主动调用 mgin.App.EnableMetrics() 显式启用，行为与 enabled=true 一致。
+  # ------------------------------------------------------------------
+  # 5) Prometheus 指标（pkg/metrics，v2.1 新增）
+  #    注意：仅配置 go.metrics.enabled=true 不会挂载端点，
+  #    必须在代码中调用 app.EnableMetrics()（两者同时满足或仅调用方法均可）。
+  #    挂载位置早于所有中间件，Prometheus 抓取不会被 casbin/jwt 拦截。
+  #    端点: GET /metrics
+  #    关键指标:
+  #      mgin_http_requests_total{method,path,status}
+  #      mgin_http_request_duration_seconds{method,path}
+  #      mgin_http_requests_in_flight
+  #      mgin_build_info{version,commit,go_version}
+  #      mgin_plugin_health{name}
+  #      mgin_dependency_up{name}
+  # ------------------------------------------------------------------
+  metrics:
+    enabled: false
 
-# ------------------------------------------------------------------
-# 6) OpenTelemetry（pkg/otel，v2.1 新增）
-#    v2 决定走"轻量接口 + 业务自接 SDK"路线，框架不强制引入 OTel SDK/exporter。
-#    业务启用方式：
-#      1) go get go.opentelemetry.io/otel/sdk + exporter
-#      2) import "github.com/maczh/mgin/pkg/otel"
-#      3) otel.SetTracerProvider(自行构造的 sdktrace.TracerProvider)
-#    框架已自动给 trace header 加上 W3C traceparent，可与 OTel SDK 无缝对接。
-# ------------------------------------------------------------------
-otel:
-  enabled: false
-  # endpoint: "http://localhost:4318"  # OTLP HTTP 端点；为空时业务自行选择 exporter
+  # ------------------------------------------------------------------
+  # 6) OpenTelemetry（pkg/otel）
+  #    本节点不会被框架读取。启用方式（业务侧）：
+  #      1) go get go.opentelemetry.io/otel/sdk + exporter
+  #      2) import "github.com/maczh/mgin/v2/pkg/otel"
+  #      3) otel.SetTracerProvider(自行构造的 sdktrace.TracerProvider)
+  #    框架已自动透传 W3C traceparent，可与 OTel SDK 对接。
+  # ------------------------------------------------------------------
+  otel:
+    enabled: false
+    # endpoint: "http://localhost:4318"  # 未被读取，仅作备忘

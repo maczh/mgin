@@ -1,5 +1,10 @@
 # MGin 微服务框架 应用文档
 
+> **文档状态（v2 基线）**：本文件是 v1 时代的完整手册，保留作历史参考，**不作为当前 API 的依据**。
+> 当前代码的权威说明见 [`README.md`](README.md) 与 [`docs/`](docs)；
+> 文中关于 S3 对象存储、PostgreSQL/ClickHouse/Elasticsearch/Kafka 数据源以及"11 类内置插件"的描述，
+> 在当前代码中**未实现**，请勿据此接入。升级请参考 [`docs/migration-v1-to-v2.md`](docs/migration-v1-to-v2.md)。
+>
 > 版本：基于 `github.com/maczh/mgin/v2`（Go 1.25），最新特性 v1.20.x
 > 适用：使用 MGin 从零搭建、开发与运维 RESTful 微服务的工程人员
 > 模块路径：`github.com/maczh/mgin/v2`
