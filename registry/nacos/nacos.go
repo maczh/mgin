@@ -305,6 +305,7 @@ func (n *NacosClient) WatchService(service, group string, callback func()) (func
 		return nil, fmt.Errorf("nacos is not initialized")
 	}
 	stop := make(chan struct{})
+	var stopOnce sync.Once
 	go func() {
 		wasAvailable := true
 		ticker := time.NewTicker(5 * time.Second)
@@ -323,7 +324,7 @@ func (n *NacosClient) WatchService(service, group string, callback func()) (func
 			}
 		}
 	}()
-	return func() { close(stop) }, nil
+	return func() { stopOnce.Do(func() { close(stop) }) }, nil
 }
 
 func (n *NacosClient) DeRegister() {

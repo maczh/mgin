@@ -81,6 +81,15 @@ func Call(service, uri string, op *Options) (result string, callErr error) {
 	if op.Fallback == nil && config.Config.GetConfigBool("go.client.fallback.enabled") {
 		op.Fallback = CachedFallback(service, uri, requestParams(op))
 	}
+	fallbackUsed := false
+	if op.Fallback != nil {
+		fallback := op.Fallback
+		op.Fallback = func(err error) (string, bool) {
+			value, ok := fallback(err)
+			if ok { fallbackUsed = true }
+			return value, ok
+		}
+	}
 	if op.Header != nil {
 		op.Header = cloneHeader(op.Header)
 	}
@@ -108,7 +117,7 @@ func Call(service, uri string, op *Options) (result string, callErr error) {
 		return "", err
 	}
 	result, err := call(service, uri, op)
-	if err != nil {
+	if err != nil || fallbackUsed {
 		circuitFailure(key, threshold)
 	} else {
 		circuitSuccess(key)
