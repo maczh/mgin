@@ -14,8 +14,8 @@ import (
 
 // 支持的存储驱动
 const (
-	DriverMysql    = "mysql"
-	DriverSqlite   = "sqlite"
+	DriverMysql  = "mysql"
+	DriverSqlite = "sqlite"
 )
 
 // store 定时任务存储层，统一封装任务与执行日志的持久化操作
@@ -77,7 +77,6 @@ func mysqlConn(dbName string) (*gorm.DB, error) {
 	}
 	return db.Mysql.GetConnection()
 }
-
 
 // Driver 返回当前使用的数据库驱动名
 func (s *store) Driver() string {

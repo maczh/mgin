@@ -232,7 +232,7 @@ func droppedOf(name string) uint64 {
 
 func TestQueueKeepsNewestAndFIFO(t *testing.T) {
 	h := &memHandler{name: "fifo"}
-	options := (&Options{QueueSize: 1000, Workers: 8}).normalize()
+	options := (&Options{QueueSize: 100, Workers: 8}).normalize()
 	if options.QueueSize != 100 || options.Workers != 1 {
 		t.Fatalf("options: %+v", options)
 	}

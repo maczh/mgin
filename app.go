@@ -119,6 +119,8 @@ func NewApp(configFile, appName, version string, xlang bool) *App {
 			panic(err)
 		}
 	}
+	// 配置开启 /metrics 时，预先标记，供 baseRouter 挂载
+	app.metricsEnabled = app.metricsEnabled || config.Config.GetConfigBool("go.metrics.enabled")
 	// 初始化应用的基础路由
 	app.baseRouter()
 	// 返回新创建的 App 实例指针

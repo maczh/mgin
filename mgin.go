@@ -16,7 +16,7 @@ import (
 )
 
 type mgin struct {
-	plugins map[string]plugin
+	plugins  map[string]plugin
 	reloadMu sync.Mutex
 }
 
@@ -132,17 +132,29 @@ func initResources(m *mgin) {
 }
 
 func (m *mgin) closeResources(configs string, currentRegistry registry.RegistryClient) {
-	if strings.Contains(configs, "mysql") { db.Mysql.Close() }
-	if strings.Contains(configs, "sqlite") { db.Sqlite.Close() }
-	if strings.Contains(configs, "mongodb") { db.Mongo.Close() }
-	if strings.Contains(configs, "redis") { db.Redis.Close() }
+	if strings.Contains(configs, "mysql") {
+		db.Mysql.Close()
+	}
+	if strings.Contains(configs, "sqlite") {
+		db.Sqlite.Close()
+	}
+	if strings.Contains(configs, "mongodb") {
+		db.Mongo.Close()
+	}
+	if strings.Contains(configs, "redis") {
+		db.Redis.Close()
+	}
 	if currentRegistry != nil && (strings.Contains(configs, "nacos") || strings.Contains(configs, "etcd") || strings.Contains(configs, "consul") || strings.Contains(configs, "polaris")) {
 		currentRegistry.DeRegister()
 	}
-	if strings.Contains(configs, "job") { job.Stop() }
+	if strings.Contains(configs, "job") {
+		job.Stop()
+	}
 	if m != nil {
 		for name, pl := range m.plugins {
-			if strings.Contains(configs, name) && pl.CloseFunc != nil { pl.CloseFunc() }
+			if strings.Contains(configs, name) && pl.CloseFunc != nil {
+				pl.CloseFunc()
+			}
 		}
 	}
 }

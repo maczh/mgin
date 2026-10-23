@@ -109,7 +109,6 @@ func (m MgoDao[E]) Update(selector bson.M, update bson.M) error {
 	return nil
 }
 
-
 // All mongo动态查询数据
 func (m MgoDao[E]) All(query bson.M) ([]E, error) {
 	if m.CollectionName == "" {

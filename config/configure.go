@@ -43,14 +43,14 @@ type app struct {
 }
 
 type appConfig struct {
-	Server string `json:"server" bson:"server"`
-	Type   string `json:"type" bson:"type"`
-	Token  string `json:"token" bson:"token"` //polaris使用的token
+	Server      string `json:"server" bson:"server"`
+	Type        string `json:"type" bson:"type"`
+	Token       string `json:"token" bson:"token"` //polaris使用的token
 	ReloadToken string `json:"reloadToken" bson:"reloadToken"`
-	Path   string `json:"path" bson:"path"`
-	Env    string `json:"env" bson:"env"`
-	Used   string `json:"used" bson:"used"`
-	Prefix struct {
+	Path        string `json:"path" bson:"path"`
+	Env         string `json:"env" bson:"env"`
+	Used        string `json:"used" bson:"used"`
+	Prefix      struct {
 		Mysql         string `json:"mysql" bson:"mysql"`
 		Postgres      string `json:"postgres" bson:"postgres"`
 		Mongodb       string `json:"mongodb" bson:"mongodb"`
@@ -428,7 +428,7 @@ func (c *config) GetConfigData(prefix string) []byte {
 	default:
 		ctx, cancel := context.WithTimeout(context.Background(), configRequestTimeout)
 		defer cancel()
-		resp, err := grequests.DoRegularRequest("GET", c.GetConfigUrl(prefix), grequests.FromRequestOptions(&grequests.RequestOptions{Context: ctx}))
+		resp, err := grequests.DoRegularRequest("GET", c.GetConfigUrl(prefix), &grequests.RequestOptions{Context: ctx})
 		if err != nil {
 			return nil
 		}

@@ -5,6 +5,9 @@
 > 模块路径：`github.com/maczh/mgin`
 >
 > [[英文版](README_en.md)]
+>
+> ⚠️ **本手册为历史长文，部分章节已与 `jh` 分支代码不一致**：PostgreSQL / ClickHouse / ElasticSearch / Kafka 数据源、`db.Pg`、`db.Mysql.UseCache()`、S3、内置系统管理模块的 HTTP 实现等在本分支均不存在。
+> 新成员请先阅读 [README.md](README.md) 与 [docs/](docs/)；两者冲突时，以代码与 `docs/` 为准（能力边界见 README §2.4）。
 
 ## 目录
 

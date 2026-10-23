@@ -3,6 +3,9 @@
 > Version: based on `github.com/maczh/mgin` (Go 1.25), latest features v1.20.x
 > Audience: engineers building, developing, and operating RESTful microservices with MGin
 > Module path: `github.com/maczh/mgin`
+>
+> ⚠️ **This is a legacy long-form manual. Several chapters no longer match the `jh` branch**: the PostgreSQL / ClickHouse / ElasticSearch / Kafka data sources, `db.Pg`, `db.Mysql.UseCache()`, S3, and the built-in system-admin HTTP APIs do not exist on this branch.
+> Start with [README.md](README.md) and [docs/](docs/). When they conflict, the code and `docs/` win (see README §2.4 for the supported scope).
 
 ## Table of Contents
 

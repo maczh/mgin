@@ -83,7 +83,7 @@ func listHandler(c *gin.Context) {
 		c.JSON(200, i18n.Error(errcode.JOB_ERROR, err.Error()))
 		return
 	}
-	page := &models.ResultPage{Count: int(total + int64(size) - 1) / size, Index: index, Size: size, Total: int(total)}
+	page := &models.ResultPage{Count: int(total+int64(size)-1) / size, Index: index, Size: size, Total: int(total)}
 	c.JSON(200, models.SuccessWithPage(list, page.Count, page.Index, page.Size, page.Total))
 }
 
@@ -284,6 +284,6 @@ func logHandler(c *gin.Context) {
 		c.JSON(200, i18n.Error(errcode.JOB_ERROR, err.Error()))
 		return
 	}
-	page := &models.ResultPage{Count: int(total + int64(size) - 1) / size, Index: index, Size: size, Total: int(total)}
+	page := &models.ResultPage{Count: int(total+int64(size)-1) / size, Index: index, Size: size, Total: int(total)}
 	c.JSON(200, models.SuccessWithPage(list, page.Count, page.Index, page.Size, page.Total))
 }
