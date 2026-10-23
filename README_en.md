@@ -53,6 +53,7 @@
 9. [Microservice Client](#9-microservice-client)
    - 9.1 [Options and Protocols](#91-options-and-protocols)
    - 9.2 [Call Examples](#92-call-examples)
+   - 9.3 [Timeout, Circuit Breaker and Fallback](#93-timeout-circuit-breaker-and-fallback)
 10. [Service Registry and Discovery](#10-service-registry-and-discovery)
 
 **Part V — Request & Cross-cutting**
@@ -824,10 +825,15 @@ type Options struct {
     Path     map[string]string      // restful path params {key}=value
     Files    []grequests.FileUpload // file uploads
     Retry    bool                   // retry once on failure
+    Timeout  time.Duration          // total timeout; <=0 uses go.client.timeout (default 10s)
+    Fallback func(error) (string, bool) // failure fallback: (response body, hit)
+    CircuitKey        string        // circuit key, defaults to service + uri
+    CircuitFailures   int           // threshold, <=0 uses go.discovery.circuitFailures (default 3)
+    CircuitOpenWindow time.Duration // probe window, <=0 uses go.discovery.circuitOpenWindow (default 30s)
 }
 ```
 
-Protocol constants: `client.CONTENT_TYPE_FORM` / `CONTENT_TYPE_JSON` / `CONTENT_TYPE_RESTFUL` / `CONTENT_TYPE_FILE`. `Protocol` defaults to `go.discovery.callType`.
+Protocol constants: `client.CONTENT_TYPE_FORM` / `CONTENT_TYPE_JSON` / `CONTENT_TYPE_RESTFUL` / `CONTENT_TYPE_FILE`. `Protocol` defaults to `go.discovery.callType`; a non-empty `Files` forces the file protocol. `Call` shallow-copies `Options` and deep-copies `Header`, so one `Options` value can be shared concurrently.
 
 ### 9.2 Call Examples
 
@@ -866,13 +872,36 @@ result := client.CallResultT[any]("file-service", "/upload", &client.Options{
 
 > A failed call returns `models.ErrorT[T](-1, "...")` with message `"Service error"` or `"failed to get host:port of X service"`. With `Retry: true`, it retries once on failure.
 
+### 9.3 Timeout, Circuit Breaker and Fallback
+
+| Capability | Config / field | Default | Notes |
+|---|---|---|---|
+| Timeout | `Options.Timeout` → `go.client.timeout` | `10s` | Applied as `grequests.RequestTimeout`; accepts `5s`/`500ms` or plain seconds |
+| Retry | `Options.Retry` | false | One recursive retry, regardless of error type |
+| Circuit breaker | `go.discovery.circuitFailures` / `circuitOpenWindow` | 3 / `30s` | Opens after N consecutive failures; one probe is allowed after the window (half-open) |
+| Fallback | `Options.Fallback` / `go.client.fallback.enabled` | off | Replays the last successful response for the same `service+uri+params` |
+
+```go
+resp := client.CallT[User]("user-service", "/api/v1/users/{id}", &client.Options{
+    Method:   http.MethodGet,
+    Protocol: "restful",
+    Path:     map[string]string{"id": "42"},
+    Timeout:  2 * time.Second,
+    Fallback: func(err error) (string, bool) {
+        return `{"code":0,"data":{"id":42,"name":"cached user"}}`, true
+    },
+})
+```
+
+Caveats: the fallback body must match what `CallT`/`CallResultT` expects; a fallback hit still counts as a failure for the breaker; both the response cache and breaker state are process-local (no TTL or size limit on the cache), so only enable fallback for idempotent queries.
+
 
 
 ---
 
 ## 10. Service Registry and Discovery
 
-`NewApp` creates the registry client per `go.discovery.registry` and calls `Register` in `mgin.Init`.
+`NewApp` creates the registry client per `go.discovery.registry` (always wrapped by `CachedRegistry`) and calls `Register` in `initResources`.
 
 ```go
 var Registry RegistryClient   // global singleton
@@ -882,28 +911,100 @@ type RegistryClient interface {
     GetServiceURL(servicename string, groupName ...string) (string, string) // returns host:port, group
     DeRegister()
 }
-func NewRegistry() RegistryClient  // returns impl by config type internally
+func NewRegistry() RegistryClient  // impl by config type; noop when unconfigured
 ```
 
-Implementations: `nacos` / `consul` / `etcd` / `polaris` (in `registry/nacos`, `registry/consul`, `registry/etcd`, `registry/polaris`). `client.Call` uses `GetServiceURL` internally and picks a random healthy instance.
+Backends may also implement these **optional interfaces** (probe with a type assertion):
+
+```go
+type InstanceProvider interface { // full healthy instance list
+    GetServiceInstances(service string, group ...string) ([]ServiceInstance, string)
+}
+type OfflineSubscriber interface { // offline event, used to invalidate cache
+    SubscribeOffline(func(service, group string)) error
+}
+type ServiceWatcher interface { // subscribe to availability changes
+    WatchService(service, group string, callback func()) (cancel func(), err error)
+}
+
+type ServiceInstance struct { // registry.ServiceInstance
+    URL      string            // host:port with scheme prefix
+    Weight   int               // <=0 means the backend provided no weight
+    Metadata map[string]string
+}
+```
+
+Implementations: `nacos` / `consul` / `etcd` / `polaris`. `client.Call` uses `GetServiceURL` internally.
+
+**Capability matrix:**
+
+| Capability | Nacos | Consul | etcd | Polaris |
+|---|---|---|---|---|
+| Keepalive | 5s heartbeat, re-register after 3 consecutive failures | TTL 30s, updated every 25s; `DeregisterCriticalServiceAfter=10m` | lease 10s + KeepAlive, re-register on renewal failure | registry-side heartbeat |
+| `GetServiceInstances` | ✅ with weight and metadata | ✅ single group only, no `Metadata` | ✅ weight fixed at 1, no `Metadata` | ✅ with weight and metadata |
+| `SubscribeOffline` | ✅ polling fallback | ❌ | ✅ real watch (delete events) | ✅ polling fallback |
+| `WatchService` | ✅ 5s polling | ✅ 5s polling | ✅ real watch | ✅ 5s polling |
 
 **Per-registry config (`*-test.yml`):**
 
 ```yaml
-# nacos
+# nacos-test.yml
 go:
   nacos:
     server: 127.0.0.1
     port: 8848
+    apiversion: v1
     clusterName: DEFAULT
-    group: OpenApi
-    weight: 1
+    group: DEFAULT_GROUP
+    username: ""       # required when auth is enabled
+    password: ""
     lan: true          # register with internal IP
-    lanNet: 192.168.3. # network prefix
+    lanNet: 192.168.   # network prefix
+
+# etcd-test.yml
+go:
+  etcd:
+    server: 127.0.0.1
+    port: 2379
+    prefix: mgin         # key: /{prefix}/{group}/{service}/{instance}
+    keyTemplate: ""      # custom key template; empty uses the built-in one
+    group: DEFAULT_GROUP
+    username: ""
+    password: ""
+
+# consul-test.yml (port is the Consul HTTP API port)
+go:
+  consul:
+    server: 127.0.0.1
+    port: 8500
+    token: ""
+    group: DEFAULT_GROUP
+
+# polaris-test.yml (server/port may list several, comma separated)
+go:
+  polaris:
+    server: 127.0.0.1
+    port: 8090
+    token: ""
+    namespace: default
 ```
 
-The others (etcd/consul/polaris) are structured similarly; `polaris` additionally needs `namespace` and `token`. For consul, `port` is its HTTP API port (e.g. 8500).
+**Discovery-side settings and local cache:**
 
+```yaml
+go:
+  discovery:
+    registry: nacos        # empty = no registration/discovery (noop, no panic)
+    callType: x-form
+    cacheTTL: 3            # discovery cache seconds (config defaults to 60 when unset)
+    cacheRefresh: 1        # hot-refresh seconds
+    strategy: random       # random / round_robin / weighted
+```
+
+`CachedRegistry` behavior: TTL cache + singleflight merge on the fallback path + background hot refresh + empty results not cached + reuse of the last known instance (with a Warn) while the registry is flaky + precise invalidation via `SubscribeOffline`/`WatchService`; `DeRegister` stops the refresher, cancels watchers and clears the cache.
+
+> 📌 `Polaris` is not auto-initialized: call `registry.Registry.Register(config.Config.GetConfigData("polaris"))` explicitly (with `go.config.used` containing `polaris`). Also note `CachedRegistry.GetServiceInstances` applies the selection strategy again and usually returns a single entry; use the concrete backend directly when you need the full list.
+>
 > 📌 **jh branch enhancements**: etcd registration switched to **lease + keepalive auto-renewal** since `v1.21.17-jh` (stale registrations are auto-cleaned when an instance goes offline); Nacos registration switched to the community `nacos-sdk-go` since `v1.21.15-jh`, dropping the Alibaba Cloud SDK dependency.
 
 

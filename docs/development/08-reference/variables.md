@@ -157,16 +157,31 @@ logs.Info("target={}://{}", scheme, host)
 | `log.victorialogs.client` | bool | false | 上报调用日志 | — |
 | `log.kafka.use` / `topic` | bool/string | false/空 | Kafka 投递 | **无实现** |
 
-### 3.4 发现与调用（`go.discovery`）
+### 3.4 发现与调用（`go.discovery`、`go.client`）
 
 | 键 | 类型 | 默认 | 作用 | 约束 |
 |----|------|------|------|------|
-| `registry` | string | 空 | `nacos`/`consul`/`etcd`/`polaris` | 空=不注册不发现 |
+| `registry` | string | 空 | `nacos`/`consul`/`etcd`/`polaris` | 空=不注册不发现；未知值走空实现 |
 | `callType` | string | `x-form` | 调用默认协议 | 可被 `Options.Protocol` 覆盖 |
-| `cacheTTL` | int（秒） | 60 | 发现缓存 TTL | 影响下线感知 |
-| `cacheRefresh` | int（秒） | 60 | 热刷新间隔 | `<=0` 用内部默认 |
+| `cacheTTL` | int（秒） | 60 | 发现缓存 TTL | 影响下线感知；`<=0` 时 `Init` 补 60 |
+| `cacheRefresh` | int（秒） | 60 | 热刷新间隔 | `<=0` 时 `Init` 补 60 |
+| `strategy` | string | `random` | `random`/`round_robin`/`weighted` | 未在 `discovery` 结构体中声明，按原始键读取 |
+| `circuitFailures` | int | 3 | `client.Call` 熔断失败阈值 | 可被 `Options.CircuitFailures` 覆盖 |
+| `circuitOpenWindow` | duration | `30s` | 熔断打开后的探测窗口 | 支持 `30s` 或数字（秒） |
 
-子配置键：`go.nacos.{server,port,group,apiversion,clusterName,lan,lanNet}`、`go.consul.{server,port,group,clusterName,lan,lanNet}`、`go.etcd.{server,port,prefix,group,clusterName,lan,lanNet}`、`go.polaris.{server,port,token,namespace}`。
+调用侧（`go.client`，由 `client.Call` 直接读取，不在 `discovery` 结构体中）：
+
+| 键 | 类型 | 默认 | 作用 | 约束 |
+|----|------|------|------|------|
+| `timeout` | duration | `10s` | 单次调用超时 | 支持 `5s`/`500ms` 或数字（秒）；`Options.Timeout` 优先 |
+| `fallback.enabled` | bool | false | 失败时回放上次成功响应 | 需 `Options.Fallback == nil` 才生效；缓存无 TTL |
+
+子配置键：
+
+- `go.nacos.{server,port,apiversion,group,clusterName,username,password,lan,lanNet}`
+- `go.consul.{server,port,token,group,clusterName,lan,lanNet}`
+- `go.etcd.{server,port,prefix,keyTemplate,group,clusterName,username,password,lan,lanNet}`
+- `go.polaris.{server,port,token,namespace,lan,lanNet}`（未接入 `initResources`，需手动 `Register`）
 
 ### 3.5 数据源（`go.data`）
 

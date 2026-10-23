@@ -75,13 +75,26 @@ go:
   #    cacheTTL: 服务发现结果本地缓存时长（秒）。绝大多数调用命中缓存，零注册中心 RTT，
   #             注册中心抖动时复用旧实例（降级），大幅提升发现性能与调用稳定性。
   #    cacheRefresh: 后台刷新“热”服务发现的间隔（秒）。仅刷新近期被访问的服务，
-  #             让负载在实例间轮换并剔除已下线实例。 <=0 时使用默认 3/1 秒。
+  #             让负载在实例间轮换并剔除已下线实例。<=0 时由框架补默认值（60 秒）。
+  #    strategy: 实例选择策略 random / round_robin / weighted（默认 random）
+  #    circuitFailures / circuitOpenWindow: client.Call 熔断阈值与探测窗口
   # ------------------------------------------------------------------
   discovery:
     registry: ""
     callType: x-form
     cacheTTL: 3
     cacheRefresh: 1
+    strategy: random
+    circuitFailures: 3
+    circuitOpenWindow: 30s
+
+  # 微服务调用（client.Call）
+  #    timeout: 单次调用超时，支持 10s / 500ms，纯数字按秒处理
+  #    fallback.enabled: 调用失败时回放该 service+uri+参数的最近一次成功响应（仅适合幂等查询）
+  client:
+    timeout: 10s
+    fallback:
+      enabled: false
 
   # ------------------------------------------------------------------
   # 1) 单例限流中间件（middleware/ratelimit）

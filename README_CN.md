@@ -55,6 +55,7 @@
 9. [微服务调用（Client）](#9-微服务调用client)
    - 9.1 [Options 与协议](#91-options-与协议)
    - 9.2 [调用示例](#92-调用示例)
+   - 9.3 [超时、熔断与兜底](#93-超时熔断与兜底)
 10. [注册中心与服务发现（registry）](#10-注册中心与服务发现registry)
 
 **第五部分：请求处理与横切能力**
@@ -832,10 +833,15 @@ type Options struct {
     Path     map[string]string      // restful 路径参数 {key}=value
     Files    []grequests.FileUpload // 文件上传
     Retry    bool                   // 失败是否重试一次
+    Timeout  time.Duration          // 整次调用超时，<=0 取 go.client.timeout（默认 10s）
+    Fallback func(error) (string, bool) // 失败兜底，返回 (响应体, 是否命中)
+    CircuitKey        string        // 熔断分组键，缺省 service + uri
+    CircuitFailures   int           // 熔断阈值，<=0 取 go.discovery.circuitFailures（默认 3）
+    CircuitOpenWindow time.Duration // 熔断探测窗口，<=0 取 go.discovery.circuitOpenWindow（默认 30s）
 }
 ```
 
-协议常量：`client.CONTENT_TYPE_FORM` / `CONTENT_TYPE_JSON` / `CONTENT_TYPE_RESTFUL` / `CONTENT_TYPE_FILE`。`Protocol` 缺省取 `go.discovery.callType`。
+协议常量：`client.CONTENT_TYPE_FORM` / `CONTENT_TYPE_JSON` / `CONTENT_TYPE_RESTFUL` / `CONTENT_TYPE_FILE`。`Protocol` 缺省取 `go.discovery.callType`；`Files` 非空强制 file 协议。`Call` 内部浅拷贝 `Options` 并深拷贝 `Header`，同一份 `Options` 可并发复用。
 
 ### 9.2 调用示例
 
@@ -874,13 +880,37 @@ result := client.CallResultT[any]("file-service", "/upload", &client.Options{
 
 > 调用失败返回 `models.ErrorT[T](-1, "...")`，message 为 `"Service error"` 或 `"微服务获取X服务主机IP端口失败"`。`Retry: true` 时失败自动重试一次。
 
+### 9.3 超时、熔断与兜底
+
+| 能力 | 配置 / 字段 | 默认 | 说明 |
+|------|-------------|------|------|
+| 超时 | `Options.Timeout` → `go.client.timeout` | `10s` | 落到 `grequests.RequestTimeout`，支持 `5s`/`500ms` 或数字秒 |
+| 重试 | `Options.Retry` | false | 失败后递归重试一次，不区分错误类型 |
+| 熔断 | `go.discovery.circuitFailures` / `circuitOpenWindow` | 3 / `30s` | 连续失败达到阈值即打开，窗口后放行一个探测请求（半开） |
+| 兜底 | `Options.Fallback` / `go.client.fallback.enabled` | 关闭 | 命中时返回该 `service+uri+参数` 的上一次成功响应 |
+
+```go
+// 单次调用自定义兜底
+resp := client.CallT[User]("user-service", "/api/v1/users/{id}", &client.Options{
+    Method:   http.MethodGet,
+    Protocol: "restful",
+    Path:     map[string]string{"id": "42"},
+    Timeout:  2 * time.Second,
+    Fallback: func(err error) (string, bool) {
+        return `{"code":0,"data":{"id":42,"name":"缓存用户"}}`, true
+    },
+})
+```
+
+注意：兜底必须返回与 `CallT`/`CallResultT` 匹配的 JSON；兜底命中同样计入熔断失败；响应缓存与熔断状态都是**进程内**的，多副本各自独立，且缓存无 TTL/容量上限，只适合幂等查询。
+
 
 
 ---
 
 ## 10. 注册中心与服务发现（registry）
 
-`NewApp` 按 `go.discovery.registry` 创建注册客户端，并在 `mgin.Init` 中执行 `Register`。
+`NewApp` 按 `go.discovery.registry` 创建注册客户端（统一用 `CachedRegistry` 包裹），并在 `initResources` 中执行 `Register`。
 
 ```go
 var Registry RegistryClient   // 全局单例
@@ -890,27 +920,100 @@ type RegistryClient interface {
     GetServiceURL(servicename string, groupName ...string) (string, string) // 返回 host:port, group
     DeRegister()
 }
-func NewRegistry() RegistryClient  // 内部按配置类型返回实现
+func NewRegistry() RegistryClient  // 按配置类型返回实现，未配置返回空实现
 ```
 
-支持实现：`nacos` / `consul` / `etcd` / `polaris`（对应 `registry/nacos`、`registry/consul`、`registry/etcd`、`registry/polaris`）。`client.Call` 内部正是调用 `GetServiceURL` 完成发现，并随机选取健康实例。
+除必需接口外，后端还可实现以下**可选接口**，调用方用类型断言使用：
+
+```go
+type InstanceProvider interface { // 完整健康实例列表
+    GetServiceInstances(service string, group ...string) ([]ServiceInstance, string)
+}
+type OfflineSubscriber interface { // 实例下线事件，用于缓存失效
+    SubscribeOffline(func(service, group string)) error
+}
+type ServiceWatcher interface { // 订阅某服务可用性变化
+    WatchService(service, group string, callback func()) (cancel func(), err error)
+}
+
+type ServiceInstance struct { // registry.ServiceInstance，等同 registry/model 中的定义
+    URL      string            // 带协议前缀的 host:port
+    Weight   int               // <=0 表示后端未提供
+    Metadata map[string]string
+}
+```
+
+支持实现：`nacos` / `consul` / `etcd` / `polaris`。`client.Call` 内部调用 `GetServiceURL` 完成发现。
+
+**能力对照：**
+
+| 能力 | Nacos | Consul | etcd | Polaris |
+|------|-------|--------|------|---------|
+| 保活 | 5s 心跳，连续 3 次失败自动重注册 | TTL 30s，25s 上报；`DeregisterCriticalServiceAfter=10m` | lease 10s + KeepAlive，续约失败自动重注册 | 注册中心心跳/探活 |
+| `GetServiceInstances` | ✅ 带权重与元数据 | ✅ 仅单 group、无 `Metadata` | ✅ 权重固定 1、无 `Metadata` | ✅ 带权重与元数据 |
+| `SubscribeOffline` | ✅ 轮询降级 | ❌ | ✅ 真实 watch（删除事件） | ✅ 轮询降级 |
+| `WatchService` | ✅ 5s 轮询 | ✅ 5s 轮询 | ✅ 真实 watch | ✅ 5s 轮询 |
 
 **各注册中心配置（`*-test.yml`）：**
 
 ```yaml
-# nacos
+# nacos-test.yml
 go:
   nacos:
     server: 127.0.0.1
     port: 8848
+    apiversion: v1
     clusterName: DEFAULT
-    group: OpenApi
-    weight: 1
+    group: DEFAULT_GROUP
+    username: ""       # 开启鉴权时填写
+    password: ""
     lan: true          # 以内网地址注册
-    lanNet: 192.168.3. # 网段前缀
-```
-其余（etcd/consul/polaris）结构类似，`polaris` 额外需要 `namespace` 与 `token`。其中 consul 的 `port` 对应其 HTTP API 端口（如 8500）。
+    lanNet: 192.168.   # 网段前缀
 
+# etcd-test.yml
+go:
+  etcd:
+    server: 127.0.0.1
+    port: 2379
+    prefix: mgin         # key: /{prefix}/{group}/{service}/{instance}
+    keyTemplate: ""      # 自定义 key 模板，空用内置
+    group: DEFAULT_GROUP
+    username: ""
+    password: ""
+
+# consul-test.yml（port 为 Consul HTTP API 端口）
+go:
+  consul:
+    server: 127.0.0.1
+    port: 8500
+    token: ""
+    group: DEFAULT_GROUP
+
+# polaris-test.yml（server/port 可按序多个，逗号分隔）
+go:
+  polaris:
+    server: 127.0.0.1
+    port: 8090
+    token: ""
+    namespace: default
+```
+
+**发现侧配置与本地缓存：**
+
+```yaml
+go:
+  discovery:
+    registry: nacos        # 留空=不注册不发现（空实现，不 panic）
+    callType: x-form
+    cacheTTL: 3            # 发现缓存秒数（未配置时 configure 补 60）
+    cacheRefresh: 1        # 热刷新秒数
+    strategy: random       # random / round_robin / weighted
+```
+
+`CachedRegistry` 的行为：TTL 缓存 + 回退路径 singleflight 合并 + 后台热刷新 + 空结果不缓存 + 注册中心抖动时复用旧实例并打 Warn + 通过 `SubscribeOffline`/`WatchService` 精确失效；`DeRegister` 时停止刷新、取消 watch、清空缓存。
+
+> 📌 **注意**：`Polaris` 未接入自动初始化，需业务显式调用 `registry.Registry.Register(config.Config.GetConfigData("polaris"))`（前提是 `go.config.used` 含 `polaris`）。`CachedRegistry.GetServiceInstances` 会再套一次选择策略，通常只返回 1 条；需要全量列表请直接使用具体后端。
+>
 > 📌 **jh 分支增强**：etcd 注册自 `v1.21.17-jh` 起改用**租约（lease）+ keepalive 自动续租**，实例离线后注册信息可自动清理；Nacos 注册自 `v1.21.15-jh` 起改用社区 `nacos-sdk-go`，不再依赖阿里云 SDK。
 
 

@@ -249,9 +249,13 @@ go:
 | | `go.log.get` | 空（按 `full` 处理） | GET 响应记录：`full`/`line`（截断 120 字符）/`off` |
 | | `go.log.sink.queue` / `workers` / `shutdown` | 100 / 1 / 3000 | 队列上限、消费协程（强制 1）、关闭超时(ms) |
 | | `go.log.victorialogs.*` | 空 | `url`/`api_token`/`api_crt`/`request`/`client`/`timeout` |
-| 发现 | `go.discovery.registry` | 空 | `nacos`/`consul`/`etcd`/`polaris` |
+| 发现 | `go.discovery.registry` | 空 | `nacos`/`consul`/`etcd`/`polaris`；空则用空实现（不注册不发现） |
 | | `go.discovery.callType` | `x-form` | 调用协议默认值 |
 | | `go.discovery.cacheTTL` / `cacheRefresh` | 60 / 60（秒） | 发现结果缓存与热刷新 |
+| | `go.discovery.strategy` | `random` | `random`/`round_robin`/`weighted` 实例选择策略 |
+| | `go.discovery.circuitFailures` / `circuitOpenWindow` | 3 / `30s` | `client.Call` 熔断阈值与探测窗口 |
+| 调用 | `go.client.timeout` | `10s` | 单次调用超时，支持 `5s` 或数字（秒） |
+| | `go.client.fallback.enabled` | false | 失败时回放上次成功响应（缓存无 TTL） |
 | 安全 | `go.jwt.secret` | 空 | HS 系列签名密钥；未配置时 jwt 中间件直接 401 |
 | | `go.casbin.enabled` / `model_file` | false / `rbac_model.conf` | 模型相对路径基于配置目录；仓库只提供 `casbin.conf` |
 | | `go.cors.headers` | 空 | 追加允许头（基础头已固定） |
@@ -368,13 +372,16 @@ resp := client.CallT[User]("user-service", "/api/v1/users/{id}", &client.Options
     Method:   http.MethodGet,
     Protocol: "restful",
     Path:     map[string]string{"id": "1"},
+    Timeout:  2 * time.Second,
 })
 if resp.Code != vo.SUCCESS {
     logs.Error("调用失败: {}", resp.Msg)
 }
 ```
 
-`client.CallT` 解析 `{code,msg,data,srvTime}`；旧协议用 `client.CallResultT`（`{status,msg,data}`）。调用前必须先初始化注册中心（`used`/`registry` 配置）。
+`client.CallT` 解析 `{code,msg,data,srvTime}`；旧协议用 `client.CallResultT`（`{status,msg,data}`），分页用 `client.CallPageT`。调用前必须先初始化注册中心（`used`/`registry` 配置），否则返回「服务注册中心未初始化」。
+
+调用链内置三层保护：`Options.Timeout`/`go.client.timeout`（默认 10s）→ `Retry`（重试一次）→ 熔断（`go.discovery.circuitFailures`，默认 3 次失败后打开 30s），并可用 `Options.Fallback` 或 `go.client.fallback.enabled` 回放上次成功响应。详见 [服务调用](docs/development/03-development/03-service-call.md)。
 
 ### 6.5 鉴权中间件挂载顺序
 
@@ -503,5 +510,7 @@ go mod tidy && go build -o demo . && ./demo
 | [演进路线图 v1.26→v3.0](docs/development/09-advanced/04-evolution-roadmap.md) | 行业能力基线、差距分析、分版本能力建设与优先级 |
 | [i18n 使用说明](docs/i18n.md) | 字典表与 API 细节 |
 | [VictoriaLogs 接入](docs/victorialogs.md) | 日志上报配置 |
+| [服务发现与负载均衡](docs/development/05-governance/01-discovery-and-load-balancing.md) | 四种注册中心能力矩阵、可选接口、缓存/策略/熔断配置 |
+| [服务调用](docs/development/03-development/03-service-call.md) | `client` 协议、超时、重试、熔断与兜底 |
 | [注册中心优化说明](docs/registry_optimization_jh_overview.md) | 本地缓存与热刷新设计 |
 | [SDK 文档](sdk_document.md) | 早期 SDK 使用说明（部分 API 已变更） |
