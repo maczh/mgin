@@ -7,7 +7,6 @@ import (
 	registryModel "github.com/maczh/mgin/registry/model"
 	"github.com/maczh/mgin/registry/nacos"
 	"github.com/maczh/mgin/registry/polaris"
-	"time"
 )
 
 var Registry RegistryClient
@@ -43,13 +42,6 @@ const (
 	StrategyRoundRobin SelectionStrategy = "round_robin"
 	StrategyWeighted   SelectionStrategy = "weighted"
 )
-
-// RegistryOptions controls local discovery behavior without changing the
-// historical constructor or RegistryClient contract.
-type RegistryOptions struct {
-	TTL, Refresh time.Duration
-	Strategy     SelectionStrategy
-}
 
 func NewRegistry() RegistryClient {
 	var client RegistryClient

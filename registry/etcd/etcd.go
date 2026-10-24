@@ -12,7 +12,6 @@ import (
 	"github.com/knadh/koanf"
 	"github.com/knadh/koanf/parsers/yaml"
 	"github.com/knadh/koanf/providers/rawbytes"
-	"github.com/maczh/mgin/cache"
 	"github.com/maczh/mgin/config"
 	registryModel "github.com/maczh/mgin/registry/model"
 	"github.com/maczh/mgin/utils"
@@ -147,7 +146,6 @@ func (c *EtcdClient) Register(etcdConfigData []byte) {
 			logger.Error("Etcd注册服务失败:" + regerr.Error())
 			return
 		}
-		//cache.OnMemCache("etcd_service").Set("instance_id", c.instanceId, 5*time.Second)
 		logger.Debug("etcd服务注册结果: " + toJSON(res))
 		c.apiUrl = apiUrl
 		c.registeredKey = key
@@ -181,12 +179,6 @@ func (c *EtcdClient) GetServiceURL(servicename string, groupName ...string) (str
 		currentGroup = group
 		r := rand.New(rand.NewSource(time.Now().UnixNano()))
 		kv := resp.Kvs[r.Intn(len(resp.Kvs))]
-		//将当前服务实例对应的instanceId保存到缓存当中
-		instanceId := ""
-		if len(kv.Key) > len(prefix) {
-			instanceId = string(kv.Key)[len(prefix):]
-		}
-		cache.OnMemCache("etcd_service").Set(fmt.Sprintf("etcd_%s_%s", servicename, string(kv.Value)), instanceId, 5*time.Second)
 		return string(kv.Value), currentGroup
 	}
 	return "", currentGroup

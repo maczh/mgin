@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math/rand"
 	"net/url"
 	"strings"
 	"sync"
@@ -13,7 +12,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/levigross/grequests"
-	"github.com/maczh/mgin/cache"
 	"github.com/maczh/mgin/config"
 	"github.com/maczh/mgin/logs"
 	"github.com/maczh/mgin/logsink"
@@ -220,14 +218,8 @@ func call(service, uri string, op *Options) (result string, callErr error) {
 		}
 		return "", err
 	}
-	//host, err := getHostFromCache(fmt.Sprintf("%s@%s", service, op.Group))
-	//if err != nil || host == "" {
 	host, op.Group = registry.Registry.GetServiceURL(service, op.Group)
-	//}
 	if host == "" {
-		//cache.OnGetCache("service", false).Add(fmt.Sprintf("%s@%s", service, op.Group), host, 5*time.Minute)
-		//subscribeNacos(service, op.Group)
-		//} else {
 		err := errors.New("微服务获取" + service + "服务主机IP端口失败")
 		if op.Fallback != nil {
 			if value, ok := op.Fallback(err); ok {
@@ -394,84 +386,3 @@ func decodeResponse(resp string, result any) error {
 	}
 	return json.Unmarshal([]byte(resp), result)
 }
-
-func getHostFromCache(serviceName string) (string, error) {
-	c := cache.OnGetCache("service", false)
-	if c == nil {
-		return "", errors.New("无此服务缓存")
-	}
-	h, _ := c.Value(serviceName)
-	if h == nil {
-		logs.Debug("{} 服务无缓存", serviceName)
-		return "", errors.New("无此服务缓存")
-	}
-	hostStr, ok := h.(string)
-	if !ok {
-		return "", errors.New("服务缓存格式错误")
-	}
-	hosts := strings.Split(hostStr, ",")
-	available := make([]string, 0, len(hosts))
-	for _, host := range hosts {
-		if host = strings.TrimSpace(host); host != "" {
-			available = append(available, host)
-		}
-	}
-	if len(available) == 0 {
-		return "", errors.New("无此服务缓存")
-	}
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	return available[r.Intn(len(available))], nil
-}
-
-//func subscribeNacos(serviceName, groupName string) {
-//	if groupName == "" {
-//		groupName = "DEFAULT_GROUP"
-//	}
-//	if _, ok := registry.Registry.Subscribes[serviceName]; !ok {
-//		logs.Debug("Nacos微服务订阅服务名:{}", serviceName)
-//		subsParams := &vo.SubscribeParam{
-//			ServiceName: serviceName,
-//			Clusters:    []string{"DEFAULT"},
-//			GroupName:   groupName,
-//			SubscribeCallback: func(services []model.SubscribeService, err error) {
-//				subscribeNacosCallback(services, err)
-//			},
-//		}
-//		err := registry.Registry.GetNacosClient().Subscribe(subsParams)
-//		if err != nil {
-//			logs.Error("Nacos订阅错误:{}", err.Error())
-//		}
-//		registry.Registry.Subscribes[serviceName] = subsParams
-//	}
-//}
-//
-//func subscribeNacosCallback(services []model.SubscribeService, err error) {
-//	logs.Debug("Nacos回调:{}", services)
-//	if err != nil {
-//		logs.Error("Nacos订阅回调错误:{}", err.Error())
-//		return
-//	}
-//	if services == nil || len(services) == 0 {
-//		logs.Error("Nacos订阅回调服务列表为空")
-//		return
-//	}
-//	servicesMap := make(map[string]string)
-//	for _, s := range services {
-//		protocal := "http://"
-//		if s.Metadata != nil && s.Metadata["ssl"] == "true" {
-//			protocal = "https://"
-//		}
-//		if s.Metadata != nil && s.Metadata["debug"] == "true" {
-//			continue
-//		}
-//		if servicesMap[s.ServiceName] == "" {
-//			servicesMap[s.ServiceName] = protocal + s.Ip + ":" + strconv.Itoa(int(s.Port))
-//		} else {
-//			servicesMap[s.ServiceName] = servicesMap[s.ServiceName] + "," + protocal + s.Ip + ":" + strconv.Itoa(int(s.Port))
-//		}
-//	}
-//	for serviceName, host := range servicesMap {
-//		cache.OnGetCache("nacos").Delete(serviceName)
-//		cache.OnGetCache("nacos").Add(serviceName, host, 5*time.Minute)
-//	}
-//}

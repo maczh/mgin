@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/hashicorp/consul/api"
-	"github.com/json-iterator/go"
 	"github.com/knadh/koanf"
 	"github.com/knadh/koanf/parsers/yaml"
 	"github.com/knadh/koanf/providers/rawbytes"
@@ -153,7 +152,6 @@ func (c *ConsulClient) GetServiceURL(servicename string, groupName ...string) (s
 				continue
 			}
 			currentGroup = group
-			//fmt.Printf("服务查询结果: %s\n", toJSON(services))
 			r := rand.New(rand.NewSource(time.Now().UnixNano()))
 			service := services[r.Intn(len(services))]
 			protocol := "http://"
@@ -333,22 +331,6 @@ func localIPv4s(lan bool, lanNetwork string) ([]string, error) {
 		}
 	}
 	return ips, nil
-}
-
-var json = jsoniter.ConfigCompatibleWithStandardLibrary
-
-// toJSON 函数用于将对象转换为 JSON 字符串
-func toJSON(o any) string {
-	j, err := json.Marshal(o)
-	if err != nil {
-		return "{}"
-	} else {
-		js := string(j)
-		js = strings.Replace(js, "\\u003c", "<", -1)
-		js = strings.Replace(js, "\\u003e", ">", -1)
-		js = strings.Replace(js, "\\u0026", "&", -1)
-		return js
-	}
 }
 
 // getInstanceId 函数用于生成服务实例 ID
