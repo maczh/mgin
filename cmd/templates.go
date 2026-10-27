@@ -1,47 +1,63 @@
 package main
 
-const toolVersion = "1.0.0"
+const toolVersion = "1.2.0"
 
 // ProjectOptions 保存生成工程所需的全部选项（含推导字段）。
 type ProjectOptions struct {
-	ProjectName  string
-	Module       string
-	Port         int
-	DBs          []string
-	MQ           []string // 消息队列(多选): nats/kafka/mqtt/rabbit; 空表示不使用
-	Registry     string   // nacos/consul/etcd/none
-	ConfigCenter string   // nacos/consul/etcd/polaris/springconfig/file/none
-	I18n         bool
-	JWT          bool
-	Casbin       bool
-	Sys          bool
-	OutputDir    string
-	Force        bool
-	MginVersion  string // 生成工程所依赖的 mgin 版本(自动获取最新, 可 --mgin-version 覆盖)
+	ProjectName     string
+	Module          string
+	Port            int
+	DBs             []string
+	MQ              []string // 消息队列(多选): nats/kafka/mqtt/rabbit; 空表示不使用
+	Plugins         []string // 可选 MGIN 外部插件
+	Registry        string   // nacos/consul/etcd/none
+	Registries      []RegistryOption
+	DefaultRegistry string
+	ConfigCenter    string // nacos/consul/etcd/polaris/springconfig/file/none
+	NacosAPIVersion string
+	I18n            bool
+	JWT             bool
+	Casbin          bool
+	Sys             bool
+	OutputDir       string
+	Force           bool
+	MginVersion     string // 生成工程所依赖的 mgin 版本(自动获取最新, 可 --mgin-version 覆盖)
 
 	// 以下为推导字段
-	Env          string     // 环境标识, 默认 test
-	BaseURI      string     // 路由基础路径
-	UsedList     string     // go.config.used 的逗号串
-	PrefixBlock  string     // go.config.prefix 的 yaml 片段
-	Components   []string   // 实际启用的组件(有序去重)
-	HasMQ        bool       // 是否启用了任意消息队列
-	MQPlugins    []MQPlugin // 启用的 MQ 对应的插件模块(用于生成 go.mod require)
-	DataLayer    string     // mysql/postgres/clickhouse/memory
-	DaoType      string     // 对应泛型 DAO 名称
-	ServerType   string     // go.config.server_type
-	ConfigServer string     // go.config.server
-	ConfigToken  string     // go.config.token
+	Env          string           // 环境标识, 默认 test
+	BaseURI      string           // 路由基础路径
+	UsedList     string           // go.config.used 的逗号串
+	PrefixBlock  string           // go.config.prefix 的 yaml 片段
+	Components   []string         // 实际启用的组件(有序去重)
+	HasMQ        bool             // 是否启用了任意消息队列
+	HasPlugins   bool             // 是否启用了任意外部插件（含 MQ）
+	PluginDefs   []PluginMetadata // 启用的插件模块(用于生成注册代码和 go.mod require)
+	DataLayer    string           // mysql/postgres/clickhouse/memory
+	DaoType      string           // 对应泛型 DAO 名称
+	ServerType   string           // go.config.server_type
+	ConfigServer string           // go.config.server
+	ConfigToken  string           // go.config.token
+}
+
+// RegistryOption 描述一个命名注册中心。多个实例可以复用同一 Prefix，
+// 再通过 Namespace/Group/ClusterName 隔离不同的服务域。
+type RegistryOption struct {
+	Name        string
+	Type        string
+	Prefix      string
+	Namespace   string
+	Group       string
+	ClusterName string
 }
 
 // MQPlugin 描述一个消息队列插件模块: 既用于生成 go.mod 的 require 行,
 // 也用于生成插件注册代码(plugins.go)。
-type MQPlugin struct {
-	Name      string // 组件名, 同时也是 go.config.used 中的键: nats/kafka/mqtt/rabbit
-	Path      string // 模块路径, 如 github.com/maczh/mgkafka
-	Pkg       string // 导入后的包名, 如 mgkafka
-	Singleton string // 包内导出的单例变量名, 实现 Init([]byte)/Close()/Check() error
-	Version   string // 初始版本号(执行 go mod tidy 后会自动修正)
+type PluginMetadata struct {
+	Name    string // 组件名, 同时也是 go.config.used 中的键: nats/kafka/mqtt/rabbit
+	Path    string // 模块路径, 如 github.com/maczh/mgkafka
+	Pkg     string // 导入后的包名, 如 mgkafka
+	Expr    string // 插件实例表达式，如 Kafka、OpenSearch 或 NewS3()
+	Version string // 初始版本号(执行 go mod tidy 后会自动修正)
 }
 
 // componentMeta 描述每个组件在配置中的前缀以及是否需要单独的 yml 文件。
@@ -64,27 +80,52 @@ var componentMeta = map[string]struct {
 	"nats":          {"nats", true, false},
 	"mqtt":          {"mqtt", true, false},
 	"rabbit":        {"rabbitmq", true, false},
+	"opensearch":    {"opensearch", true, false},
+	"hwobs":         {"hwobs", true, false},
+	"alioss":        {"alioss", true, false},
+	"kodo":          {"kodo", true, false},
+	"hive":          {"hive", true, false},
+	"hbase":         {"hbase", true, false},
+	"mssql":         {"mssql", true, false},
+	"s3":            {"s3", true, false},
+	"influxdb":      {"influxdb", true, false},
+	"tdengine":      {"tdengine", true, false},
 }
 
-// mqPlugins 定义每种消息队列对应的外部插件模块。
-// modulePath: go.mod 的 require 路径; pkgName: 导入后的包名(用于访问单例);
-// singleton: 包内导出的单例变量名(实现 mgin.MginPlugin 接口: Init/Close/Check);
+// externalPlugins 定义消息队列与可选 MGIN 插件模块。
+// modulePath: go.mod 的 require 路径; pkgName: 导入后的包名;
+// expr: 实现 mgin.MginPlugin 接口的单例或构造表达式;
 // version: 初始版本号, 执行 `go mod tidy` 后会自动修正为可用版本。
 // 配置键以各插件实际约定为准(nats/kafka/mqtt 为 go.data.<name>, rabbit 为 go.rabbitmq)。
-var mqPlugins = map[string]struct {
+var externalPlugins = map[string]struct {
 	modulePath string
 	pkgName    string
-	singleton  string
+	expr       string
 	version    string
 }{
-	"nats":   {"github.com/maczh/nats", "nats", "NATS", "v0.0.2"},
-	"kafka":  {"github.com/maczh/mgkafka", "mgkafka", "Kafka", "v1.1.2"},
-	"mqtt":   {"github.com/maczh/mqtt", "mqtt", "MQTT", "v1.1.6"},
-	"rabbit": {"github.com/maczh/mgrabbit", "mgrabbit", "Rabbit", "v0.1.1"},
+	"nats":          {"github.com/maczh/nats", "nats", "NATS", "v0.0.2"},
+	"kafka":         {"github.com/maczh/mgkafka", "mgkafka", "Kafka", "v1.1.2"},
+	"mqtt":          {"github.com/maczh/mqtt", "mqtt", "MQTT", "v1.1.6"},
+	"rabbit":        {"github.com/maczh/mgrabbit", "mgrabbit", "Rabbit", "v0.1.1"},
+	"opensearch":    {"github.com/maczh/opensearch", "opensearch", "OpenSearch", "v1.0.0"},
+	"hwobs":         {"github.com/maczh/hwobs", "hwobs", "NewOBS()", "v1.0.0"},
+	"alioss":        {"github.com/maczh/alioss", "alioss", "NewOSS()", "v0.0.0-20260908034838-8d7ce9a135a8"},
+	"kodo":          {"github.com/maczh/kodo", "kodo", "NewKodo()", "v1.0.0"},
+	"hive":          {"github.com/maczh/hive", "hive", "Hive", "v1.0.0"},
+	"elasticsearch": {"github.com/maczh/elasticsearch", "elasticsearch", "Elastic", "v1.0.0"},
+	"hbase":         {"github.com/maczh/hbase", "hbase", "Hbase", "v1.0.0"},
+	"mssql":         {"github.com/maczh/mssql", "mssql", "MsSQL", "v1.0.0"},
+	"postgres":      {"github.com/maczh/postgres", "postgres", "Postgres", "v1.0.0"},
+	"clickhouse":    {"github.com/maczh/clickhouse", "clickhouse", "ClickHouse", "v1.0.0"},
+	"s3":            {"github.com/maczh/s3", "s3", "NewS3()", "v1.0.0"},
+	"influxdb":      {"github.com/maczh/influxdb", "influxdb", "InfluxDB", "v1.0.0"},
+	"tdengine":      {"github.com/maczh/mgtdengine", "mgtdengine", "TDengine", "v1.2.1"},
 }
 
 // mqOrder 是消息队列的固定输出顺序, 保证同一组选择生成的文件内容稳定一致。
 var mqOrder = []string{"nats", "kafka", "mqtt", "rabbit"}
+
+var pluginOrder = []string{"opensearch", "hwobs", "alioss", "kodo", "hive", "elasticsearch", "hbase", "mssql", "postgres", "clickhouse", "s3", "influxdb", "tdengine"}
 
 // 各组件的独立配置文件模板（基于 <prefix>-<env>.yml）。
 var componentTemplates = map[string]string{
@@ -160,6 +201,11 @@ var componentTemplates = map[string]string{
   nacos:
     server: 127.0.0.1
     port: 8848
+    apiversion: {{.NacosAPIVersion}}
+    namespace: ""
+    username: ""
+    password: ""
+    accessToken: ""
     clusterName: DEFAULT
     group: DEFAULT_GROUP
     weight: 1
@@ -173,6 +219,78 @@ var componentTemplates = map[string]string{
 	"etcd": `go:
   etcd:
     server: 127.0.0.1:2379
+`,
+	"opensearch": `go:
+  data:
+    opensearch:
+      addresses: ["http://127.0.0.1:9200"]
+      username: ""
+      password: ""
+      insecureSkipVerify: false
+`,
+	"hwobs": `enabled: true
+accessKey: ""
+secretKey: ""
+endpoint: https://obs.cn-north-4.myhuaweicloud.com
+singleBucket: {{.ProjectName}}
+public: false
+`,
+	"alioss": `enabled: true
+accessKeyId: ""
+accessKeySecret: ""
+endpoint: https://oss-cn-hangzhou.aliyuncs.com
+region: cn-hangzhou
+singleBucket: {{.ProjectName}}
+public: false
+`,
+	"kodo": `enabled: true
+accessKey: ""
+secretKey: ""
+zone: z0
+useHTTPS: true
+singleBucket: {{.ProjectName}}
+domain: https://cdn.example.com
+private: false
+`,
+	"hive": `go:
+  data:
+    hive:
+      host: 127.0.0.1
+      port: 10000
+      username: hive
+      database: default
+`,
+	"hbase": `go:
+  data:
+    hbase:
+      host: 127.0.0.1
+      port: 9090
+`,
+	"mssql": `go:
+  data:
+    mssql: "sqlserver://sa:password@127.0.0.1:1433?database={{.ProjectName}}&encrypt=disable"
+`,
+	"s3": `enabled: true
+endpoint: http://127.0.0.1:9000
+region: us-east-1
+accessKey: minioadmin
+secretKey: minioadmin
+pathStyle: true
+singleBucket: {{.ProjectName}}
+`,
+	"influxdb": `go:
+  data:
+    influxdb:
+      url: http://127.0.0.1:8086
+      token: ""
+      org: ""
+      bucket: {{.ProjectName}}
+`,
+	"tdengine": `go:
+  data:
+    tdengine:
+      dsn: root:taosdata@tcp(127.0.0.1:6030)/{{.ProjectName}}
+      debug: true
 `,
 }
 
@@ -217,8 +335,8 @@ func main() {
 	if app == nil {
 		return
 	}
-{{if .HasMQ}}	// 注册消息队列插件(见 plugins.go)
-	registerMQPlugins(app)
+{{if .HasPlugins}}	// 注册所选 MGIN 外部插件(见 plugins.go)
+	registerPlugins(app)
 {{end}}	// 可选: 挂接额外的接口日志处理器, 例如把日志发往 kafka / elasticsearch
 	// logsink.MustRegister(logsink.NewHandlerFunc("kafka", func(e *logsink.Entry) error {
 	// 	return mgkafka.Kafka.Send("myapp-log", utils.ToJSON(e))
@@ -235,16 +353,16 @@ func main() {
 const tmplPlugins = `package main
 
 import (
-	"github.com/maczh/mgin"{{range .MQPlugins}}
+	"github.com/maczh/mgin"{{range .PluginDefs}}
 	"{{.Path}}"{{end}}
 )
 
-// registerMQPlugins 注册消息队列插件。
+// registerPlugins 注册用户选择的 MGIN 外部插件。
 // 注意: mgin 框架自带 sarama 版 kafka 客户端, 当 go.config.used 含 kafka 时,
 // 框架会先初始化内置客户端, 再初始化本文件中的 mgkafka 插件。
 // 若仅需使用 mgkafka 插件, 可从 go.config.used 中去掉 kafka 并同步删除 conf/kafka-<env>.yml。
-func registerMQPlugins(app *mgin.App) { {{- range .MQPlugins}}
-	app.MGin.UsePlugin("{{.Name}}", {{.Pkg}}.{{.Singleton}})
+func registerPlugins(app *mgin.App) { {{- range .PluginDefs}}
+	app.MGin.UsePlugin("{{.Name}}", {{.Pkg}}.{{.Expr}})
 {{- end}}
 }
 `
@@ -406,7 +524,7 @@ go 1.25
 
 require (
 	github.com/gin-gonic/gin v1.11.0
-	github.com/maczh/mgin {{.MginVersion}}{{range .MQPlugins}}
+	github.com/maczh/mgin {{.MginVersion}}{{range .PluginDefs}}
 	{{.Path}} {{.Version}}{{end}}
 )
 

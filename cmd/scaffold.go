@@ -58,7 +58,7 @@ func scaffold(opts *ProjectOptions) error {
 		return err
 	}
 	// 消息队列插件注册(多选时一次性注册全部)
-	if opts.HasMQ {
+	if opts.HasPlugins {
 		if err := write("plugins.go", render(tmplPlugins, opts)); err != nil {
 			return err
 		}
@@ -89,21 +89,33 @@ func scaffold(opts *ProjectOptions) error {
 	if err := write("conf/application.yml", buildAppYAML(opts)); err != nil {
 		return err
 	}
+	writtenConfigs := make(map[string]bool)
+	writeComponentConfig := func(kind, prefix string) error {
+		if prefix == "" || writtenConfigs[prefix] {
+			return nil
+		}
+		tmpl, ok := componentTemplates[kind]
+		if !ok {
+			return nil
+		}
+		writtenConfigs[prefix] = true
+		return write("conf/"+buildComponentFileName(prefix, opts.Env), render(tmpl, opts))
+	}
 	for _, comp := range opts.Components {
 		meta := componentMeta[comp]
 		if !meta.yamlFile {
-			continue
-		}
-		tmpl, ok := componentTemplates[comp]
-		if !ok {
 			continue
 		}
 		prefix := meta.prefix
 		if comp == "sqlite" {
 			prefix = opts.ProjectName + ".db"
 		}
-		content := render(tmpl, opts)
-		if err := write("conf/"+buildComponentFileName(prefix, opts.Env), content); err != nil {
+		if err := writeComponentConfig(comp, prefix); err != nil {
+			return err
+		}
+	}
+	for _, registry := range opts.Registries {
+		if err := writeComponentConfig(registry.Type, registry.Prefix); err != nil {
 			return err
 		}
 	}
@@ -169,23 +181,35 @@ func computeDerived(o *ProjectOptions) {
 		add(db)
 	}
 	// 消息队列支持多选, 按固定顺序注册, 保证 go.mod / plugins.go 输出稳定
-	o.MQPlugins = nil
+	o.PluginDefs = nil
 	for _, key := range mqOrder {
 		if !o.HasMQKey(key) {
 			continue
 		}
 		add(key)
-		p := mqPlugins[key]
-		o.MQPlugins = append(o.MQPlugins, MQPlugin{
-			Name:      key,
-			Path:      p.modulePath,
-			Pkg:       p.pkgName,
-			Singleton: p.singleton,
-			Version:   p.version,
+		p := externalPlugins[key]
+		o.PluginDefs = append(o.PluginDefs, PluginMetadata{
+			Name:    key,
+			Path:    p.modulePath,
+			Pkg:     p.pkgName,
+			Expr:    p.expr,
+			Version: p.version,
 		})
 	}
-	o.HasMQ = len(o.MQPlugins) > 0
+	o.HasMQ = len(o.PluginDefs) > 0
+	for _, key := range pluginOrder {
+		if indexOf(o.Plugins, key) < 0 {
+			continue
+		}
+		add(key)
+		p := externalPlugins[key]
+		o.PluginDefs = append(o.PluginDefs, PluginMetadata{Name: key, Path: p.modulePath, Pkg: p.pkgName, Expr: p.expr, Version: p.version})
+	}
+	o.HasPlugins = len(o.PluginDefs) > 0
 	add(o.Registry)
+	for _, registry := range o.Registries {
+		add(registry.Type)
+	}
 
 	o.Components = comps
 	o.UsedList = strings.Join(comps, ",")
@@ -200,11 +224,11 @@ func computeDerived(o *ProjectOptions) {
 	}
 	o.PrefixBlock = pb.String()
 
-	// 数据层: 优先 mysql > postgres > clickhouse
+	// 数据层只由 --db 决定；同名外部插件不能改变示例业务 DAO。
 	o.DataLayer = "memory"
 	o.DaoType = ""
 	for _, c := range []string{"mysql", "postgres", "clickhouse"} {
-		if seen[c] {
+		if indexOf(o.DBs, c) >= 0 {
 			o.DataLayer = c
 			o.DaoType = map[string]string{
 				"mysql":      "MySQLDao",
@@ -257,15 +281,45 @@ func buildAppYAML(o *ProjectOptions) string {
 	if o.ConfigServer != "" {
 		fmt.Fprintf(&b, "    server: %s\n", o.ConfigServer)
 	}
+	if o.ServerType == "nacos" {
+		fmt.Fprintf(&b, "    apiversion: %s\n", o.NacosAPIVersion)
+		b.WriteString("    namespace: \"\"\n")
+		b.WriteString("    username: \"\"\n")
+		b.WriteString("    password: \"\"\n")
+		b.WriteString("    accessToken: \"\"\n")
+	}
 	if o.ConfigToken != "" {
 		fmt.Fprintf(&b, "    token: %s\n", o.ConfigToken)
 	}
 	b.WriteString("    prefix:\n")
 	b.WriteString(o.PrefixBlock)
 
-	if o.Registry != "" && o.Registry != "none" {
+	if (o.Registry != "" && o.Registry != "none") || len(o.Registries) > 0 {
 		b.WriteString("  discovery:\n")
-		fmt.Fprintf(&b, "    registry: %s\n", o.Registry)
+		if len(o.Registries) > 0 {
+			defaultRegistry := o.DefaultRegistry
+			if defaultRegistry == "" {
+				defaultRegistry = o.Registries[0].Name
+			}
+			fmt.Fprintf(&b, "    defaultRegistry: %q\n", defaultRegistry)
+			b.WriteString("    registries:\n")
+			for _, registry := range o.Registries {
+				fmt.Fprintf(&b, "      - name: %q\n", registry.Name)
+				fmt.Fprintf(&b, "        type: %q\n", registry.Type)
+				fmt.Fprintf(&b, "        prefix: %q\n", registry.Prefix)
+				if registry.Namespace != "" {
+					fmt.Fprintf(&b, "        namespace: %q\n", registry.Namespace)
+				}
+				if registry.Group != "" {
+					fmt.Fprintf(&b, "        group: %q\n", registry.Group)
+				}
+				if registry.ClusterName != "" {
+					fmt.Fprintf(&b, "        clusterName: %q\n", registry.ClusterName)
+				}
+			}
+		} else {
+			fmt.Fprintf(&b, "    registry: %s\n", o.Registry)
+		}
 		b.WriteString("    callType: json\n")
 	}
 	if o.JWT {
@@ -312,7 +366,19 @@ func buildReadme(o *ProjectOptions) string {
 		mq = "none"
 	}
 	fmt.Fprintf(&b, "- 消息队列: `%s`\n", mq)
+	plugins := strings.Join(o.Plugins, ",")
+	if plugins == "" {
+		plugins = "none"
+	}
+	fmt.Fprintf(&b, "- MGIN 插件: `%s`\n", plugins)
 	fmt.Fprintf(&b, "- 注册中心: `%s`\n", o.Registry)
+	if len(o.Registries) > 0 {
+		names := make([]string, 0, len(o.Registries))
+		for _, registry := range o.Registries {
+			names = append(names, registry.Name+":"+registry.Type)
+		}
+		fmt.Fprintf(&b, "- 命名注册中心: `%s`\n", strings.Join(names, ","))
+	}
 	fmt.Fprintf(&b, "- 配置中心: `%s`\n", o.ConfigCenter)
 	fmt.Fprintf(&b, "- JWT: `%v`  Casbin: `%v`  i18n: `%v`\n", o.JWT, o.Casbin, o.I18n)
 	b.WriteString("\n## 运行\n\n")

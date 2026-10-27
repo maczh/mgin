@@ -20,6 +20,7 @@ var (
 	dbOptions = []string{"mysql", "postgres", "sqlite", "mongodb", "redis", "clickhouse", "elasticsearch"}
 	// 消息队列支持多选; 直接回车(空)表示不使用任何消息队列
 	mqOptions           = []string{"none", "nats", "kafka", "mqtt", "rabbit"}
+	pluginOptions       = append([]string{"none"}, pluginOrder...)
 	registryOptions     = []string{"none", "nacos", "consul", "etcd"}
 	configCenterOptions = []string{"none", "file", "nacos", "consul", "etcd", "polaris", "springconfig"}
 )
@@ -28,27 +29,35 @@ var (
 func runNew(args []string) error {
 	fs := flag.NewFlagSet("new", flag.ContinueOnError)
 	var (
-		module       string
-		port         int
-		dbs          string
-		mq           string
-		registry     string
-		configCenter string
-		i18n         bool
-		jwt          bool
-		casbin       bool
-		sys          bool
-		output       string
-		force        bool
-		interactive  bool
-		mginVersion  string
+		module          string
+		port            int
+		dbs             string
+		mq              string
+		plugins         string
+		registry        string
+		registries      string
+		defaultRegistry string
+		configCenter    string
+		nacosAPIVersion string
+		i18n            bool
+		jwt             bool
+		casbin          bool
+		sys             bool
+		output          string
+		force           bool
+		interactive     bool
+		mginVersion     string
 	)
 	fs.StringVar(&module, "module", "", "Go module 路径")
 	fs.IntVar(&port, "port", 0, "HTTP 端口")
 	fs.StringVar(&dbs, "db", "", "数据库列表, 逗号分隔")
 	fs.StringVar(&mq, "mq", "", "消息队列, 逗号分隔多选: nats/kafka/mqtt/rabbit/none")
+	fs.StringVar(&plugins, "plugins", "", "MGIN 插件, 逗号分隔多选: "+strings.Join(pluginOrder, "/"))
 	fs.StringVar(&registry, "registry", "", "注册中心: nacos/consul/etcd/none")
+	fs.StringVar(&registries, "registries", "", "命名注册中心列表: name:type[:prefix[:namespace[:group[:cluster]]]],逗号分隔")
+	fs.StringVar(&defaultRegistry, "default-registry", "", "命名注册中心中的默认实例")
 	fs.StringVar(&configCenter, "config-center", "", "配置中心: nacos/consul/etcd/polaris/springconfig/file/none")
+	fs.StringVar(&nacosAPIVersion, "nacos-api-version", "v1", "Nacos 注册中心与配置中心 API 版本: v1/v2/v3")
 	fs.BoolVar(&i18n, "i18n", false, "启用国际化")
 	fs.BoolVar(&jwt, "jwt", false, "启用 JWT 鉴权")
 	fs.BoolVar(&casbin, "casbin", false, "启用 Casbin 接口鉴权")
@@ -74,21 +83,40 @@ func runNew(args []string) error {
 		projectName = strings.TrimSpace(positionals[0])
 	}
 
+	namedRegistries, err := parseRegistries(registries)
+	if err != nil {
+		return err
+	}
+	if defaultRegistry != "" && !hasRegistry(namedRegistries, defaultRegistry) {
+		return fmt.Errorf("默认注册中心 %q 不在 --registries 中", defaultRegistry)
+	}
+	if len(namedRegistries) > 0 && normalizeChoice(registry, "none", registryOptions) != "none" {
+		return fmt.Errorf("--registry 与 --registries 不能同时使用")
+	}
+	nacosAPIVersion = strings.ToLower(strings.TrimSpace(nacosAPIVersion))
+	if nacosAPIVersion != "v1" && nacosAPIVersion != "v2" && nacosAPIVersion != "v3" {
+		return fmt.Errorf("不支持的 Nacos API 版本 %q, 可选 v1/v2/v3", nacosAPIVersion)
+	}
+
 	opts := &ProjectOptions{
-		ProjectName:  projectName,
-		Port:         port,
-		I18n:         i18n,
-		JWT:          jwt,
-		Casbin:       casbin,
-		Sys:          sys,
-		OutputDir:    output,
-		Force:        force,
-		MginVersion:  mginVersion,
-		Module:       module,
-		MQ:           normalizeMQs(mq),
-		Registry:     normalizeChoice(registry, "none", registryOptions),
-		ConfigCenter: normalizeChoice(configCenter, "none", configCenterOptions),
-		DBs:          normalizeDBs(dbs),
+		ProjectName:     projectName,
+		Port:            port,
+		I18n:            i18n,
+		JWT:             jwt,
+		Casbin:          casbin,
+		Sys:             sys,
+		OutputDir:       output,
+		Force:           force,
+		MginVersion:     mginVersion,
+		Module:          module,
+		MQ:              normalizeMQs(mq),
+		Plugins:         normalizePlugins(plugins),
+		Registry:        normalizeChoice(registry, "none", registryOptions),
+		Registries:      namedRegistries,
+		DefaultRegistry: defaultRegistry,
+		ConfigCenter:    normalizeChoice(configCenter, "none", configCenterOptions),
+		NacosAPIVersion: nacosAPIVersion,
+		DBs:             normalizeDBs(dbs),
 	}
 
 	// 交互式条件: 显式 -i, 或检测到终端(TTY)。
@@ -128,7 +156,49 @@ func runNew(args []string) error {
 }
 
 // defaultMginVersion 是离线或拉取失败时的回退版本, 保证脚手架始终可用。
-const defaultMginVersion = "v1.25.13-jh"
+const defaultMginVersion = "v1.25.30-jh"
+
+func parseRegistries(value string) ([]RegistryOption, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil, nil
+	}
+	result := make([]RegistryOption, 0)
+	seen := make(map[string]bool)
+	for _, raw := range strings.Split(value, ",") {
+		parts := strings.Split(strings.TrimSpace(raw), ":")
+		if len(parts) < 2 || len(parts) > 6 {
+			return nil, fmt.Errorf("注册中心 %q 格式错误, 应为 name:type[:prefix[:namespace[:group[:cluster]]]]", raw)
+		}
+		for len(parts) < 6 {
+			parts = append(parts, "")
+		}
+		name, kind := strings.TrimSpace(parts[0]), strings.ToLower(strings.TrimSpace(parts[1]))
+		if name == "" || normalizeChoice(kind, "", registryOptions) == "" || kind == "none" {
+			return nil, fmt.Errorf("注册中心 %q 的名称或类型无效", raw)
+		}
+		if seen[name] {
+			return nil, fmt.Errorf("注册中心名称 %q 重复", name)
+		}
+		seen[name] = true
+		prefix := strings.TrimSpace(parts[2])
+		if prefix == "" {
+			prefix = kind
+		}
+		result = append(result, RegistryOption{Name: name, Type: kind, Prefix: prefix,
+			Namespace: strings.TrimSpace(parts[3]), Group: strings.TrimSpace(parts[4]), ClusterName: strings.TrimSpace(parts[5])})
+	}
+	return result, nil
+}
+
+func hasRegistry(registries []RegistryOption, name string) bool {
+	for _, registry := range registries {
+		if registry.Name == name {
+			return true
+		}
+	}
+	return false
+}
 
 // mginModulePath 是脚手架生成的工程所依赖的 mgin 模块路径。
 const mginModulePath = "github.com/maczh/mgin"
@@ -202,6 +272,7 @@ func runInteractive(r *bufio.Reader, opts *ProjectOptions) error {
 	opts.Port = askInt(r, "HTTP 端口 (Port)", opts.Port, 8080)
 	opts.DBs = askMulti(r, "数据库 (可多选, 输入序号, 逗号分隔, 如 1,3)", dbOptions, opts.DBs)
 	opts.MQ = askMulti(r, "消息队列 (可多选, 输入序号, 逗号分隔; 选 1 或直接回车表示不使用)", mqOptions, opts.MQ)
+	opts.Plugins = askMulti(r, "MGIN 外部插件 (可多选, 输入序号, 逗号分隔; 选 1 表示不使用)", pluginOptions, opts.Plugins)
 	opts.Registry = singleFrom(r, "注册中心 (Registry)", registryOptions, opts.Registry)
 	opts.ConfigCenter = singleFrom(r, "配置中心 (Config Center)", configCenterOptions, opts.ConfigCenter)
 	opts.JWT = askBool(r, "启用 JWT 鉴权", opts.JWT)
@@ -370,6 +441,26 @@ func normalizeMQs(s string) []string {
 	return out
 }
 
+// normalizePlugins 解析可选 MGIN 插件列表，并按固定顺序输出。
+func normalizePlugins(s string) []string {
+	picked := make(map[string]bool)
+	for _, part := range strings.Split(s, ",") {
+		key := strings.ToLower(strings.TrimSpace(part))
+		if key != "" && key != "none" {
+			if _, ok := externalPlugins[key]; ok && indexOf(pluginOrder, key) >= 0 {
+				picked[key] = true
+			}
+		}
+	}
+	result := make([]string, 0, len(picked))
+	for _, key := range pluginOrder {
+		if picked[key] {
+			result = append(result, key)
+		}
+	}
+	return result
+}
+
 // normalizeChoice 规范化单选，非法值回退到 def。
 func normalizeChoice(s, def string, allowed []string) string {
 	s = strings.ToLower(strings.TrimSpace(s))
@@ -409,7 +500,9 @@ var (
 	}
 	valueFlags = map[string]bool{
 		"-module": true, "-port": true, "-db": true, "-mq": true,
-		"-registry": true, "-config-center": true, "-output": true,
+		"-plugins":  true,
+		"-registry": true, "-registries": true, "-default-registry": true,
+		"-config-center": true, "-nacos-api-version": true, "-output": true,
 		"-mgin-version": true,
 	}
 )

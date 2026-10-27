@@ -24,8 +24,12 @@ mgin new <project-name> [options]
 | `--port <n>` | 8080 | 服务端口 |
 | `--db <type>` | `mysql` | `mysql/sqlite/mongodb/redis/postgres/clickhouse/elasticsearch` |
 | `--mq <type>` | 空 | `nats/kafka/mqtt/rabbit`（仅在生成配置/依赖时使用） |
+| `--plugins <list>` | 空 | 外部插件，逗号分隔：`opensearch/hwobs/alioss/kodo/hive/elasticsearch/hbase/mssql/postgres/clickhouse/s3/influxdb/tdengine` |
 | `--registry <type>` | 空 | `nacos/consul/etcd/polaris` |
+| `--registries <list>` | 空 | 命名多注册中心，格式 `name:type[:prefix[:namespace[:group[:cluster]]]]`，逗号分隔 |
+| `--default-registry <name>` | 第一个实例 | 指定多注册中心默认实例 |
 | `--config-center <type>` | 空 | 配置中心类型 |
+| `--nacos-api-version <v>` | `v1` | Nacos 注册中心与配置中心 API 版本：`v1/v2/v3` |
 | `--i18n` | false | 启用国际化骨架 |
 | `--jwt` | false | 启用 JWT 中间件骨架 |
 | `--casbin` | false | 启用 Casbin 骨架 |
@@ -45,7 +49,18 @@ mgin new <project-name> [options]
   --db mysql --registry nacos --jwt --output /tmp
 
 # 指定框架版本（离线环境）
-./bin/mgin new demo --mgin-version v1.25.27-jh --output /tmp
+./bin/mgin new demo --mgin-version v1.25.30-jh --output /tmp
+
+# 同一个 Nacos 集群按 group / namespace 注册为三个命名实例
+./bin/mgin new gateway --registry none \
+  --registries 'jhris:nacos:nacos::jhris:DEFAULT,iot:nacos:nacos::iot:DEFAULT,finance-bank:nacos:nacos:finance:bank_account:DEFAULT' \
+  --default-registry jhris --output /tmp
+
+# Nacos v3 配置中心
+./bin/mgin new demo --config-center nacos --nacos-api-version v3 --output /tmp
+
+# OpenSearch、PostgreSQL 与 S3 插件
+./bin/mgin new data-api --plugins opensearch,postgres,s3 --output /tmp
 ```
 
 生成后：

@@ -63,14 +63,20 @@ func printUsage() {
   --mq <list>             消息队列, 逗号分隔多选:
                           nats,kafka,mqtt,rabbit (默认不使用)
                           分别使用插件 maczh/nats、maczh/mgkafka、maczh/mqtt、maczh/mgrabbit
+  --plugins <list>        MGIN 外部插件, 逗号分隔多选:
+                          opensearch,hwobs,alioss,kodo,hive,elasticsearch,hbase,
+                          mssql,postgres,clickhouse,s3,influxdb,tdengine
   --registry <type>       注册中心: nacos,consul,etcd 或 none (默认 none)
+  --registries <list>     命名注册中心，格式 name:type[:prefix[:namespace[:group[:cluster]]]]，逗号分隔
+  --default-registry <n>  多注册中心的默认实例名称（默认取第一个）
   --config-center <type>  配置中心: nacos,consul,etcd,polaris,springconfig,file,none (默认 none)
+  --nacos-api-version <v> Nacos 注册中心与配置中心 API 版本: v1,v2,v3 (默认 v1)
   --i18n                  启用国际化
   --jwt                   启用 JWT 鉴权中间件
   --casbin                启用 Casbin 接口鉴权
   --sys                   启用内置系统管理模块 (仅 master 分支, jh 分支已移除)
   --output <dir>          输出目录 (默认当前目录)
-  --mgin-version <ver>    mgin 依赖版本 (默认自动获取最新发布版)
+  --mgin-version <ver>    mgin 依赖版本 (默认自动获取最新发布版，离线回退 v1.25.30-jh)
   --force                 目录已存在时覆盖文件
 
 交互模式: 省略任意选项将在终端中逐项询问；非终端环境自动使用默认值。

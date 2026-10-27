@@ -25,7 +25,7 @@ v<major>.<minor>.<patch>-jh
 规则：
 
 - **Go module 兼容性**：`jh` 的模块路径是 `github.com/maczh/mgin`，只能发布 `v0/v1` tag；`v2` 必须配 `github.com/maczh/mgin/v2` 模块，两者不可混用。
-- 脚手架默认依赖最新发布版；离线回退 `v1.25.13-jh`（见 `cmd/new.go`）。发布后需确认 `mgin new` 拉到的版本正确。
+- 脚手架默认依赖最新发布版；离线回退 `v1.25.30-jh`（见 `cmd/new.go`）。发布后需确认 `mgin new` 拉到的版本正确。
 - 同一提交只能有一个版本 tag；禁止移动已推送的 tag。
 
 ---
