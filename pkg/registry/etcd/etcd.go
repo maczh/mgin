@@ -20,17 +20,19 @@ import (
 )
 
 type EtcdClient struct {
-	client     *clientv3.Client
-	leaseID    clientv3.LeaseID
-	cluster    string
-	group      string
-	prefix     string
-	lan        bool
-	lanNetwork string
-	conf       *koanf.Koanf
-	confUrl    string
-	confData   []byte
-	instanceId string
+	client      *clientv3.Client
+	leaseID     clientv3.LeaseID
+	cluster     string
+	namespace   string
+	group       string
+	prefix      string
+	keyTemplate string
+	lan         bool
+	lanNetwork  string
+	conf        *koanf.Koanf
+	confUrl     string
+	confData    []byte
+	instanceId  string
 
 	// 注册稳定性增强字段
 	registeredKey string             // 本实例在 etcd 上的完整 key，用于注销与重注册
@@ -63,6 +65,11 @@ func (c *EtcdClient) Register(etcdConfigData []byte) {
 		ipstr := c.conf.String("go.etcd.server")
 		portstr := c.conf.String("go.etcd.port")
 		c.prefix = c.conf.String("go.etcd.prefix")
+		c.namespace = c.conf.String("go.etcd.namespace")
+		c.keyTemplate = c.conf.String("go.etcd.keyTemplate")
+		if c.keyTemplate == "" {
+			c.keyTemplate = "{prefix}/{group}/{service}/{instance}"
+		}
 		c.group = c.conf.String("go.etcd.group")
 		if c.group == "" {
 			c.group = config.Config.App.Project
@@ -106,7 +113,7 @@ func (c *EtcdClient) Register(etcdConfigData []byte) {
 			protocol = "https://"
 		}
 		apiUrl := fmt.Sprintf("%s%s:%d", protocol, ip, port)
-		prefix := fmt.Sprintf("%s/%s/%s/", c.prefix, c.group, config.Config.App.Name)
+		prefix := c.servicePrefix(c.group, config.Config.App.Name)
 		resp, err := c.client.Get(context.Background(), prefix, clientv3.WithPrefix())
 		if err != nil {
 			logger.Error("Etcd获取服务失败:" + err.Error())
@@ -135,7 +142,7 @@ func (c *EtcdClient) Register(etcdConfigData []byte) {
 		}
 		c.leaseID = respGrant.ID
 		c.instanceId = utils.NewUUIDString()
-		key := fmt.Sprintf("%s/%s/%s/%s", c.prefix, c.group, config.Config.App.Name, c.instanceId)
+		key := c.serviceKey(c.group, config.Config.App.Name, c.instanceId)
 		logger.Debug("etcd服务的key: " + key + "，值：" + apiUrl)
 		res, regerr := c.client.Put(context.Background(), key, apiUrl, clientv3.WithLease(c.leaseID))
 		if regerr != nil {
@@ -164,7 +171,7 @@ func (c *EtcdClient) GetServiceURL(servicename string, groupName ...string) (str
 	currentGroup := groupName[0]
 	// logger.Debug(fmt.Sprintf("groupName=%s, serviceName=%s", groupName, servicename))
 	for _, group := range groupName {
-		prefix := fmt.Sprintf("%s/%s/%s/", c.prefix, group, servicename)
+		prefix := c.servicePrefix(group, servicename)
 		logger.Debug("查询前缀: " + prefix)
 		resp, err := c.client.Get(context.Background(), prefix, clientv3.WithPrefix())
 		if err != nil {
@@ -199,7 +206,7 @@ func (c *EtcdClient) GetServices(servicename string, groupName ...string) ([]str
 		groupName = []string{c.group}
 	}
 	for _, group := range groupName {
-		prefix := fmt.Sprintf("%s/%s/%s/", c.prefix, group, servicename)
+		prefix := c.servicePrefix(group, servicename)
 		resp, err := c.client.Get(context.Background(), prefix, clientv3.WithPrefix())
 		if err != nil {
 			logger.Error("etcd 拉取" + servicename + "实例失败:" + err.Error())
@@ -311,13 +318,20 @@ func (c *EtcdClient) DeRegister() {
 		logger.Debug("Etcd注销服务结果: " + toJSON(resp))
 	} else {
 		// 兜底：未记录 registeredKey（注册中途失败）时按拼接规则尝试删除
-		key := fmt.Sprintf("%s/%s/%s/%s", c.prefix, c.group, config.Config.App.Name, c.instanceId)
+		key := c.serviceKey(c.group, config.Config.App.Name, c.instanceId)
 		if _, err := c.client.Delete(context.Background(), key); err != nil {
 			logger.Error("Etcd取消注册服务失败:" + err.Error())
 			return
 		}
 	}
 	logger.Info("Etcd注销服务成功")
+}
+
+func (c *EtcdClient) serviceKey(group, service, instance string) string {
+	return strings.TrimSuffix(strings.NewReplacer("{namespace}", c.namespace, "{prefix}", c.prefix, "{group}", group, "{cluster}", c.cluster, "{service}", service, "{instance}", instance).Replace(c.keyTemplate), "/")
+}
+func (c *EtcdClient) servicePrefix(group, service string) string {
+	return c.serviceKey(group, service, "") + "/"
 }
 
 func localIPv4s(lan bool, lanNetwork string) ([]string, error) {

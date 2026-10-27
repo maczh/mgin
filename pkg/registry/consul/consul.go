@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/hashicorp/consul/api"
-	jsoniter "github.com/json-iterator/go"
 	"github.com/knadh/koanf"
 	"github.com/knadh/koanf/parsers/yaml"
 	"github.com/knadh/koanf/providers/rawbytes"
@@ -23,6 +22,7 @@ import (
 type ConsulClient struct {
 	client     *api.Client
 	cluster    string
+	namespace  string
 	group      string
 	lan        bool
 	lanNetwork string
@@ -62,6 +62,7 @@ func (c *ConsulClient) Register(etcdConfigData []byte) {
 			c.group = "DEFAULT_GROUP"
 		}
 		c.cluster = c.conf.String("go.consul.clusterName")
+		c.namespace = c.conf.String("go.consul.namespace")
 		if c.cluster == "" {
 			c.cluster = "DEFAULT"
 		}
@@ -80,6 +81,8 @@ func (c *ConsulClient) Register(etcdConfigData []byte) {
 		}
 		serverConfig := api.DefaultConfig()
 		serverConfig.Address = consul_urls[0]
+		serverConfig.Token = c.conf.String("go.consul.token")
+		serverConfig.Namespace = c.namespace
 		c.client, err = api.NewClient(serverConfig)
 		if err != nil {
 			logger.Error("Consul 服务连接失败:" + err.Error())
@@ -99,8 +102,9 @@ func (c *ConsulClient) Register(etcdConfigData []byte) {
 			port = uint64(config.Config.App.PortSSL)
 			protocol = "https://"
 		}
+		instanceID := getInstanceId(ip, port, config.Config.App.Name, c.namespace, c.group, c.cluster)
 		registration := &api.AgentServiceRegistration{
-			ID:      getInstanceId(ip, port),
+			ID:      instanceID,
 			Name:    config.Config.App.Name,
 			Address: ip,
 			Port:    int(port),
@@ -109,8 +113,8 @@ func (c *ConsulClient) Register(etcdConfigData []byte) {
 			// 标记为 critical（发现层 Health().Service(passingOnly=true) 会自动剔除），
 			// 超过 DeregisterCriticalServiceAfter 后自动反注册，避免留下"僵尸"实例。
 			Check: &api.AgentServiceCheck{
-				CheckID:                        "mgin:" + getInstanceId(ip, port),
-				TTL:                           "30s",
+				CheckID:                        "mgin:" + instanceID,
+				TTL:                            "30s",
 				DeregisterCriticalServiceAfter: "1m",
 			},
 		}
@@ -120,7 +124,7 @@ func (c *ConsulClient) Register(etcdConfigData []byte) {
 			return
 		}
 		// 注册成功：记录实例 ID 并启动 TTL 续活协程
-		c.instanceID = getInstanceId(ip, port)
+		c.instanceID = instanceID
 		var ctx context.Context
 		ctx, c.cancel = context.WithCancel(context.Background())
 		go c.passTTLLoop(ctx, c.instanceID)
@@ -142,6 +146,7 @@ func (c *ConsulClient) GetServiceURL(servicename string, groupName ...string) (s
 	currentGroup := groupName[0]
 	for _, group := range groupName {
 		services, _, err := c.client.Health().Service(servicename, group, true, &api.QueryOptions{})
+		services = filterCluster(services, c.cluster)
 		if err != nil {
 			continue
 		}
@@ -173,6 +178,7 @@ func (c *ConsulClient) GetServices(servicename string, groupName ...string) ([]s
 	}
 	for _, group := range groupName {
 		services, _, err := c.client.Health().Service(servicename, group, true, &api.QueryOptions{})
+		services = filterCluster(services, c.cluster)
 		if err != nil {
 			logger.Error("Consul 拉取" + servicename + "实例失败:" + err.Error())
 			continue
@@ -240,7 +246,7 @@ func (c *ConsulClient) DeRegister() {
 		if port == 0 || config.Config.App.PortSSL != 0 {
 			port = uint64(config.Config.App.PortSSL)
 		}
-		if err := c.client.Agent().ServiceDeregister(getInstanceId(ip, port)); err != nil {
+		if err := c.client.Agent().ServiceDeregister(getInstanceId(ip, port, config.Config.App.Name, c.namespace, c.group, c.cluster)); err != nil {
 			logger.Error("Consul 取消注册服务失败:" + err.Error())
 			return
 		}
@@ -284,26 +290,26 @@ func localIPv4s(lan bool, lanNetwork string) ([]string, error) {
 	return ips, nil
 }
 
-var json = jsoniter.ConfigCompatibleWithStandardLibrary
-
-// toJSON 函数用于将对象转换为 JSON 字符串
-func toJSON(o any) string {
-	j, err := json.Marshal(o)
-	if err != nil {
-		return "{}"
-	} else {
-		js := string(j)
-		js = strings.Replace(js, "\\u003c", "<", -1)
-		js = strings.Replace(js, "\\u003e", ">", -1)
-		js = strings.Replace(js, "\\u0026", "&", -1)
-		return js
-	}
+// getInstanceId 函数用于生成服务实例 ID
+func getInstanceId(ip string, port uint64, scope ...string) string {
+	h := md5.New()
+	_, _ = io.WriteString(h, fmt.Sprintf("http://%s:%d/%s", ip, port, strings.Join(scope, "/")))
+	md := fmt.Sprintf("%x", h.Sum(nil))[:12]
+	return md
 }
 
-// getInstanceId 函数用于生成服务实例 ID
-func getInstanceId(ip string, port uint64) string {
-	h := md5.New()
-	_, _ = io.WriteString(h, fmt.Sprintf("http://%s:%d", ip, port))
-	md := fmt.Sprintf("%x", h.Sum(nil))[:4]
-	return md
+func filterCluster(services []*api.ServiceEntry, cluster string) []*api.ServiceEntry {
+	if cluster == "" {
+		return services
+	}
+	filtered := make([]*api.ServiceEntry, 0, len(services))
+	for _, service := range services {
+		for _, tag := range service.Service.Tags {
+			if tag == cluster {
+				filtered = append(filtered, service)
+				break
+			}
+		}
+	}
+	return filtered
 }

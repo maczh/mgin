@@ -18,8 +18,8 @@ type fakeClient struct {
 	afterEmpty bool // 第二次调用起返回错误（用于测试降级）
 }
 
-func (f *fakeClient) Register([]byte)             {}
-func (f *fakeClient) DeRegister()                {}
+func (f *fakeClient) Register([]byte) {}
+func (f *fakeClient) DeRegister()     {}
 func (f *fakeClient) GetServiceURL(string, ...string) (string, string) {
 	return "", ""
 }

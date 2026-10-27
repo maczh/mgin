@@ -45,6 +45,14 @@ go:
     #   ratelimit / job / s3 —— 本次新增的三大能力开关
     used: "sqlite,ratelimit,job,s3"
     env: test
+    # Nacos 配置中心支持 v1/v2/v3：
+    # server_type: nacos
+    # server: http://127.0.0.1:8848
+    # apiversion: v3
+    # namespace: public
+    # username: nacos
+    # password: ""
+    # accessToken: ""
     prefix:
       sqlite: mytest.db
       # 新增能力为“内联配置”，无需单独的 <prefix>-<env>.yml 文件
@@ -79,6 +87,32 @@ go:
       request: false         # PostLog 接口访问日志
       client: false          # client.Call 调用结果及耗时，独立于 logger.level
       timeout: 5000          # 每次 HTTP 请求超时，毫秒
+
+  # ------------------------------------------------------------------
+  # 多注册中心。相同 prefix 表示复用同一物理集群配置，仅覆盖逻辑范围。
+  discovery:
+    registry: ""             # 旧单注册中心配置，registries 非空时忽略
+    defaultRegistry: jhris
+    registries:
+      - name: jhris
+        type: nacos
+        prefix: nacos
+        group: jhris
+      - name: iot
+        type: nacos
+        prefix: nacos
+        group: iot
+      - name: finance-bank
+        type: nacos
+        prefix: nacos
+        namespace: finance
+        group: bank_account
+        clusterName: DEFAULT
+    callType: x-form
+    cacheTTL: 60
+    cacheRefresh: 30
+
+  # client.Options.Registry 指定命名注册中心；留空使用 defaultRegistry。
 
   # ------------------------------------------------------------------
   # 1) 单例限流中间件（middleware/ratelimit）

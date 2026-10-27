@@ -47,7 +47,7 @@ func (c *PolarisClient) Register(registryConfigData []byte) {
 		c.conf = koanf.New(".")
 		err := c.conf.Load(rawbytes.Provider(c.confData), yaml.Parser())
 		if err != nil {
-			logger.Error("Consul 注册中心配置文件解析错误:" + err.Error())
+			logger.Error("Polaris 注册中心配置文件解析错误:" + err.Error())
 			c.conf = nil
 			return
 		}
@@ -88,7 +88,10 @@ func (c *PolarisClient) Register(registryConfigData []byte) {
 			return
 		}
 		var res ServiceCreateResponse
-		err = resp.JSON(&res)
+		if err = resp.JSON(&res); err != nil {
+			logger.Error("Polaris 服务创建失败:" + err.Error())
+			return
+		}
 		if res.Code != SUCCESS && res.Code != EXISTS {
 			logger.Error("Polaris 服务创建失败:" + res.Info)
 			return
@@ -125,7 +128,10 @@ func (c *PolarisClient) Register(registryConfigData []byte) {
 			return
 		}
 		var res1 InstanceRegisterResponse
-		err = resp.JSON(&res1)
+		if err = resp.JSON(&res1); err != nil {
+			logger.Error("Polaris 服务实例注册失败:" + err.Error())
+			return
+		}
 		if res1.Code != SUCCESS && res1.Code != EXISTS {
 			logger.Error("Polaris 服务实例注册失败:" + toJSON(res1))
 			return
@@ -302,9 +308,12 @@ func (c *PolarisClient) DeRegister() {
 			"namespace": c.namespace,
 		},
 	}))
-	var res QueryInstanceResponse
-	err = resp.JSON(&res)
 	if err != nil {
+		logger.Error("Polaris 查询服务实例失败:" + err.Error())
+		return
+	}
+	var res QueryInstanceResponse
+	if err = resp.JSON(&res); err != nil {
 		logger.Error("Polaris 查询服务实例失败:" + err.Error())
 		return
 	}
@@ -335,7 +344,7 @@ func (c *PolarisClient) DeRegister() {
 	var res1 DeleteServiceResponse
 	err = resp.JSON(&res1)
 	if res1.Code != SUCCESS {
-		logger.Error("Polaris 服务注销失败:" + res.Info)
+		logger.Error("Polaris 服务注销失败:" + res1.Info)
 		return
 	}
 }

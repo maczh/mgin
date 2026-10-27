@@ -252,6 +252,15 @@ GetConfigData(prefix) → []byte → 各组件 Init
 
 ## 5. 服务发现与调用链
 
+命名多注册中心由 `go.discovery.registries` 配置。每个条目包含唯一 `name`、
+后端 `type`、基础配置 `prefix`，并可覆盖 `namespace/group/clusterName`。
+相同 `prefix` 可复用同一个物理集群连接参数；`client.Options.Registry` 同时控制
+`GetServices` 负载均衡主路径与 `GetServiceURL` 兼容路径。各命名实例的发现缓存
+和生命周期相互独立。
+
+Nacos 配置中心与注册中心支持 v1/v2/v3 Client OpenAPI。v3 使用
+`/nacos/v3/client/...`，实例续约通过注册接口的 `heartBeat=true` 完成。
+
 ### 5.1 注册
 
 ```

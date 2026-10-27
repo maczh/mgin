@@ -116,7 +116,7 @@ mgin 是**单进程内运行**的 Go 微服务基础框架（framework + infrast
 | 编号 | 需求 | 验收标准 | 状态 | 实现位置 |
 |------|------|----------|------|----------|
 | FR-15 | 服务注册 | nacos / etcd / consul 按 `go.config.used` 自动注册；退出时反注册 | ✅ ｜ Polaris ❌ | `pkg/plugin/builtins.go`、`pkg/registry` |
-| FR-16 | 服务发现 | `GetServiceURL` 返回单实例；`GetServices` 返回全部实例 | ✅ | `pkg/registry/registry.go` |
+| FR-16 | 服务发现 | `GetServiceURL` 返回单实例；`GetServices` 返回全部实例；命名多注册中心按 namespace/group/cluster 隔离 | ✅ | `pkg/registry/registry.go` |
 | FR-17 | 发现缓存 | TTL + 后台刷新 + 并发回源抑制（防击穿） | ✅ | `pkg/registry/cache.go` |
 | FR-18 | 服务间调用 | 支持 GET/POST/PUT/DELETE 与 x-form/json/restful/file 四种协议 | ✅ | `pkg/client/client.go` |
 | FR-19 | 客户端负载均衡 | 4 策略：`round_robin` / `random` / `least_connections` / `consistent_hash`，可按调用指定 | ⚠️ 最少连接需业务维护计数；一致性哈希无虚拟节点 | `pkg/loadbalancer`、`pkg/client` |

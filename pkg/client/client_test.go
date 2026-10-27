@@ -18,6 +18,31 @@ func (r testRegistry) GetServiceURL(string, ...string) (string, string) { return
 
 func (r testRegistry) GetServices(string, ...string) ([]string, error) { return nil, nil }
 
+type namedTestRegistry struct {
+	testRegistry
+	selected string
+}
+
+func (r *namedTestRegistry) GetServiceURLFrom(name, _ string, _ ...string) (string, string) {
+	r.selected = name
+	return r.host, ""
+}
+func (r *namedTestRegistry) GetServicesFrom(name, _ string, _ ...string) ([]string, error) {
+	r.selected = name
+	return []string{"http://named"}, nil
+}
+
+func TestSelectHostUsesNamedRegistry(t *testing.T) {
+	old := registry.Registry
+	defer func() { registry.Registry = old }()
+	named := &namedTestRegistry{}
+	registry.Registry = named
+	host, err := selectHostByLB("svc", &Options{Registry: "finance"})
+	if err != nil || host != "http://named" || named.selected != "finance" {
+		t.Fatalf("host=%q selected=%q err=%v", host, named.selected, err)
+	}
+}
+
 func TestTypedCalls(t *testing.T) {
 	old := registry.Registry
 	defer func() { registry.Registry = old }()

@@ -119,12 +119,19 @@ func Registry() Plugin {
 	return &funcPlugin{
 		name: "registry", order: 30,
 		enabledFn: func() bool {
+			if len(config.Config.Discovery.Registries) > 0 {
+				return true
+			}
 			used := config.Config.Config.Used
 			return strings.Contains(used, "nacos") ||
 				strings.Contains(used, "etcd") ||
 				strings.Contains(used, "consul")
 		},
 		initFn: func(ctx context.Context) error {
+			if registrar, ok := registry.Registry.(registry.ConfiguredRegistrar); ok {
+				registrar.RegisterConfigured()
+				return nil
+			}
 			used := config.Config.Config.Used
 			if strings.Contains(used, "nacos") {
 				registry.Registry.Register(getCfg(config.Config.Config.Prefix.Nacos))

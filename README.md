@@ -100,6 +100,16 @@ mgin 不是"Go 版 Spring Cloud"，而是**面向单进程服务的框架 + 基�
 
 ### 2.3 服务发现与服务调用
 
+支持命名多注册中心。多个条目可以共享同一个 `prefix`（同一 Nacos/etcd/Consul
+集群），并分别覆盖 `namespace`、`group`、`clusterName`。调用方通过
+`client.Options.Registry` 选择目标；留空使用 `go.discovery.defaultRegistry`。
+每个命名实例拥有独立的发现缓存，v2 的 `GetServices` 负载均衡主路径和
+`GetServiceURL` 兼容路径都会使用同一个目标注册中心。
+
+Nacos 作为配置中心和注册中心时，`apiversion` 支持 `v1`、`v2`、`v3`；
+框架会使用对应 Client OpenAPI 路径、响应结构和心跳方式。鉴权支持直接配置
+`accessToken`，或通过 `username/password` 登录获取 token。
+
 | 能力 | 包 / API | 状态 |
 |------|----------|------|
 | Nacos / etcd / Consul / Polaris 注册与发现 | `pkg/registry` | ✅ Polaris 只发现不注册（插件未接入） |

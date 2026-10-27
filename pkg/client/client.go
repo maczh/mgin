@@ -5,14 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math/rand"
 	"net/url"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/levigross/grequests"
-	"github.com/maczh/mgin/v2/pkg/cache"
 	"github.com/maczh/mgin/v2/pkg/config"
 	"github.com/maczh/mgin/v2/pkg/loadbalancer"
 	"github.com/maczh/mgin/v2/pkg/logs"
@@ -42,6 +40,7 @@ type Options struct {
 	Method   string                 `json:"method"`   //接口方法 GET|POST|PUT|DELETE
 	Protocol string                 `json:"protocol"` //协议 x-form|json|restful
 	Group    string                 `json:"group"`    //应用分组，用于nacos中分组，不传为当前nacos分组及默认分组
+	Registry string                 `json:"registry"` //命名注册中心，留空使用 defaultRegistry
 	Header   any                    `json:"header"`   //额外的头部参数
 	Query    any                    `json:"query"`    //URL Query参数
 	Data     any                    `json:"data"`     //x-form Postform参数
@@ -81,16 +80,26 @@ func CallCtx(ctx context.Context, service, uri string, op *Options) (string, err
 	if op == nil {
 		return "", errors.New("client: Options 参数不能为空")
 	}
-	if ctx == nil { ctx = context.Background() }
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	return callInternal(ctx, service, uri, op)
 }
 
 // callInternal 是 CallCtx 与 Call 共享的底层实现。ctx 在此函数内仅用于"占位 + 未来扩展"，
 // 当前 goroutine+timer 兑底由 resilience.go 提供的 CallResilientCtx 负责。
 func callInternal(ctx context.Context, service, uri string, op *Options) (result string, callErr error) {
-	if op == nil { return "", errors.New("client: Options 参数不能为空") }
-	if ctx == nil { ctx = context.Background() }
-	select { case <-ctx.Done(): return "", ctx.Err(); default: }
+	if op == nil {
+		return "", errors.New("client: Options 参数不能为空")
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	select {
+	case <-ctx.Done():
+		return "", ctx.Err()
+	default:
+	}
 	// Call fills defaults and headers below; never mutate caller-owned options,
 	// which are commonly reused by concurrent handlers.
 	options := *op
@@ -159,12 +168,12 @@ func callInternal(ctx context.Context, service, uri string, op *Options) (result
 		}
 		// 其它情况（如 GetServices 无可用数据）回落到 v1 单实例路径
 		if registry.Registry != nil {
-			host, op.Group = registry.Registry.GetServiceURL(service, op.Group)
+			host, op.Group = getServiceURL(service, op)
 		}
 	} else if host == "" {
 		// 回退 v1 路径：单实例 GetServiceURL（向后兼容：旧注册中心或单实例部署）。
 		if registry.Registry != nil {
-			host, op.Group = registry.Registry.GetServiceURL(service, op.Group)
+			host, op.Group = getServiceURL(service, op)
 		}
 	}
 	if host == "" {
@@ -271,30 +280,6 @@ func decodeResponse(resp string, result any) error {
 	return json.Unmarshal([]byte(resp), result)
 }
 
-func getHostFromCache(serviceName string) (string, error) {
-	h, _ := cache.OnGetCache("service", false).Value(serviceName)
-	if h == nil {
-		logs.Debug("{} 服务无缓存", serviceName)
-		return "", errors.New("无此服务缓存")
-	}
-	hostString, ok := h.(string)
-	if !ok || strings.TrimSpace(hostString) == "" {
-		return "", errors.New("服务缓存格式无效")
-	}
-	hosts := strings.Split(hostString, ",")
-	available := hosts[:0]
-	for _, host := range hosts {
-		if strings.TrimSpace(host) != "" {
-			available = append(available, strings.TrimSpace(host))
-		}
-	}
-	if len(available) == 0 {
-		return "", errors.New("服务缓存无可用主机")
-	}
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	return available[r.Intn(len(available))], nil
-}
-
 //func subscribeNacos(serviceName, groupName string) {
 //	if groupName == "" {
 //		groupName = "DEFAULT_GROUP"
@@ -360,7 +345,13 @@ func selectHostByLB(service string, op *Options) (string, error) {
 	if registry.Registry == nil {
 		return "", nil
 	}
-	instances, err := registry.Registry.GetServices(service, op.Group)
+	var instances []string
+	var err error
+	if resolver, ok := registry.Registry.(registry.NamedRegistryResolver); ok {
+		instances, err = resolver.GetServicesFrom(op.Registry, service, op.Group)
+	} else {
+		instances, err = registry.Registry.GetServices(service, op.Group)
+	}
 	if err != nil || len(instances) == 0 {
 		return "", nil // 调用方会回退到 v1 单实例路径
 	}
@@ -375,9 +366,9 @@ func selectHostByLB(service string, op *Options) (string, error) {
 
 	// 一致性哈希 key：把 method+service 拼起来，确保同一业务调用尽量命中同一实例
 	//（除非该实例被熔断，才会在下一轮重选时换）。
-	key := service
+	key := op.Registry + "@" + service
 	if op != nil && op.Method != "" {
-		key = op.Method + "@" + service
+		key = op.Method + "@" + op.Registry + "@" + service
 	}
 
 	// 最多尝试 len(instances) 次：每次选到被熔断的实例就把它临时剔除再选。
@@ -399,7 +390,7 @@ func selectHostByLB(service string, op *Options) (string, error) {
 			return "", nil
 		}
 		// per-instance 熔断
-		br := GetBreaker(service + "@" + picked)
+		br := GetBreaker(op.Registry + "@" + service + "@" + picked)
 		if br != nil && !br.Allow() {
 			skipped[picked] = struct{}{}
 			continue
@@ -410,6 +401,13 @@ func selectHostByLB(service string, op *Options) (string, error) {
 	// 全部实例都被熔断：直接快速失败，不再让请求穿透到下游。
 	return "", fmt.Errorf("%w: %s 的全部 %d 个实例当前均处于熔断/打开状态",
 		ErrAllInstancesCircuitOpen, service, len(instances))
+}
+
+func getServiceURL(service string, op *Options) (string, string) {
+	if resolver, ok := registry.Registry.(registry.NamedRegistryResolver); ok {
+		return resolver.GetServiceURLFrom(op.Registry, service, op.Group)
+	}
+	return registry.Registry.GetServiceURL(service, op.Group)
 }
 
 // methodOrDefault 取 op.Method，未设置时返 "POST"（与 callInternal 内部默认保持一致）。
