@@ -1,6 +1,7 @@
 package nacos
 
 import (
+	stdjson "encoding/json"
 	"fmt"
 	"math/rand"
 	"net"
@@ -22,18 +23,21 @@ import (
 )
 
 type NacosClient struct {
-	nsurl      string
-	endpoints  []string
-	group      string
-	cluster    string
-	lan        bool
-	lanNetwork string
-	conf       *koanf.Koanf
-	confUrl    string
-	confData   []byte
-	ver        string
-	param      map[string]string
-	worker     *nacosHeartbeatWorker
+	nsurl       string
+	endpoints   []string
+	group       string
+	cluster     string
+	lan         bool
+	lanNetwork  string
+	conf        *koanf.Koanf
+	confUrl     string
+	confData    []byte
+	ver         string
+	namespace   string
+	accessToken string
+	headers     map[string]string
+	param       map[string]string
+	worker      *nacosHeartbeatWorker
 }
 
 var logger = gologger.GetLogger()
@@ -59,9 +63,13 @@ func (w *nacosHeartbeatWorker) Start(nc *NacosClient) {
 		case <-w.quit:
 			return
 		case <-w.ticker.C:
-			_, err := grequests.DoRegularRequest(http.MethodPut, nc.nsurl, &grequests.RequestOptions{
-				Params: nc.param,
-			})
+			params := heartbeatParams(nc)
+			method, endpoint := http.MethodPut, nc.nsurl+"/beat"
+			if nc.ver == "v3" {
+				method, endpoint = http.MethodPost, nc.nsurl
+				params["heartBeat"] = "true"
+			}
+			_, err := grequests.DoRegularRequest(method, endpoint, &grequests.RequestOptions{Params: params, Headers: nc.headers})
 			if err != nil {
 				w.failCount++
 				logger.Error(fmt.Sprintf("Nacos心跳失败(%d/%d): %s", w.failCount, w.maxFails, err.Error()))
@@ -98,26 +106,30 @@ func (n *NacosClient) Register(nacosConfigData []byte) {
 		n.lanNetwork = n.conf.String("go.nacos.lanNet")
 		ipstr := n.conf.String("go.nacos.server")
 		portstr := n.conf.String("go.nacos.port")
-		n.ver = n.conf.String("go.nacos.apiversion")
-		if n.ver == "" {
-			n.ver = "v1"
-		}
+		n.ver = normalizeVersion(n.conf.String("go.nacos.apiversion"))
+		n.namespace = n.conf.String("go.nacos.namespace")
 		ips := strings.Split(ipstr, ",")
 		ports := strings.Split(portstr, ",")
 		for i, ip := range ips {
 			if i < len(ports) && strings.TrimSpace(ip) != "" {
-				n.endpoints = append(n.endpoints, fmt.Sprintf("http://%s:%s/nacos/%s/ns/instance", strings.TrimSpace(ip), strings.TrimSpace(ports[i]), n.ver))
+				n.endpoints = append(n.endpoints, namingURL(strings.TrimSpace(ip), strings.TrimSpace(ports[i]), n.ver))
 			}
 		}
 		if len(n.endpoints) > 0 {
 			n.nsurl = n.endpoints[0]
 		} else {
-			n.nsurl = fmt.Sprintf("http://%s:%s/nacos/%s/ns/instance", ipstr, portstr, n.ver)
+			n.nsurl = namingURL(ipstr, portstr, n.ver)
 		}
 		n.group = n.conf.String("go.nacos.group")
 		n.param = make(map[string]string)
-		if username := n.conf.String("go.nacos.username"); username != "" {
-			n.param = map[string]string{"username": username, "password": n.conf.String("go.nacos.password")}
+		n.headers = map[string]string{"User-Agent": "Nacos-Go-Client:mgin", "Client-Version": "Nacos-Go-Client:mgin"}
+		n.accessToken = n.conf.String("go.nacos.accessToken")
+		if n.accessToken == "" {
+			n.accessToken = n.login(ipstr, portstr)
+		}
+		if n.accessToken != "" {
+			n.param["accessToken"] = n.accessToken
+			n.headers["Authorization"] = "Bearer " + n.accessToken
 		}
 		if n.group == "" {
 			n.group = "DEFAULT_GROUP"
@@ -145,15 +157,16 @@ func (n *NacosClient) Register(nacosConfigData []byte) {
 			"ip":          ip,
 			"port":        fmt.Sprintf("%d", port),
 			"weight":      "1",
-			"cluster":     n.cluster,
+			"clusterName": n.cluster,
 			"groupName":   n.group,
 			"serviceName": config.Config.App.Name,
-			"meta":        toJSON(metadata),
+			"metadata":    toJSON(metadata),
+			"namespaceId": n.namespace,
 		} {
 			n.param[k] = v
 		}
 		resp, err := grequests.DoRegularRequest(http.MethodPost, n.nsurl, &grequests.RequestOptions{
-			Params: n.param,
+			Params: n.param, Headers: n.headers,
 		})
 		if err != nil {
 			logger.Error("Nacos注册服务失败:" + err.Error())
@@ -192,13 +205,16 @@ func (n *NacosClient) GetServiceURL(servicename string, groupName ...string) (st
 	var err error
 	query := map[string]string{
 		"serviceName": servicename,
+		"namespaceId": n.namespace,
 	}
+	addClusterQuery(query, n.ver, n.cluster)
+	addAuth(query, n.accessToken)
 	var resp *grequests.Response
 	if len(groupName) > 0 {
 		for _, g := range groupName {
 			query["groupName"] = g
 			resp, err = grequests.DoRegularRequest(http.MethodGet, n.nsurl+"/list", &grequests.RequestOptions{
-				Params: query,
+				Params: query, Headers: n.headers,
 			})
 			if err != nil {
 				logger.Error("获取Nacos服务" + servicename + "失败:" + err.Error())
@@ -208,7 +224,7 @@ func (n *NacosClient) GetServiceURL(servicename string, groupName ...string) (st
 				logger.Error("获取Nacos服务" + servicename + "失败:" + resp.String())
 				continue
 			}
-			err = json.Unmarshal(resp.Bytes(), &instance)
+			err = decodeInstances(n.ver, resp.Bytes(), &instance)
 			if err != nil {
 				logger.Error("解析Nacos服务" + servicename + "失败:" + err.Error())
 				continue
@@ -229,7 +245,7 @@ func (n *NacosClient) GetServiceURL(servicename string, groupName ...string) (st
 		}
 	} else {
 		resp, err = grequests.DoRegularRequest(http.MethodGet, n.nsurl+"/list", &grequests.RequestOptions{
-			Params: query,
+			Params: query, Headers: n.headers,
 		})
 		if err != nil {
 			logger.Error("获取Nacos服务" + servicename + "失败:" + err.Error())
@@ -239,7 +255,7 @@ func (n *NacosClient) GetServiceURL(servicename string, groupName ...string) (st
 			logger.Error("获取Nacos服务" + servicename + "失败:" + resp.String())
 			return "", ""
 		}
-		err = json.Unmarshal(resp.Bytes(), &instance)
+		err = decodeInstances(n.ver, resp.Bytes(), &instance)
 		if err != nil {
 			logger.Error("解析Nacos服务" + servicename + "失败:" + err.Error())
 			return "", ""
@@ -266,12 +282,15 @@ func (n *NacosClient) GetServiceInstances(service string, groupName ...string) (
 	if len(groupName) > 0 && groupName[0] != "" {
 		group = groupName[0]
 	}
-	resp, err := grequests.Get(n.nsurl+"/list", grequests.FromRequestOptions(&grequests.RequestOptions{Params: map[string]string{"serviceName": service, "groupName": group}}))
+	params := map[string]string{"serviceName": service, "groupName": group, "namespaceId": n.namespace}
+	addClusterQuery(params, n.ver, n.cluster)
+	addAuth(params, n.accessToken)
+	resp, err := grequests.Get(n.nsurl+"/list", grequests.FromRequestOptions(&grequests.RequestOptions{Params: params, Headers: n.headers}))
 	if err != nil || resp.StatusCode != 200 {
 		return nil, group
 	}
 	var result InstanceResp
-	if err := resp.JSON(&result); err != nil {
+	if err := decodeInstances(n.ver, resp.Bytes(), &result); err != nil {
 		return nil, group
 	}
 	out := make([]registryModel.ServiceInstance, 0, len(result.Hosts))
@@ -283,7 +302,7 @@ func (n *NacosClient) GetServiceInstances(service string, groupName ...string) (
 		if host.Metadata["ssl"] == "true" {
 			protocol = "https://"
 		}
-		weight := host.Weight
+		weight := int(host.Weight)
 		if weight <= 0 {
 			weight = 1
 		}
@@ -336,7 +355,7 @@ func (n *NacosClient) DeRegister() {
 		return
 	}
 	_, err := grequests.DoRegularRequest(http.MethodDelete, n.nsurl, &grequests.RequestOptions{
-		Params: n.param,
+		Params: n.param, Headers: n.headers,
 	})
 	if err != nil {
 		logger.Error("Nacos注销服务失败:" + err.Error())
@@ -351,7 +370,7 @@ func (n *NacosClient) reRegister() bool {
 		return false
 	}
 	resp, err := grequests.DoRegularRequest(http.MethodPost, n.nsurl, &grequests.RequestOptions{
-		Params: n.param,
+		Params: n.param, Headers: n.headers,
 	})
 	if err != nil {
 		logger.Error("Nacos重新注册失败: " + err.Error())
@@ -400,6 +419,126 @@ func localIPv4s(lan bool, lanNetwork string) ([]string, error) {
 
 var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
+func normalizeVersion(version string) string {
+	switch strings.ToLower(strings.TrimSpace(version)) {
+	case "2", "v2":
+		return "v2"
+	case "3", "v3":
+		return "v3"
+	default:
+		return "v1"
+	}
+}
+
+func namingURL(server, port, version string) string {
+	base := fmt.Sprintf("http://%s:%s/nacos", strings.TrimSpace(server), strings.TrimSpace(port))
+	if normalizeVersion(version) == "v3" {
+		return base + "/v3/client/ns/instance"
+	}
+	return base + "/" + normalizeVersion(version) + "/ns/instance"
+}
+
+func cloneParams(in map[string]string) map[string]string {
+	out := make(map[string]string, len(in))
+	for key, value := range in {
+		out[key] = value
+	}
+	return out
+}
+
+func addAuth(params map[string]string, token string) {
+	if token != "" {
+		params["accessToken"] = token
+	}
+}
+
+func addClusterQuery(params map[string]string, version, cluster string) {
+	if cluster == "" {
+		return
+	}
+	if normalizeVersion(version) == "v1" {
+		params["clusters"] = cluster
+		return
+	}
+	params["clusterName"] = cluster
+}
+
+func heartbeatParams(n *NacosClient) map[string]string {
+	if n.ver == "v3" {
+		params := cloneParams(n.param)
+		params["heartBeat"] = "true"
+		return params
+	}
+	params := map[string]string{
+		"serviceName": n.param["serviceName"], "groupName": n.param["groupName"],
+		"namespaceId": n.param["namespaceId"],
+		"beat": toJSON(map[string]any{
+			"ip": n.param["ip"], "port": n.param["port"], "serviceName": n.param["serviceName"],
+			"cluster": n.param["clusterName"], "weight": 1, "metadata": stdjson.RawMessage(n.param["metadata"]),
+		}),
+	}
+	addAuth(params, n.accessToken)
+	return params
+}
+
+func decodeInstances(version string, body []byte, target *InstanceResp) error {
+	switch normalizeVersion(version) {
+	case "v1":
+		return json.Unmarshal(body, target)
+	case "v2":
+		var response struct {
+			Code    int                `json:"code"`
+			Message string             `json:"message"`
+			Data    stdjson.RawMessage `json:"data"`
+		}
+		if err := json.Unmarshal(body, &response); err != nil {
+			return err
+		}
+		if response.Code != 0 {
+			return fmt.Errorf("nacos: %s", response.Message)
+		}
+		return json.Unmarshal(response.Data, target)
+	default:
+		var response struct {
+			Code    int                `json:"code"`
+			Message string             `json:"message"`
+			Data    stdjson.RawMessage `json:"data"`
+		}
+		if err := json.Unmarshal(body, &response); err != nil {
+			return err
+		}
+		if response.Code != 0 {
+			return fmt.Errorf("nacos: %s", response.Message)
+		}
+		wrapped := append([]byte(`{"hosts":`), response.Data...)
+		wrapped = append(wrapped, '}')
+		return json.Unmarshal(wrapped, target)
+	}
+}
+
+func (n *NacosClient) login(server, port string) string {
+	username := n.conf.String("go.nacos.username")
+	if username == "" {
+		return ""
+	}
+	path := "/nacos/v1/auth/login"
+	if n.ver == "v3" {
+		path = "/nacos/v3/auth/user/login"
+	}
+	resp, err := grequests.Post(fmt.Sprintf("http://%s:%s%s", strings.TrimSpace(server), strings.TrimSpace(port), path), grequests.FromRequestOptions(&grequests.RequestOptions{Data: map[string]string{"username": username, "password": n.conf.String("go.nacos.password")}}))
+	if err != nil || !resp.Ok {
+		logger.Error("Nacos登录失败")
+		return ""
+	}
+	var result struct {
+		AccessToken string `json:"accessToken"`
+	}
+	if err := resp.JSON(&result); err != nil {
+		return ""
+	}
+	return result.AccessToken
+}
+
 func toJSON(o any) string {
 	j, err := json.Marshal(o)
 	if err != nil {
@@ -422,7 +561,7 @@ type InstanceResp struct {
 		IP          string            `json:"ip"`
 		Port        int               `json:"port"`
 		ClusterName string            `json:"clusterName"`
-		Weight      int               `json:"weight"`
+		Weight      float64           `json:"weight"`
 		Healthy     bool              `json:"healthy"`
 		InstanceID  string            `json:"instanceId"`
 		Metadata    map[string]string `json:"metadata"`

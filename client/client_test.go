@@ -15,6 +15,29 @@ func (r testRegistry) Register([]byte)                                  {}
 func (r testRegistry) DeRegister()                                      {}
 func (r testRegistry) GetServiceURL(string, ...string) (string, string) { return r.host, "" }
 
+type namedTestRegistry struct {
+	testRegistry
+	selected string
+}
+
+func (r *namedTestRegistry) GetServiceURLFrom(name, _ string, _ ...string) (string, string) {
+	r.selected = name
+	return r.host, ""
+}
+
+func TestCallSelectsNamedRegistry(t *testing.T) {
+	old := registry.Registry
+	defer func() { registry.Registry = old }()
+	named := &namedTestRegistry{}
+	registry.Registry = named
+	if _, err := Call("svc", "/", &Options{Method: "GET", Protocol: CONTENT_TYPE_JSON, Registry: "public"}); err == nil {
+		t.Fatal("empty test registry should fail discovery")
+	}
+	if named.selected != "public" {
+		t.Fatalf("selected registry = %q", named.selected)
+	}
+}
+
 func TestTypedCalls(t *testing.T) {
 	old := registry.Registry
 	defer func() { registry.Registry = old }()

@@ -33,6 +33,14 @@ go:
     #   ratelimit / job / s3 —— 本次新增的三大能力开关
     used: "sqlite,ratelimit,job,s3"
     env: test
+    # Nacos 作为配置中心时支持 v1/v2/v3；不同版本自动使用对应路径和响应结构。
+    # server_type: nacos
+    # server: http://127.0.0.1:8848
+    # apiversion: v3
+    # namespace: public
+    # username: nacos
+    # password: ""
+    # accessToken: ""       # 已有 token 时可直接配置，优先于用户名密码登录
     prefix:
       sqlite: mytest.db
       # 新增能力为“内联配置”，无需单独的 <prefix>-<env>.yml 文件
@@ -80,7 +88,26 @@ go:
   #    circuitFailures / circuitOpenWindow: client.Call 熔断阈值与探测窗口
   # ------------------------------------------------------------------
   discovery:
+    # 单注册中心兼容配置。配置 registries 后将忽略此项。
     registry: ""
+    # 多注册中心：多个实例可共享同一个 prefix（即同一物理集群），并分别覆盖
+    # namespace/group/clusterName。name 供 client.Options.Registry 选择。
+    # defaultRegistry: jhris
+    # registries:
+    #   - name: jhris
+    #     type: nacos
+    #     prefix: nacos
+    #     group: jhris
+    #   - name: iot
+    #     type: nacos
+    #     prefix: nacos
+    #     group: iot
+    #   - name: finance-bank
+    #     type: nacos
+    #     prefix: nacos
+    #     namespace: finance
+    #     group: bank_account
+    #     clusterName: DEFAULT
     callType: x-form
     cacheTTL: 3
     cacheRefresh: 1

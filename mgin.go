@@ -89,6 +89,9 @@ func (m *mgin) Reload(configFile string) error {
 func initResources(m *mgin) {
 	configs := config.Config.Config.Used
 	registry.Registry = registry.NewRegistry()
+	if registrar, ok := registry.Registry.(registry.ConfiguredRegistrar); ok {
+		registrar.RegisterConfigured()
+	}
 
 	if strings.Contains(configs, "mysql") {
 		db.Mysql.Init(config.Config.GetConfigData(config.Config.Config.Prefix.Mysql))
@@ -102,13 +105,13 @@ func initResources(m *mgin) {
 	if strings.Contains(configs, "redis") {
 		db.Redis.Init(config.Config.GetConfigData(config.Config.Config.Prefix.Redis))
 	}
-	if strings.Contains(configs, "nacos") {
+	if _, multi := registry.Registry.(registry.ConfiguredRegistrar); !multi && strings.Contains(configs, "nacos") {
 		registry.Registry.Register(config.Config.GetConfigData(config.Config.Config.Prefix.Nacos))
 	}
-	if strings.Contains(configs, "etcd") {
+	if _, multi := registry.Registry.(registry.ConfiguredRegistrar); !multi && strings.Contains(configs, "etcd") {
 		registry.Registry.Register(config.Config.GetConfigData(config.Config.Config.Prefix.Etcd))
 	}
-	if strings.Contains(configs, "consul") {
+	if _, multi := registry.Registry.(registry.ConfiguredRegistrar); !multi && strings.Contains(configs, "consul") {
 		registry.Registry.Register(config.Config.GetConfigData(config.Config.Config.Prefix.Consul))
 	}
 	if strings.Contains(configs, "job") {
@@ -144,7 +147,8 @@ func (m *mgin) closeResources(configs string, currentRegistry registry.RegistryC
 	if strings.Contains(configs, "redis") {
 		db.Redis.Close()
 	}
-	if currentRegistry != nil && (strings.Contains(configs, "nacos") || strings.Contains(configs, "etcd") || strings.Contains(configs, "consul") || strings.Contains(configs, "polaris")) {
+	_, multi := currentRegistry.(registry.ConfiguredRegistrar)
+	if currentRegistry != nil && (multi || strings.Contains(configs, "nacos") || strings.Contains(configs, "etcd") || strings.Contains(configs, "consul") || strings.Contains(configs, "polaris")) {
 		currentRegistry.DeRegister()
 	}
 	if strings.Contains(configs, "job") {
@@ -228,16 +232,8 @@ func (m *mgin) SafeExit() {
 		logger.Info("正在关闭Redis连接")
 		db.Redis.Close()
 	}
-	if strings.Contains(configs, "nacos") {
-		logger.Info("正在注销Nacos")
-		registry.Registry.DeRegister()
-	}
-	if strings.Contains(configs, "etcd") {
-		logger.Info("正在注销Etcd")
-		registry.Registry.DeRegister()
-	}
-	if strings.Contains(configs, "consul") {
-		logger.Info("正在注销Consul")
+	if registry.Registry != nil && (len(config.Config.Discovery.Registries) > 0 || strings.Contains(configs, "nacos") || strings.Contains(configs, "etcd") || strings.Contains(configs, "consul") || strings.Contains(configs, "polaris")) {
+		logger.Info("正在注销注册中心")
 		registry.Registry.DeRegister()
 	}
 	if strings.Contains(configs, "job") {

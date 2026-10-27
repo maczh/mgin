@@ -23,6 +23,7 @@ type EtcdClient struct {
 	client        *clientv3.Client
 	leaseID       clientv3.LeaseID
 	cluster       string
+	namespace     string
 	group         string
 	prefix        string
 	lan           bool
@@ -61,6 +62,7 @@ func (c *EtcdClient) Register(etcdConfigData []byte) {
 		ipstr := c.conf.String("go.etcd.server")
 		portstr := c.conf.String("go.etcd.port")
 		c.prefix = c.conf.String("go.etcd.prefix")
+		c.namespace = c.conf.String("go.etcd.namespace")
 		c.keyTemplate = c.conf.String("go.etcd.keyTemplate")
 		if c.keyTemplate == "" {
 			c.keyTemplate = "{prefix}/{group}/{service}/{instance}"
@@ -227,7 +229,7 @@ func (c *EtcdClient) DeRegister() {
 }
 
 func (c *EtcdClient) serviceKey(group, service, instance string) string {
-	return strings.TrimSuffix(strings.NewReplacer("{prefix}", c.prefix, "{group}", group, "{service}", service, "{instance}", instance).Replace(c.keyTemplate), "/")
+	return strings.TrimSuffix(strings.NewReplacer("{namespace}", c.namespace, "{prefix}", c.prefix, "{group}", group, "{cluster}", c.cluster, "{service}", service, "{instance}", instance).Replace(c.keyTemplate), "/")
 }
 func (c *EtcdClient) servicePrefix(group, service string) string {
 	return c.serviceKey(group, service, "") + "/"
@@ -245,23 +247,53 @@ func (c *EtcdClient) SubscribeOffline(callback func(service, group string)) erro
 		watchCtx = c.ctx
 	}
 	go func() {
-		watch := c.client.Watch(watchCtx, strings.TrimSuffix(c.prefix, "/")+"/", clientv3.WithPrefix())
+		watch := c.client.Watch(watchCtx, c.watchPrefix(), clientv3.WithPrefix())
 		for response := range watch {
 			for _, event := range response.Events {
 				if event.Type != clientv3.EventTypeDelete {
 					continue
 				}
-				parts := strings.Split(strings.Trim(string(event.Kv.Key), "/"), "/")
-				if len(parts) < 4 {
+				service, group, ok := c.scopeFromKey(string(event.Kv.Key))
+				if !ok {
 					continue
 				}
-				service := parts[len(parts)-2]
-				group := parts[len(parts)-3]
 				go callback(service, group)
 			}
 		}
 	}()
 	return nil
+}
+
+func (c *EtcdClient) watchPrefix() string {
+	prefix := c.keyTemplate
+	first := -1
+	for _, marker := range []string{"{group}", "{service}", "{instance}"} {
+		if index := strings.Index(prefix, marker); index >= 0 && (first < 0 || index < first) {
+			first = index
+		}
+	}
+	if first >= 0 {
+		prefix = prefix[:first]
+	}
+	prefix = strings.NewReplacer("{namespace}", c.namespace, "{prefix}", c.prefix, "{cluster}", c.cluster).Replace(prefix)
+	return strings.TrimSuffix(prefix, "/") + "/"
+}
+
+func (c *EtcdClient) scopeFromKey(key string) (service, group string, ok bool) {
+	templateParts := strings.Split(strings.Trim(c.keyTemplate, "/"), "/")
+	keyParts := strings.Split(strings.Trim(key, "/"), "/")
+	if len(templateParts) != len(keyParts) {
+		return "", "", false
+	}
+	for index, part := range templateParts {
+		switch part {
+		case "{service}":
+			service = keyParts[index]
+		case "{group}":
+			group = keyParts[index]
+		}
+	}
+	return service, group, service != "" && group != ""
 }
 
 func (c *EtcdClient) WatchService(service, group string, callback func()) (func(), error) {

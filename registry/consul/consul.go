@@ -24,6 +24,7 @@ type ConsulClient struct {
 	client     *api.Client
 	clients    []*api.Client
 	cluster    string
+	namespace  string
 	group      string
 	lan        bool
 	lanNetwork string
@@ -61,6 +62,7 @@ func (c *ConsulClient) Register(etcdConfigData []byte) {
 			c.group = "DEFAULT_GROUP"
 		}
 		c.cluster = c.conf.String("go.consul.clusterName")
+		c.namespace = c.conf.String("go.consul.namespace")
 		if c.cluster == "" {
 			c.cluster = "DEFAULT"
 		}
@@ -80,6 +82,7 @@ func (c *ConsulClient) Register(etcdConfigData []byte) {
 			serverConfig := api.DefaultConfig()
 			serverConfig.Address = address
 			serverConfig.Token = c.conf.String("go.consul.token")
+			serverConfig.Namespace = c.namespace
 			client, clientErr := api.NewClient(serverConfig)
 			if clientErr == nil {
 				c.clients = append(c.clients, client)
@@ -105,7 +108,7 @@ func (c *ConsulClient) Register(etcdConfigData []byte) {
 			port = uint64(config.Config.App.PortSSL)
 			protocol = "https://"
 		}
-		c.instanceID = getInstanceId(ip, port)
+		c.instanceID = getInstanceId(ip, port, config.Config.App.Name, c.namespace, c.group, c.cluster)
 		registration := &api.AgentServiceRegistration{
 			ID:      c.instanceID,
 			Name:    config.Config.App.Name,
@@ -148,6 +151,7 @@ func (c *ConsulClient) GetServiceURL(servicename string, groupName ...string) (s
 	for _, group := range groupName {
 		for _, consulClient := range clients {
 			services, _, err := consulClient.Health().Service(servicename, group, true, &api.QueryOptions{})
+			services = filterCluster(services, c.cluster)
 			if err != nil || len(services) == 0 {
 				continue
 			}
@@ -176,6 +180,7 @@ func (c *ConsulClient) GetServiceInstances(servicename string, groupName ...stri
 	}
 	for _, client := range clients {
 		services, _, err := client.Health().Service(servicename, group, true, &api.QueryOptions{})
+		services = filterCluster(services, c.cluster)
 		if err != nil || len(services) == 0 {
 			continue
 		}
@@ -198,6 +203,22 @@ func (c *ConsulClient) GetServiceInstances(servicename string, groupName ...stri
 		return out, group
 	}
 	return nil, group
+}
+
+func filterCluster(services []*api.ServiceEntry, cluster string) []*api.ServiceEntry {
+	if cluster == "" {
+		return services
+	}
+	filtered := make([]*api.ServiceEntry, 0, len(services))
+	for _, service := range services {
+		for _, tag := range service.Service.Tags {
+			if tag == cluster {
+				filtered = append(filtered, service)
+				break
+			}
+		}
+	}
+	return filtered
 }
 
 // WatchService polls Consul health with edge-triggered semantics. The cancel
@@ -226,6 +247,7 @@ func (c *ConsulClient) WatchService(service, group string, callback func()) (fun
 				}
 				for _, client := range clients {
 					instances, _, err := client.Health().Service(service, group, true, &api.QueryOptions{})
+					instances = filterCluster(instances, c.cluster)
 					if err == nil && len(instances) > 0 {
 						found = true
 						break
@@ -263,7 +285,7 @@ func (c *ConsulClient) DeRegister() {
 			if port == 0 || config.Config.App.PortSSL != 0 {
 				port = uint64(config.Config.App.PortSSL)
 			}
-			id = getInstanceId(ip, port)
+			id = getInstanceId(ip, port, config.Config.App.Name, c.namespace, c.group, c.cluster)
 		}
 	}
 	if id == "" {
@@ -334,9 +356,9 @@ func localIPv4s(lan bool, lanNetwork string) ([]string, error) {
 }
 
 // getInstanceId 函数用于生成服务实例 ID
-func getInstanceId(ip string, port uint64) string {
+func getInstanceId(ip string, port uint64, scope ...string) string {
 	h := md5.New()
-	_, _ = io.WriteString(h, fmt.Sprintf("http://%s:%d", ip, port))
-	md := fmt.Sprintf("%x", h.Sum(nil))[:4]
+	_, _ = io.WriteString(h, fmt.Sprintf("http://%s:%d/%s", ip, port, strings.Join(scope, "/")))
+	md := fmt.Sprintf("%x", h.Sum(nil))[:12]
 	return md
 }

@@ -2,7 +2,9 @@ package config
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -46,6 +48,11 @@ type appConfig struct {
 	Server      string `json:"server" bson:"server"`
 	Type        string `json:"type" bson:"type"`
 	Token       string `json:"token" bson:"token"` //polaris使用的token
+	APIVersion  string `json:"apiVersion" bson:"apiVersion"`
+	Username    string `json:"username" bson:"username"`
+	Password    string `json:"password" bson:"password"`
+	AccessToken string `json:"accessToken" bson:"accessToken"`
+	Namespace   string `json:"namespace" bson:"namespace"`
 	ReloadToken string `json:"reloadToken" bson:"reloadToken"`
 	Path        string `json:"path" bson:"path"`
 	Env         string `json:"env" bson:"env"`
@@ -119,12 +126,25 @@ type appLog struct {
 }
 
 type discovery struct {
-	Registry          string        `json:"registry" bson:"registry"`
-	CallType          string        `json:"callType" bson:"callType"`
-	CacheTTL          time.Duration `json:"cacheTTL" bson:"cacheTTL"`
-	CacheRefresh      time.Duration `json:"cacheRefresh" bson:"cacheRefresh"`
-	CircuitFailures   int           `json:"circuitFailures" bson:"circuitFailures"`
-	CircuitOpenWindow time.Duration `json:"circuitOpenWindow" bson:"circuitOpenWindow"`
+	Registry          string           `json:"registry" bson:"registry"`
+	Registries        []RegistryConfig `json:"registries" bson:"registries"`
+	DefaultRegistry   string           `json:"defaultRegistry" bson:"defaultRegistry"`
+	CallType          string           `json:"callType" bson:"callType"`
+	CacheTTL          time.Duration    `json:"cacheTTL" bson:"cacheTTL"`
+	CacheRefresh      time.Duration    `json:"cacheRefresh" bson:"cacheRefresh"`
+	CircuitFailures   int              `json:"circuitFailures" bson:"circuitFailures"`
+	CircuitOpenWindow time.Duration    `json:"circuitOpenWindow" bson:"circuitOpenWindow"`
+}
+
+// RegistryConfig describes one named registry instance. Prefix identifies the
+// component configuration (for example nacos-public-test.yml).
+type RegistryConfig struct {
+	Name        string `json:"name" bson:"name"`
+	Type        string `json:"type" bson:"type"`
+	Prefix      string `json:"prefix" bson:"prefix"`
+	Namespace   string `json:"namespace" bson:"namespace"`
+	Group       string `json:"group" bson:"group"`
+	ClusterName string `json:"clusterName" bson:"clusterName"`
 }
 
 type sys struct {
@@ -193,6 +213,11 @@ func (c *config) Init(cf string) {
 	c.Config.Server = c.Cnf.String("go.config.server")
 	c.Config.Type = c.Cnf.String("go.config.server_type")
 	c.Config.Token = c.Cnf.String("go.config.token")
+	c.Config.APIVersion = normalizeNacosVersion(c.Cnf.String("go.config.apiversion"))
+	c.Config.Username = c.Cnf.String("go.config.username")
+	c.Config.Password = c.Cnf.String("go.config.password")
+	c.Config.AccessToken = c.Cnf.String("go.config.accessToken")
+	c.Config.Namespace = c.Cnf.String("go.config.namespace")
 	c.Config.ReloadToken = strings.TrimSpace(c.Cnf.String("go.config.reload.token"))
 	c.Config.Path = c.Cnf.String("go.config.path")
 	c.Config.Env = c.Cnf.String("go.config.env")
@@ -239,6 +264,12 @@ func (c *config) Init(cf string) {
 	c.Logger.Out = c.Cnf.String("go.logger.out")
 	c.Logger.File = c.Cnf.String("go.logger.file")
 	c.Discovery.Registry = c.Cnf.String("go.discovery.registry")
+	c.Discovery.Registries = nil
+	if err := c.Cnf.Unmarshal("go.discovery.registries", &c.Discovery.Registries); err != nil {
+		logger.Error("注册中心列表配置解析错误: " + err.Error())
+		c.Discovery.Registries = nil
+	}
+	c.Discovery.DefaultRegistry = strings.TrimSpace(c.Cnf.String("go.discovery.defaultRegistry"))
 	c.Discovery.CallType = c.Cnf.String("go.discovery.callType")
 	if c.Discovery.CallType == "" {
 		c.Discovery.CallType = "x-form"
@@ -364,7 +395,18 @@ func (c *config) GetConfigUrl(prefix string) string {
 	configUrl := c.Config.Server
 	switch c.Config.Type {
 	case "nacos":
-		configUrl = configUrl + "nacos/v1/cs/configs?group=" + c.App.Project + "&dataId=" + prefix + "-" + c.Config.Env + ".yml"
+		base := strings.TrimRight(configUrl, "/")
+		dataID := url.QueryEscape(prefix + "-" + c.Config.Env + ".yml")
+		group := url.QueryEscape(c.App.Project)
+		namespace := url.QueryEscape(c.Config.Namespace)
+		switch normalizeNacosVersion(c.Config.APIVersion) {
+		case "v2":
+			configUrl = fmt.Sprintf("%s/nacos/v2/cs/config?group=%s&dataId=%s&namespaceId=%s", base, group, dataID, namespace)
+		case "v3":
+			configUrl = fmt.Sprintf("%s/nacos/v3/client/cs/config?groupName=%s&dataId=%s&namespaceId=%s", base, group, dataID, namespace)
+		default:
+			configUrl = fmt.Sprintf("%s/nacos/v1/cs/configs?group=%s&dataId=%s&tenant=%s", base, group, dataID, namespace)
+		}
 	case "polaris":
 		if strings.Contains(prefix, "@") {
 			strs := strings.SplitN(prefix, "@v", 2)
@@ -402,6 +444,8 @@ func (c *config) GetConfigUrl(prefix string) string {
 
 func (c *config) GetConfigData(prefix string) []byte {
 	switch c.Config.Type {
+	case "nacos":
+		return c.getNacosConfigData(prefix)
 	case "etcd":
 		cli, err := clientv3.New(clientv3.Config{Endpoints: []string{c.Config.Server}, DialTimeout: 5 * time.Second})
 		if err != nil {
@@ -466,6 +510,80 @@ func (c *config) GetConfigData(prefix string) []byte {
 		}
 		return resp.Bytes()
 	}
+}
+
+func normalizeNacosVersion(version string) string {
+	switch strings.ToLower(strings.TrimSpace(version)) {
+	case "2", "v2":
+		return "v2"
+	case "3", "v3":
+		return "v3"
+	default:
+		return "v1"
+	}
+}
+
+func (c *config) getNacosConfigData(prefix string) []byte {
+	ctx, cancel := context.WithTimeout(context.Background(), configRequestTimeout)
+	defer cancel()
+	params := map[string]string{}
+	headers := map[string]string{"User-Agent": "Nacos-Go-Client:mgin", "Client-Version": "Nacos-Go-Client:mgin"}
+	token := c.Config.AccessToken
+	if token == "" && c.Config.Username != "" {
+		loginPath := "/nacos/v1/auth/login"
+		if normalizeNacosVersion(c.Config.APIVersion) == "v3" {
+			loginPath = "/nacos/v3/auth/user/login"
+		}
+		resp, err := grequests.Post(strings.TrimRight(c.Config.Server, "/")+loginPath, grequests.FromRequestOptions(&grequests.RequestOptions{Data: map[string]string{"username": c.Config.Username, "password": c.Config.Password}, Context: ctx}))
+		if err != nil || !resp.Ok {
+			logger.Error("Nacos 配置中心登录失败")
+			return nil
+		}
+		var login struct {
+			AccessToken string `json:"accessToken"`
+		}
+		if err := resp.JSON(&login); err != nil || login.AccessToken == "" {
+			return nil
+		}
+		token = login.AccessToken
+	}
+	if token != "" {
+		params["accessToken"] = token
+		headers["Authorization"] = "Bearer " + token
+	}
+	resp, err := grequests.Get(c.GetConfigUrl(prefix), grequests.FromRequestOptions(&grequests.RequestOptions{Params: params, Headers: headers, Context: ctx}))
+	if err != nil || !resp.Ok {
+		return nil
+	}
+	return decodeNacosConfig(normalizeNacosVersion(c.Config.APIVersion), resp.Bytes())
+}
+
+func decodeNacosConfig(version string, body []byte) []byte {
+	if version == "v1" {
+		return body
+	}
+	if version == "v2" {
+		var result struct {
+			Code    int    `json:"code"`
+			Message string `json:"message"`
+			Data    string `json:"data"`
+		}
+		if err := json.Unmarshal(body, &result); err != nil || result.Code != 0 {
+			return nil
+		}
+		return []byte(result.Data)
+	}
+	var result struct {
+		Code    int    `json:"code"`
+		Message string `json:"message"`
+		Data    struct {
+			Content string `json:"content"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(body, &result); err != nil || result.Code != 0 {
+		return nil
+	}
+	return []byte(result.Data.Content)
 }
 
 type polaris_config_resp struct {

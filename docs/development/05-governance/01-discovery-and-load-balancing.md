@@ -133,9 +133,45 @@ go:
     cacheRefresh: 1        # 热刷新秒数
 ```
 
+多个注册中心，或同一物理注册中心内的不同 namespace/group/cluster，使用命名列表。
+多个条目可以共享同一个 `prefix`，基础服务器、端口和凭据只维护一份：
+
+```yaml
+go:
+  config:
+    env: test
+  discovery:
+    defaultRegistry: jhris
+    registries:
+      - name: jhris
+        type: nacos
+        prefix: nacos             # → nacos-test.yml
+        group: jhris
+      - name: iot
+        type: nacos
+        prefix: nacos             # 复用同一个 Nacos 集群配置
+        group: iot
+      - name: finance-bank
+        type: nacos
+        prefix: nacos
+        namespace: finance
+        group: bank_account
+        clusterName: DEFAULT
+```
+
+覆盖字段同样适用于 etcd 和 Consul。etcd 将 namespace/group/clusterName
+编码到服务 key；Consul 使用原生 namespace，并按 group/cluster 标签过滤。
+每个命名实例都有独立的发现缓存、后台刷新和服务订阅。调用时通过
+`client.Options{Registry: "public", Group: "PUBLIC_GROUP"}` 选择注册中心；
+`Registry` 为空时使用 `defaultRegistry`，而 `Group` 仍传给所选后端。未知名称
+不会回退到默认注册中心，避免把请求误路由到另一个项目。未配置 `registries`
+时，原有 `registry`、`used` 和 `prefix.<type>` 行为保持不变。
+
 | 键 | 默认 | 说明 |
 |---|---|---|
 | `go.discovery.registry` | 空 | 后端类型；空 → `noopRegistryClient` |
+| `go.discovery.registries` | 空 | 命名注册中心实例列表；非空时优先于 `registry` |
+| `go.discovery.defaultRegistry` | 列表首项 | `Options.Registry` 为空时使用的实例名 |
 | `go.discovery.callType` | `x-form` | `client.Options.Protocol` 为空时使用 |
 | `go.discovery.cacheTTL` | 60（秒） | 发现结果缓存；影响实例下线后的收敛时延 |
 | `go.discovery.cacheRefresh` | 60（秒） | 后台热刷新间隔；`<=0` 时补 60 |
@@ -153,14 +189,21 @@ go:
   nacos:
     server: 127.0.0.1
     port: 8848
-    apiversion: v1        # 默认 v1
+    apiversion: v3        # v1 / v2 / v3，默认 v1
+    namespace: public
     clusterName: DEFAULT
     group: DEFAULT_GROUP
     username: ""          # 开启鉴权时填写
     password: ""
+    accessToken: ""       # 已有 token 时直接使用；否则用户名密码登录换取 token
     lan: true             # 优先用内网地址注册
     lanNet: 192.168.      # 网段前缀，配合 lan
 ```
+
+版本映射遵循 Nacos Client OpenAPI：v1 使用 `/nacos/v1/ns/instance`，v2
+使用 `/nacos/v2/ns/instance`，v3 使用 `/nacos/v3/client/ns/instance`。
+v3 的实例续约通过注册接口加 `heartBeat=true` 完成；v1/v2 使用各自的
+`/instance/beat`。v3 HTTP 客户端不支持服务推送，本框架沿用轮询 watcher。
 
 ### 4.3 etcd / Consul
 

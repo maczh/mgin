@@ -69,6 +69,7 @@ go:
 - `cacheTTL` 越大，实例下线感知越慢；越小，注册中心压力越大。30–60s 是常用区间。
 - `cacheRefresh` 控制热服务的后台刷新，`<=0` 时使用内部默认值。
 - Nacos/etcd/Consul 需要同时在 `used` 中声明，并配置对应的 `go.nacos.*`/`go.etcd.*`/`go.consul.*`。
+- Nacos 配置中心和注册中心的 `apiversion` 均支持 `v1`、`v2`、`v3`。配置中心 v3 使用 `/nacos/v3/client/cs/config` 并解析 `data.content`；鉴权可配置 `accessToken`，或由 `username/password` 自动登录换取 token。
 - Polaris **不会**被自动注册，需要在代码中调用 `registry.Registry.Register(...)`。
 
 ## 4. 数据源

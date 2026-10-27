@@ -33,6 +33,7 @@ type Options struct {
 	Method   string                 `json:"method"`   //接口方法 GET|POST|PUT|DELETE
 	Protocol string                 `json:"protocol"` //协议 x-form|json|restful
 	Group    string                 `json:"group"`    //应用分组，用于nacos中分组，不传为当前nacos分组及默认分组
+	Registry string                 `json:"registry"` //目标注册中心实例名称，留空使用默认实例
 	Header   any                    `json:"header"`   //额外的头部参数
 	Query    any                    `json:"query"`    //URL Query参数
 	Data     any                    `json:"data"`     //x-form Postform参数
@@ -76,15 +77,21 @@ func Call(service, uri string, op *Options) (result string, callErr error) {
 	// shallow copy and never mutate the caller's options or headers.
 	options := *op
 	op = &options
+	discoveryService := service
+	if op.Registry != "" {
+		discoveryService = op.Registry + "\x00" + service
+	}
 	if op.Fallback == nil && config.Config.GetConfigBool("go.client.fallback.enabled") {
-		op.Fallback = CachedFallback(service, uri, requestParams(op))
+		op.Fallback = CachedFallback(discoveryService, uri, requestParams(op))
 	}
 	fallbackUsed := false
 	if op.Fallback != nil {
 		fallback := op.Fallback
 		op.Fallback = func(err error) (string, bool) {
 			value, ok := fallback(err)
-			if ok { fallbackUsed = true }
+			if ok {
+				fallbackUsed = true
+			}
 			return value, ok
 		}
 	}
@@ -93,7 +100,7 @@ func Call(service, uri string, op *Options) (result string, callErr error) {
 	}
 	key := op.CircuitKey
 	if key == "" {
-		key = service + "\x00" + uri
+		key = discoveryService + "\x00" + uri
 	}
 	threshold, window := op.CircuitFailures, op.CircuitOpenWindow
 	if threshold <= 0 {
@@ -218,7 +225,11 @@ func call(service, uri string, op *Options) (result string, callErr error) {
 		}
 		return "", err
 	}
-	host, op.Group = registry.Registry.GetServiceURL(service, op.Group)
+	if resolver, ok := registry.Registry.(registry.NamedRegistryResolver); ok {
+		host, op.Group = resolver.GetServiceURLFrom(op.Registry, service, op.Group)
+	} else {
+		host, op.Group = registry.Registry.GetServiceURL(service, op.Group)
+	}
 	if host == "" {
 		err := errors.New("微服务获取" + service + "服务主机IP端口失败")
 		if op.Fallback != nil {
@@ -300,7 +311,11 @@ func call(service, uri string, op *Options) (result string, callErr error) {
 	logs.Debug("微服务{}返回 HTTP {}", service, resp.StatusCode)
 	result = resp.String()
 	responseCache.Lock()
-	responseCache.values[cacheKey(service, uri, requestParams(op))] = result
+	discoveryService := service
+	if op.Registry != "" {
+		discoveryService = op.Registry + "\x00" + service
+	}
+	responseCache.values[cacheKey(discoveryService, uri, requestParams(op))] = result
 	responseCache.Unlock()
 	return result, nil
 }

@@ -80,7 +80,7 @@
 |--------|------|------|
 | Nacos/Consul/etcd/Polaris 注册发现 | ✅ | 四种实现，统一接口 |
 | 发现结果本地缓存 | ✅ | TTL + singleflight + 热刷新 + 降级 |
-| 多注册中心并存 | ✗ | 单值 `go.discovery.registry` |
+| 多注册中心并存 | ✓ | `go.discovery.registries` 命名实例 + `client.Options.Registry` 路由 |
 | 实例元数据路由/就近访问 | ✗ | 仅按服务名 + 分组 |
 | 负载均衡策略 | ◐ | 由注册中心实现随机选择；无权重/最少连接/一致性哈希 |
 | 配置本地/HTTP/Nacos/Consul/etcd/Polaris | ✅ | 单一来源 |

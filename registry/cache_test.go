@@ -4,6 +4,9 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/maczh/mgin/config"
+	"gopkg.in/yaml.v3"
 )
 
 // fakeClient 用于验证 CachedRegistry 装饰器的缓存/降级/并发语义。
@@ -100,5 +103,61 @@ func TestCachedRegistry_SingleFlightDedup(t *testing.T) {
 	wg.Wait()
 	if fc.calls != 1 {
 		t.Fatalf("并发首查应被 singleflight 合并为1次回源，实际: %d", fc.calls)
+	}
+}
+
+func TestRegistryCollectionRoutesAndClosesNamedClients(t *testing.T) {
+	left := &trackingClient{url: "http://left", group: "g-left"}
+	right := &trackingClient{url: "http://right", group: "g-right"}
+	c := &RegistryCollection{
+		entries: map[string]registryEntry{
+			"left":  {client: left},
+			"right": {client: right},
+		},
+		defaultName: "left",
+	}
+
+	if url, group := c.GetServiceURL("svc", "requested"); url != left.url || group != left.group {
+		t.Fatalf("default registry result = %q, %q", url, group)
+	}
+	if url, group := c.GetServiceURLFrom("right", "svc", "requested"); url != right.url || group != right.group {
+		t.Fatalf("named registry result = %q, %q", url, group)
+	}
+	if url, _ := c.GetServiceURLFrom("missing", "svc"); url != "" {
+		t.Fatalf("unknown registry should not fall back, got %q", url)
+	}
+	c.DeRegister()
+	c.DeRegister()
+	if left.closed != 1 || right.closed != 1 {
+		t.Fatalf("children must close exactly once: left=%d right=%d", left.closed, right.closed)
+	}
+}
+
+type trackingClient struct {
+	url, group string
+	closed     int
+}
+
+func (c *trackingClient) Register([]byte) {}
+func (c *trackingClient) GetServiceURL(string, ...string) (string, string) {
+	return c.url, c.group
+}
+func (c *trackingClient) DeRegister() { c.closed++ }
+
+func TestApplyRegistryOverrides(t *testing.T) {
+	base := []byte("go:\n  nacos:\n    server: 127.0.0.1\n    group: DEFAULT_GROUP\n")
+	configured, err := applyRegistryOverrides(base, "nacos", config.RegistryConfig{
+		Name: "finance", Namespace: "finance", Group: "bank_account", ClusterName: "ledger",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var value map[string]any
+	if err := yaml.Unmarshal(configured, &value); err != nil {
+		t.Fatal(err)
+	}
+	backend := value["go"].(map[string]any)["nacos"].(map[string]any)
+	if backend["server"] != "127.0.0.1" || backend["namespace"] != "finance" || backend["group"] != "bank_account" || backend["clusterName"] != "ledger" {
+		t.Fatalf("overridden config = %#v", backend)
 	}
 }

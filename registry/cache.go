@@ -117,7 +117,10 @@ func (c *CachedRegistry) watch(service, group string) {
 	}
 	key := service + "\x00" + group
 	c.mu.Lock()
-	if c.stopped { c.mu.Unlock(); return }
+	if c.stopped {
+		c.mu.Unlock()
+		return
+	}
 	if _, exists := c.watchers[key]; exists {
 		c.mu.Unlock()
 		return
@@ -132,7 +135,11 @@ func (c *CachedRegistry) watch(service, group string) {
 		return
 	}
 	c.mu.Lock()
-	if c.stopped { c.mu.Unlock(); cancel(); return }
+	if c.stopped {
+		c.mu.Unlock()
+		cancel()
+		return
+	}
 	c.watchers[key] = cancel
 	c.mu.Unlock()
 }
@@ -225,7 +232,6 @@ func (c *CachedRegistry) GetServiceURL(servicename string, groupName ...string) 
 		// 已有 leader 在回源，等待其完成后直接复用结果
 		sf.wg.Wait()
 		c.mu.Lock()
-		c.stopped = true
 		if e, ok := c.entries[key]; ok {
 			url, grp := e.url, e.group
 			c.mu.Unlock()
