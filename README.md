@@ -9,6 +9,11 @@
 本文档面向**第一次接触本项目的开发者**，内容与当前代码一一对应。
 发现文档与代码不一致时，以代码为准，并请按 [贡献指南](#贡献指南) 提交修正。
 
+> 近期（2026-10）新增能力：命名**多注册中心**（`go.discovery.registries` + `client.Options.Registry`）、
+> **Nacos v1/v2/v3**（配置中心与注册中心各自 `apiversion`，支持 token 或用户名密码鉴权）、
+> etcd/Consul 的 **namespace / group / cluster** 作用域隔离。详见 [§2.3](#23-服务发现与服务调用)、
+> [§5.4](#54-服务间调用含负载均衡与韧性)、[§6.1](#61-主配置-applicationyml)、[§8](#8-常见问题与故障排查)。
+
 ---
 
 ## 目录
@@ -115,6 +120,9 @@ Nacos 作为配置中心和注册中心时，`apiversion` 支持 `v1`、`v2`、`
 | Nacos / etcd / Consul / Polaris 注册与发现 | `pkg/registry` | ✅ Polaris 只发现不注册（插件未接入） |
 | 单实例获取（v1 兼容） | `RegistryClient.GetServiceURL` | ✅ |
 | 多实例获取 | `RegistryClient.GetServices` | ✅ |
+| 命名多注册中心 | `go.discovery.registries` + `client.Options.Registry` | ✅ 每实例独立缓存；未知名不回退默认实例 |
+| 作用域隔离 | `namespace` / `group` / `clusterName` 覆盖 | ✅ etcd 编入 key，Consul 走原生 namespace + 标签过滤 |
+| Nacos 版本 | `apiversion`：`v1` / `v2` / `v3` | ✅ 配置中心与注册中心分别配置 |
 | 注册结果本地缓存 | `NewCachedRegistry`（TTL + 后台刷新 + 防击穿） | ✅ |
 | HTTP 调用（`x-form`/`json`/`restful`/`file`） | `client.Call` / `client.CallCtx` | ✅ |
 | 超时 + 指数退避 + 抖动重试 + 熔断 | `client.CallResilient` / `CallResilientCtx` | ⚠️ 超时为 goroutine 兜底，底层 HTTP 不可取消 |
@@ -315,7 +323,7 @@ mgin/                                  # 框架仓库根（github.com/maczh/mgin
     │   └── sys/                       # 13 张内置系统表模型 + request DTO + vo
     ├── otel/                          # 链路抽象（SetTracerProvider/StartSpan/IsEnabled）
     ├── plugin/                        # Plugin 接口 + 包级注册表 + 6 个内置插件
-    ├── registry/                      # RegistryClient + 缓存装饰器 + 4 个后端
+    ├── registry/                      # RegistryClient + 缓存装饰器 + 多注册中心集合 + 4 个后端
     │   └── nacos/ etcd/ consul/ polaris/
     ├── utils/                         # 46 个工具文件（加解密/JWT/SFTP/条件构造/IP/…）
     └── vo/                            # Response[T] / ResponsePage[T] 统一出参
@@ -437,6 +445,22 @@ body, err = client.CallResilientCtx(ctx, "user-service", "/api/v1/users/1", &cli
 `least_connections` 需业务在请求前后调用 `loadbalancer.LeastConnectionsLB.Inc(host)` 才有真实计数，
 否则恒选第一个实例。
 
+多注册中心场景用 `Options.Registry` 指定目标实例（取值来自 `go.discovery.registries[].name`），留空使用 `defaultRegistry`：
+
+```go
+body, err = client.CallCtx(ctx, "user-service", "/api/v1/users/1", &client.Options{
+    Method:       "GET",
+    Registry:     "iot",          // 留空 = go.discovery.defaultRegistry
+    Group:        "iot",          // 仍覆盖该实例配置的 group
+    LoadBalancer: "round_robin",
+})
+```
+
+`Registry` 同时作用于负载均衡主路径（`GetServicesFrom`）与单实例兼容路径（`GetServiceURLFrom`）；
+一致性哈希 key 与 per-instance 熔断 key（`breaker(registry@service@host)`）都带注册中心名，
+不同注册中心的同名服务互不影响。名称拼错时不会回退默认实例：`GetServicesFrom` 返回错误，
+框架回退兼容路径后仍取不到 host，最终报「微服务获取 X 服务主机IP端口失败」。
+
 ### 5.5 数据访问与事务
 
 ```go
@@ -550,6 +574,10 @@ go:
 | `server` | string | 配置中心地址 |
 | `server_type` | string | `nacos` / `consul` / `etcd` / `polaris` / `springconfig` / `file` / 其他 |
 | `token` | string | Polaris Token |
+| `apiversion` | string | Nacos 配置中心接口版本：`v1`/`v2`/`v3`，默认 `v1`（写 `1`/`2`/`3` 等价） |
+| `namespace` | string | Nacos 配置中心 namespaceId（v1 以 `tenant` 传参） |
+| `username` / `password` | string | Nacos 鉴权账号；`accessToken` 为空时才用于登录换取 token |
+| `accessToken` | string | 直接使用已有 token，优先级高于用户名密码 |
 | `path` | string | `file` 模式下的配置目录 |
 | `env` | string | 环境名，决定子配置文件 `{prefix}-{env}.yml` |
 | `used` | string | 启用组件，逗号分隔（**子串匹配**，见 FAQ） |
@@ -591,7 +619,9 @@ go:
 
 | 键 | 默认 | 说明 |
 |----|------|------|
-| `registry` | — | `nacos`/`consul`/`etcd`/`polaris` |
+| `registry` | — | `nacos`/`consul`/`etcd`/`polaris`；`registries` 非空时被忽略 |
+| `registries[]` | — | 命名注册中心列表：`name`（必填，唯一）、`type`、`prefix`（子配置前缀，默认同 `type`）、`namespace`、`group`、`clusterName` |
+| `defaultRegistry` | 列表首项 | `client.Options.Registry` 留空时使用的实例名 |
 | `callType` | `x-form` | `client.Options.Protocol` 缺省值 |
 | `cacheTTL` | 60 | 服务发现缓存 TTL（秒） |
 | `cacheRefresh` | 30 | 后台刷新间隔（秒，必须小于 TTL，否则取 TTL/2） |
@@ -623,7 +653,7 @@ go:
 
 | 键 | 默认 | 说明 |
 |----|------|------|
-| `go.health.enabled` | false | 挂载 `/health/live|ready|startup` 与 `/healthz` |
+| `go.health.enabled` | false | 挂载 `/health/live`、`/health/ready`、`/health/startup` 与 `/healthz` |
 | `go.health.autoStarted` | false | 监听启动后自动 `MarkStarted()` |
 | `go.metrics.enabled` | false | **仅当**已调用 `App.EnableMetrics()` 时才参与判断 |
 
@@ -703,9 +733,40 @@ go:
       uri: "redis://127.0.0.1:6379/0"   # 或 host + port + password + database
     redis_pool: { max: 100, min: 10, idleTimeout: 300, timeout: 5 }
 
-  nacos:  { lan: "", lanNet: "", server: "127.0.0.1", port: 8848, apiversion: "v1", group: "DEFAULT_GROUP", clusterName: "DEFAULT" }
-  etcd:   { lan: "", lanNet: "", server: "127.0.0.1", port: 2379, prefix: "/mgin", group: "", clusterName: "DEFAULT" }
-  consul: { lan: "", lanNet: "", server: "127.0.0.1", port: 8500, group: "DEFAULT_GROUP", clusterName: "DEFAULT" }
+  nacos:                    # 注册中心 / 配置中心共用
+    server: 127.0.0.1
+    port: 8848
+    apiversion: v1          # v1 / v2 / v3，需与服务端版本一致
+    namespace: public       # 注册中心 namespaceId
+    group: DEFAULT_GROUP
+    clusterName: DEFAULT
+    username: ""            # 开启鉴权时填写
+    password: ""
+    accessToken: ""         # 已有 token 时直接使用，优先于用户名密码登录
+    lan: ""                 # true 时优先用内网 IP 注册
+    lanNet: ""
+
+  etcd:
+    server: 127.0.0.1
+    port: 2379
+    prefix: /mgin
+    namespace: ""           # 编入 key，具体位置由 keyTemplate 决定
+    group: ""
+    clusterName: DEFAULT
+    keyTemplate: "{prefix}/{group}/{service}/{instance}"   # 支持 {namespace}/{prefix}/{group}/{cluster}/{service}/{instance}
+    lan: ""
+    lanNet: ""
+
+  consul:
+    server: 127.0.0.1
+    port: 8500
+    token: ""               # Consul ACL token
+    namespace: ""           # Consul Enterprise namespace，社区版留空
+    group: DEFAULT_GROUP
+    clusterName: DEFAULT    # 以服务标签形式过滤实例
+    lan: ""
+    lanNet: ""
+
   polaris:{ token: "", lan: "", lanNet: "", server: "127.0.0.1", port: 8091, namespace: "default" }
 ```
 
@@ -830,8 +891,19 @@ SQLite、PostgreSQL、Kafka 等不参与；且 `db.Redis.Check()`、`db.Sqlite.C
 
 文件名规则固定为 `{prefix}-{env}.yml`：
 `go.config.prefix.mysql` 的值是 `mysql`、`go.config.env` 是 `test`，则文件名为 `mysql-test.yml`。
-Nacos/默认分支的 URL 拼接**不会自动补 `/`**，`go.config.server` 需要以 `/` 结尾
-（例如 `http://127.0.0.1:8848/`）。
+
+`server_type: nacos` 时 URL 由 `apiversion` 决定，`server` 末尾有无 `/` 都可以（框架会去掉尾部斜杠）：
+
+| apiversion | 请求路径 |
+|---|---|
+| v1 | `{server}/nacos/v1/cs/configs?group=&dataId=&tenant=` |
+| v2 | `{server}/nacos/v2/cs/config?group=&dataId=&namespaceId=` |
+| v3 | `{server}/nacos/v3/client/cs/config?groupName=&dataId=&namespaceId=`，响应取 `data.content` |
+
+常见原因：`apiversion` 与服务端不一致、`go.config.namespace` 与实际命名空间不一致、
+开启鉴权却没配 `accessToken` 或 `username/password`（v3 登录路径为 `/nacos/v3/auth/user/login`）。
+其它来源（consul/etcd/polaris/springconfig）以及 `server_type` 未识别的默认分支不会自动补 `/`，
+此时 `server` 需自带斜杠。
 
 ### Q9. 使用 Polaris 时服务能发现、但注册不上去
 
@@ -864,6 +936,16 @@ Nacos/默认分支的 URL 拼接**不会自动补 `/`**，`go.config.server` 需
 
 先确认是否缺少 MySQL/Redis/etcd/consul/polaris。框架大量测试是集成型测试，
 无外部依赖时请按 7.1 的命令只跑核心包。
+
+### Q15. 配了 `go.discovery.registries`，调用却仍走旧注册中心 / 报「微服务获取 X 服务主机IP端口失败」
+
+- `registries` 非空时 `go.discovery.registry` 与 `used` 里的 `nacos`/`etcd`/`consul` 都不再决定注册：
+  `plugin.Registry()` 直接启用，`RegisterConfigured()` 按每个条目的 `prefix` 读子配置并逐一注册。
+- `client.Options.Registry` 必须与某个 `name` 完全一致。未知名**不会**回退 `defaultRegistry`：
+  `GetServicesFrom` 返回错误后框架回落到兼容路径，仍取不到 host，最终只报「微服务获取 X 服务主机IP端口失败」。
+- `type` 只支持 `nacos`/`etcd`/`consul`/`polaris`，其它值会被跳过（不报错，等于该实例不存在）；
+  `name` 重复时只保留第一个。
+- 每个实例有独立缓存，改完 `group`/`namespace` 后需等 `cacheTTL` 过期或重启。
 
 ---
 
