@@ -300,7 +300,8 @@ registry.Registry.Register(config.Config.GetConfigData("polaris"))
 
 ## 8. 多环境与多注册中心
 
-- 一个进程只使用一个注册中心（`go.discovery.registry` 单值）。
+- 单注册中心：`go.discovery.registry` 单值，切换环境只改 `env`（子配置文件后缀）。
+- 多注册中心：`go.discovery.registries` 命名实例并存，调用侧用 `client.Options.Registry` 选择（见 §4.1）。
 - 跨集群调用：让调用方与目标服务注册到同一注册中心、同一 group/namespace。
 - 单元化/多区域：当前没有就近路由，需要在注册中心元数据或网关层实现。
 

@@ -9,6 +9,8 @@ MGin 是一个基于 [Gin](https://github.com/gin-gonic/gin) 的 Go 微服务运
 
 > 说明：仓库另有 `master` 分支（模块路径 `github.com/maczh/mgin/v2`，tag `v2.0.x`）。两条线的目录结构、API 与能力不同，本文档**只描述 `jh` 分支**。`README_CN.md`/`README_en.md` 是历史长文手册，其中 PostgreSQL、ClickHouse、ElasticSearch、Kafka、S3、内置系统管理模块等章节在本分支**没有实现**，请以本文与 `docs/` 为准（见 [功能边界](#24-当前分支未实现的能力)）。
 
+> 近期（2026-10）能力更新：Nacos 注册中心/配置中心支持 **v1/v2/v3**；`go.discovery.registries` **多注册中心**并存；服务发现本地缓存（TTL + singleflight + 热刷新）与实例选择策略；`client.Call` 的**超时/重试/熔断/降级回放**；etcd/Consul 的 namespace/group/cluster 作用域；Redis `Check()` 改为真实 `Ping()`。详见 [§2](#2-核心功能清单)、[§5.5](#55-多注册中心与-nacos-版本)、[§6.4](#64-微服务调用)、[§7](#7-常见问题与故障排查)。
+
 ---
 
 ## 目录
@@ -61,23 +63,26 @@ MGin 提供「一个进程内可完成的微服务底座」：`mgin.NewApp(...)`
 | 4 | MySQL | `db.Mysql` | `used` 含 `mysql` | GORM v2，多库、连接池、断线重连 |
 | 5 | SQLite | `db.Sqlite` | `used` 含 `sqlite` | 纯 Go 驱动（`glebarez/sqlite`），无需 CGO |
 | 6 | MongoDB | `db.Mongo` | `used` 含 `mongodb` | 多库、连接自愈 |
-| 7 | Redis | `db.Redis` | `used` 含 `redis` | 多库、订阅；`Check()` 恒成功（见 §7） |
+| 7 | Redis | `db.Redis` | `used` 含 `redis` | 多库、订阅；`Check()` 真实 `Ping()`，参与 `/health/ready` |
 | 8 | 泛型 DAO | `db/dao` | 代码 | `MySQLDao[E]` / `MgoDao[E]`，含 `Where*` 缓存、事务绑定 |
 | 9 | 缓存 | `cache` | 代码 | 内存（带过期）/ bitcask 磁盘 |
-| 10 | 服务调用 | `client.Call` / `CallT` / `CallPageT` / `CallResultT` | 代码 | `x-form` / `json` / `restful` / `file` 四种协议 |
-| 11 | 注册发现 | `registry.Registry` | `go.discovery.registry` | Nacos / Consul / etcd / Polaris + 本地缓存 |
-| 12 | 中间件 | `middleware/*` | `Use` / 配置 | trace、postlog、cors 恒启用；jwt、casbin、xss、iplimit、limit、session、ratelimit 按需 |
-| 13 | 限流 | `middleware/ratelimit` | `go.ratelimit.enabled` | 令牌桶 / 滑动窗口 / 并发；维度 global/ip/path/ip_path/header |
-| 14 | 国际化 | `i18n` | `NewApp(..., true)` 或 `go.i18n.enabled` | 字典落 MySQL/SQLite，按 `X-Lang` 取词 |
-| 15 | 错误码 | `errcode` | 代码 | 1000–1014 业务码 + messageId |
-| 16 | 日志 | `logs` | 自动 | 控制台 / 文件 / VictoriaLogs；`{}` 占位符 |
-| 17 | 日志管道 | `logsink` | 代码 | 每 handler 单协程 FIFO 队列，满时淘汰最旧 |
-| 18 | 定时任务 | `job` | `go.job.enabled` | cron/fixed_rate/fixed_delay/once，管理路由 `/job/*` |
-| 19 | 健康探针 | `health` | `go.health.enabled` 或 `App.EnableHealth()` | `/healthz`、`/health/live`、`/health/ready`、`/health/startup` |
-| 20 | 指标 | `metrics` | `go.metrics.enabled` 或 `App.EnableMetrics()` | `/metrics`，HTTP/构建/插件指标 |
-| 21 | 工具集 | `utils` | 代码 | 加密、编码、IP、文件、切片、并发容器等 |
-| 22 | 插件扩展 | `mgin.MGin.Use` / `UsePlugin` | 代码 | 按 `used` 自动初始化外部组件 |
-| 23 | 脚手架 | `cmd/mgin` | 命令行 | 生成 main/router/controller/service/dao/model/conf/Makefile |
+| 10 | 服务调用 | `client.Call` / `CallT` / `CallPageT` / `CallResultT` | 代码 | `x-form` / `json` / `restful` / `file` 四种协议；超时、单次重试、熔断、降级回放 |
+| 11 | 注册发现 | `registry.Registry` | `go.discovery.registry` | Nacos / Consul / etcd / Polaris 统一接口 |
+| 12 | 多注册中心 | `go.discovery.registries` + `client.Options.Registry` | 配置 | 命名实例并存；同集群可共享 `prefix`，按实例覆盖 namespace/group/clusterName |
+| 13 | 发现缓存与选路 | `registry.CachedRegistry` | `go.discovery.cacheTTL` 等 | TTL + singleflight + 热刷新 + 下线订阅；`random`/`round_robin`/`weighted` |
+| 14 | 熔断与降级 | `client.Options` | `go.discovery.circuitFailures` / `go.client.fallback.enabled` | 连续失败打开熔断，半开探测；可回放上次成功响应 |
+| 15 | 中间件 | `middleware/*` | `Use` / 配置 | trace、postlog、cors 恒启用；jwt、casbin、xss、iplimit、limit、session、ratelimit 按需 |
+| 16 | 限流 | `middleware/ratelimit` | `go.ratelimit.enabled` | 令牌桶 / 滑动窗口 / 并发；维度 global/ip/path/ip_path/header |
+| 17 | 国际化 | `i18n` | `NewApp(..., true)` 或 `go.i18n.enabled` | 字典落 MySQL/SQLite，按 `X-Lang` 取词 |
+| 18 | 错误码 | `errcode` | 代码 | 1000–1014 业务码 + messageId |
+| 19 | 日志 | `logs` | 自动 | 控制台 / 文件 / VictoriaLogs；`{}` 占位符 |
+| 20 | 日志管道 | `logsink` | 代码 | 每 handler 单协程 FIFO 队列，满时淘汰最旧 |
+| 21 | 定时任务 | `job` | `go.job.enabled` | cron/fixed_rate/fixed_delay/once，管理路由 `/job/*` |
+| 22 | 健康探针 | `health` | `go.health.enabled` 或 `App.EnableHealth()` | `/healthz`、`/health/live`、`/health/ready`、`/health/startup` |
+| 23 | 指标 | `metrics` | `go.metrics.enabled` 或 `App.EnableMetrics()` | `/metrics`，HTTP/构建/插件指标 |
+| 24 | 工具集 | `utils` | 代码 | 加密、编码、IP、文件、切片、并发容器等 |
+| 25 | 插件扩展 | `mgin.MGin.Use` / `UsePlugin` | 代码 | 按 `used` 自动初始化外部组件 |
+| 26 | 脚手架 | `cmd/mgin` | 命令行 | 生成 main/router/controller/service/dao/model/conf/Makefile |
 
 ### 2.4 当前分支未实现的能力
 
@@ -109,7 +114,7 @@ App 运行时 (app.go)  ── 中间件链 / 路由 / 生命周期 / 重载
         ├── config（配置聚合 + 配置中心）
         ├── i18n / errcode（文案与错误码）
         ├── logs / logsink（运行日志与访问日志管道）
-        ├── client / registry（调用与发现）
+        ├── client / registry（调用治理 + 多注册中心 + 发现缓存）
         ├── job（调度器 + 管理接口）
         └── db（mysql / sqlite / mongo / redis）── cache
                 │
@@ -179,9 +184,10 @@ mgin/
 ├── db/                     # 数据源门面（Mysql/Mongo/Redis/Sqlite）+ 事务
 │   └── dao/                # MySQLDao / MgoDao / RedisCache / Dao 接口
 ├── cache/                  # ICache、MemCache、DiskCache(bitcask)
-├── client/                 # 微服务调用（四种协议 + 泛型返回）
-├── registry/               # 注册发现统一接口 + 本地缓存装饰器
+├── client/                 # 微服务调用（四种协议、超时/重试/熔断/降级 + 泛型返回）
+├── registry/               # 注册发现统一接口、多注册中心集合、本地缓存装饰器
 │   ├── consul/  etcd/  nacos/  polaris/
+│   ├── model/              # 统一实例模型（URL/权重/元数据）
 ├── middleware/             # trace/postlog/cors/ratelimit/jwt/casbin/xss/iplimit/limit/session/xlang
 ├── models/                 # Result/ResultPage/PostLog/Timestamp
 │   ├── vo/                 # Response/ResponsePage（code/msg/data/srvTime）
@@ -241,6 +247,9 @@ go:
 | | `go.config.env` | 空 | 子配置文件后缀：`<prefix>-<env>.yml` |
 | | `go.config.path` | 空 | `file` 模式的目录覆盖 |
 | | `go.config.token` | 空 | Polaris 配置中心 token |
+| | `go.config.apiversion` | `v1` | Nacos 配置中心接口版本：`v1`/`v2`/`v3`（`1`/`2`/`3` 等价） |
+| | `go.config.namespace` | 空 | Nacos 配置中心 namespaceId（v1 以 `tenant` 传参） |
+| | `go.config.username` / `password` / `accessToken` | 空 | Nacos 鉴权；`accessToken` 优先，为空时用用户名密码登录换取 token |
 | | `go.config.reload.token` | 空 | 非空才注册 `PUT /cfg/reload`；请求头 `X-MGin-Reload-Token` 或 `Bearer` |
 | 日志 | `go.logger.level` | error | debug/info/warn/error |
 | | `go.logger.out` / `file` | 空 | 旧式输出：`console`/`file`，文件按天切分 |
@@ -250,6 +259,8 @@ go:
 | | `go.log.sink.queue` / `workers` / `shutdown` | 100 / 1 / 3000 | 队列上限、消费协程（强制 1）、关闭超时(ms) |
 | | `go.log.victorialogs.*` | 空 | `url`/`api_token`/`api_crt`/`request`/`client`/`timeout` |
 | 发现 | `go.discovery.registry` | 空 | `nacos`/`consul`/`etcd`/`polaris`；空则用空实现（不注册不发现） |
+| | `go.discovery.registries[]` | 空 | 命名注册中心实例：`name`/`type`/`prefix`/`namespace`/`group`/`clusterName`；**非空时取代 `registry`**，见 §5.5 |
+| | `go.discovery.defaultRegistry` | 列表首项 | `client.Options.Registry` 为空时使用的实例名 |
 | | `go.discovery.callType` | `x-form` | 调用协议默认值 |
 | | `go.discovery.cacheTTL` / `cacheRefresh` | 60 / 60（秒） | 发现结果缓存与热刷新 |
 | | `go.discovery.strategy` | `random` | `random`/`round_robin`/`weighted` 实例选择策略 |
@@ -287,7 +298,71 @@ go:
     redis_pool: { min: 3, max: 100, idleTimeout: 10, timeout: 300 }
 ```
 
-多库示例、MongoDB 与 SQLite 说明见 [配置与数据结构设计](docs/development/03-development/04-data-access.md#2-数据源与配置键)。
+```yaml
+# nacos-test.yml（注册中心与配置中心共用同一份子配置）
+go:
+  nacos:
+    server: 127.0.0.1
+    port: 8848
+    apiversion: v3            # v1/v2/v3，默认 v1，需与服务端版本一致
+    namespace: public         # 注册中心 namespace
+    clusterName: DEFAULT
+    group: DEFAULT_GROUP
+    username: nacos           # 开启鉴权时填写
+    password: ""
+    accessToken: ""           # 已有 token 时直接使用，优先于用户名密码登录
+    lan: true                 # 优先用内网 IP 注册
+    lanNet: 192.168.          # 内网网段前缀，配合 lan
+```
+
+使用本地子配置文件时要显式配置 `go.config.server_type: file`（留空会按 HTTP 源拼接地址，子配置取不到）；除 `sqlite` 外，`go.config.prefix.<组件>` 都是文件名前缀，框架按 `<prefix>-<env>.yml` 查找。多库示例、MongoDB 与 SQLite 说明见 [配置与数据结构设计](docs/development/03-development/04-data-access.md#2-数据源与配置键)。
+
+### 5.5 多注册中心与 Nacos 版本
+
+**多注册中心**：当服务需要同时访问多个注册中心（或多活/单元化的不同 namespace/group）时，用命名列表替代单值 `registry`。同集群的多个条目可共享同一 `prefix`，服务器地址与凭据只维护一份，差异用 `namespace`/`group`/`clusterName` 覆盖。
+
+```yaml
+go:
+  config:
+    env: test
+  discovery:
+    defaultRegistry: jhris        # 不带 Registry 的调用走它
+    registries:
+      - name: jhris
+        type: nacos
+        prefix: nacos             # → nacos-test.yml
+        group: jhris
+      - name: iot
+        type: nacos
+        prefix: nacos             # 复用同一 Nacos 集群
+        group: iot
+      - name: finance-bank
+        type: nacos
+        prefix: nacos
+        namespace: finance
+        group: bank_account
+        clusterName: DEFAULT
+```
+
+| 项 | 行为 |
+|---|---|
+| 启用条件 | `go.discovery.registries` 非空即生效，`go.discovery.registry` 与 `used` 中的 `nacos`/`etcd`/`consul` 只影响其他组件，不再决定注册动作 |
+| 初始化 | `mgin.Init`/`NewApp` 调用 `registry.RegisterConfigured()`，逐实例读取各自 `prefix` 子配置并注册 |
+| 作用域覆盖 | 覆盖后的 YAML 会合并进子配置：Nacos/Consul 用 `namespace`/`group`/`clusterName`；etcd 编码进 key（覆盖 `namespace`/`cluster` 时默认 `keyTemplate` 为 `{namespace}/{prefix}/{group}/{cluster}/{service}/{instance}`）；Consul 额外按 group + cluster 标签过滤实例 |
+| 缓存与订阅 | 每个命名实例有独立缓存、热刷新与下线订阅，互不影响 |
+| 注销 | `DeRegister` 一次性注销全部实例，重复调用安全 |
+| 选择后端 | `client.Options.Registry`；未知名称**不回退**默认实例，直接返回发现失败 |
+| 兼容 | 未配置 `registries` 时，原有 `registry` + `used` + `prefix.<type>` 行为不变 |
+
+**Nacos 版本**：`apiversion` 在配置中心（`go.config.apiversion`）和注册中心（`go.nacos.apiversion`）分别配置，均支持 `v1`/`v2`/`v3`，缺省按 `v1` 处理。
+
+| 用途 | v1 | v2 | v3 |
+|---|---|---|---|
+| 配置中心 | `/nacos/v1/cs/configs?tenant=` | `/nacos/v2/cs/config?namespaceId=` | `/nacos/v3/client/cs/config?groupName=&namespaceId=`，读取 `data.content` |
+| 注册/发现 | `/nacos/v1/ns/instance`、`clusters` | `/nacos/v2/ns/instance`、`clusterName` | `/nacos/v3/client/ns/instance`，续约走注册接口 + `heartBeat=true` |
+| 登录 | `/nacos/v1/auth/login` | 同 v1 | `/nacos/v3/auth/user/login` |
+
+发现响应结构差异由框架内部解析（v2/v3 为 `{code,message,data}` 包装），业务代码无需区分。v3 的 HTTP OpenAPI 不提供服务推送，框架仍使用轮询 watcher。
 
 ---
 
@@ -383,6 +458,20 @@ if resp.Code != vo.SUCCESS {
 
 调用链内置三层保护：`Options.Timeout`/`go.client.timeout`（默认 10s）→ `Retry`（重试一次）→ 熔断（`go.discovery.circuitFailures`，默认 3 次失败后打开 30s），并可用 `Options.Fallback` 或 `go.client.fallback.enabled` 回放上次成功响应。详见 [服务调用](docs/development/03-development/03-service-call.md)。
 
+多注册中心场景用 `Options.Registry` 选择目标实例（名称来自 `go.discovery.registries[].name`），留空走 `defaultRegistry`：
+
+```go
+result, err := client.Call("iot-service", "/api/v1/device/query", &client.Options{
+    Method:   http.MethodPost,
+    Protocol: "x-form",
+    Registry: "iot",          // 留空 = go.discovery.defaultRegistry
+    Group:    "iot",          // 仍覆盖该实例配置的 group
+    Data:     map[string]any{"sn": "A001"},
+})
+```
+
+熔断 key（默认 `registry + service + uri`）、降级缓存与响应缓存都按注册中心名隔离，同名服务在不同注册中心之间不会互相污染；名称拼错时不会回退默认实例，而是直接返回「微服务获取 X 服务主机IP端口失败」。
+
 ### 6.5 鉴权中间件挂载顺序
 
 ```go
@@ -436,7 +525,7 @@ go mod tidy && go build -o demo . && ./demo
 `Check()` 失败会自动重连一次，仍失败才返回 503；检查 `go.config.used` 是否包含 `mysql`/`mongodb`/`redis`。SQLite 不参与就绪检查。
 
 **Q6：Redis 挂了，`/health/ready` 仍然 200？**
-`db/redis` 的 `Check()` 当前为空实现，恒返回 nil（已知问题，见 [架构风险](docs/development/02-concepts/01-architecture.md#8-已知风险与技术债)）。
+`db/redis` 的 `Check()` 已改为真实 `Ping()`（多库逐个校验，任一失败即返回错误），因此 Redis 不可用时 `/health/ready` 会返回 503。若仍为 200，确认 `used` 含 `redis`，且连接已初始化（未初始化时 `Check()` 会返回 `redis connection is not initialized`）。
 
 **Q7：限流触发后客户端收到 200？**
 `ratelimit` 默认用 HTTP 200 + 业务码 `1011`（`errcode.TOO_MANY_REQUESTS`）表达限流，可在规则中配置 `httpStatus` 改为 429。
@@ -464,6 +553,15 @@ go mod tidy && go build -o demo . && ./demo
 
 **Q15：日志等级设了 debug 但看不到 debug 日志？**
 `go.logger.level` 默认 `error`；`go.application.debug: true` 会强制 debug。使用 `outputs` 时各目标共享同一等级阈值。
+
+**Q16：Nacos 配置中心升级到 v2/v3 后子配置读不到？**
+先确认 `go.config.apiversion` 与服务端一致（v1/v2/v3 的路径、参数名与响应结构都不同，v3 读 `data.content`）；再确认 `go.config.namespace` 与 dataId 所在的 namespace 一致。开启鉴权时 v1 与 v3 的登录路径不同（`/nacos/v1/auth/login` 与 `/nacos/v3/auth/user/login`），可先用 `accessToken` 直接验证。鉴权或路径不匹配时子配置会返回 nil，只记录日志不返回错误，需留意启动日志中的「配置中心登录失败」「配置中心请求返回 HTTP」等提示。
+
+**Q17：多注册中心调用返回「微服务获取 X 服务主机IP端口失败」？**
+`Options.Registry` 必须与 `go.discovery.registries[].name` 完全一致，未知名称**不会**回退到 `defaultRegistry`；同时确认该实例的 `prefix` 指向的子配置能被读到（本地文件需 `go.config.server_type: file`）。每个实例有独立缓存，修改 group/namespace 后要等 `cacheTTL` 过期或重启生效。
+
+**Q18：多实例部署后注册中心出现重复实例（同一 IP:端口登记多次）？**
+Consul 的实例 ID 由 IP、端口、服务名、namespace、group、cluster 共同哈希（12 位），同机部署在不同 namespace/group 的实例会被区分开。若仍是重复，检查是否同时配置了 `go.discovery.registry` 与 `go.discovery.registries`（后者生效），或子配置中 `group`/`clusterName` 与注册中心控制台不一致。
 
 ---
 
