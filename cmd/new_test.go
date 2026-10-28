@@ -109,6 +109,9 @@ func TestNormalizePluginsAndGenerateRegistration(t *testing.T) {
 	if opts.DataLayer != "memory" {
 		t.Fatalf("external database plugin unexpectedly selected business DAO: %s", opts.DataLayer)
 	}
+	if opts.GoVersion != "1.25.9" {
+		t.Fatalf("GoVersion = %q, want 1.25.9 for opensearch", opts.GoVersion)
+	}
 	generated := render(tmplPlugins, opts)
 	for _, want := range []string{
 		`"github.com/maczh/opensearch"`,

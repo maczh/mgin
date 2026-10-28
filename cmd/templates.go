@@ -25,6 +25,7 @@ type ProjectOptions struct {
 
 	// 以下为推导字段
 	Env          string           // 环境标识, 默认 test
+	GoVersion    string           // 生成项目的最低 Go 版本
 	BaseURI      string           // 路由基础路径
 	UsedList     string           // go.config.used 的逗号串
 	PrefixBlock  string           // go.config.prefix 的 yaml 片段
@@ -257,14 +258,17 @@ private: false
     hive:
       host: 127.0.0.1
       port: 10000
-      username: hive
+      auth: NONE
+      user: hive
+      password: ""
       database: default
 `,
 	"hbase": `go:
   data:
     hbase:
-      host: 127.0.0.1
-      port: 9090
+      zkquorum: 127.0.0.1:2181
+      zkroot: /hbase
+      user: ""
 `,
 	"mssql": `go:
   data:
@@ -520,7 +524,7 @@ func (s *ProductService) Get(id int64) (*model.Product, error) {
 
 const tmplGoMod = `module {{.Module}}
 
-go 1.25
+go {{.GoVersion}}
 
 require (
 	github.com/gin-gonic/gin v1.11.0

@@ -63,6 +63,8 @@ mgin new <project-name> [options]
 ./bin/mgin new data-api --plugins opensearch,postgres,s3 --output /tmp
 ```
 
+> `opensearch` 当前要求 Go ≥ 1.25.9，选择后脚手架会相应提高生成项目的 `go` 版本。`tdengine` 编译运行还需要系统安装 TDengine C SDK（包含 `taos.h`）。
+
 生成后：
 
 ```bash

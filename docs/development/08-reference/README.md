@@ -11,6 +11,7 @@
 | [types.md](types.md) | 导出类型定义、字段、嵌套关系 | 查结构体 |
 | [protocols.md](protocols.md) | HTTP 响应信封、错误码、Header、各端点协议、调用协议 | 对接前后端/跨服务 |
 | [commands.md](commands.md) | 脚手架命令、Makefile、常用运维命令 | 构建与运维 |
+| [mgin-cli-manual.md](mgin-cli-manual.md) | `mgin new` 完整参数、插件、注册中心与示例 | 新建项目 |
 
 ## 覆盖范围与约定
 

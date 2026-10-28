@@ -162,6 +162,7 @@ func (o *ProjectOptions) HasMQKey(key string) bool {
 // computeDerived 根据用户输入推导 used/prefix/数据层/配置中心等字段。
 func computeDerived(o *ProjectOptions) {
 	o.Env = "test"
+	o.GoVersion = "1.25"
 	o.BaseURI = "/api/v1"
 
 	comps := make([]string, 0)
@@ -206,6 +207,9 @@ func computeDerived(o *ProjectOptions) {
 		o.PluginDefs = append(o.PluginDefs, PluginMetadata{Name: key, Path: p.modulePath, Pkg: p.pkgName, Expr: p.expr, Version: p.version})
 	}
 	o.HasPlugins = len(o.PluginDefs) > 0
+	if indexOf(o.Plugins, "opensearch") >= 0 {
+		o.GoVersion = "1.25.9"
+	}
 	add(o.Registry)
 	for _, registry := range o.Registries {
 		add(registry.Type)
