@@ -14,8 +14,7 @@ import (
 var logger = gologger.GetLogger()
 
 const (
-	defaultCacheTTL     = 3 * time.Second
-	defaultCacheRefresh = 1 * time.Second
+	defaultCacheTTL = 5 * time.Second
 )
 
 // CachedRegistry 是在真实注册中心客户端之上的一层“服务发现缓存装饰器”。
@@ -27,8 +26,7 @@ const (
 //     避免把所有微服务调用瞬间打挂。
 //  3. 并发：对同一服务名+分组的并发发现请求做 singleflight 合并，只打一次后端。
 //
-// 后台有一个轻量刷新协程，仅对“仍被访问（热）”的 key 周期性重新发现，
-// 以便在 TTL 窗口内让负载在多个实例间轮换，并在实例下线时及时剔除。
+// 缓存条目保留 5 秒，过期后删除；只有下一次请求到来时才重新查询注册中心。
 type CachedRegistry struct {
 	delegate RegistryClient
 
@@ -41,18 +39,14 @@ type CachedRegistry struct {
 	watchers map[string]func()
 	stopped  bool
 
-	refresh *time.Ticker
-	stop    chan struct{}
-	once    sync.Once
+	once sync.Once
 }
-
 type cacheEntry struct {
 	url        string
 	group      string
 	service    string
 	groupArgs  []string
 	expiresAt  time.Time
-	lastAccess time.Time
 }
 
 // singleFlight 合并同一 key 的并发发现请求，leader 真正调用后端，follower 等待结果。
@@ -65,24 +59,12 @@ func NewCachedRegistry(delegate RegistryClient) *CachedRegistry {
 	if delegate == nil {
 		delegate = &noopRegistryClient{}
 	}
-	var ttl, refresh time.Duration
-	if config.Config != nil {
-		ttl = config.Config.Discovery.CacheTTL
-		refresh = config.Config.Discovery.CacheRefresh
-	}
-	if ttl <= 0 {
-		ttl = defaultCacheTTL
-	}
-	if refresh <= 0 {
-		refresh = defaultCacheRefresh
-	}
 	c := &CachedRegistry{
 		delegate: delegate,
 		entries:  make(map[string]*cacheEntry),
 		inflight: make(map[string]*singleFlight),
 		watchers: make(map[string]func()),
-		ttl:      ttl,
-		stop:     make(chan struct{}),
+		ttl:      defaultCacheTTL,
 	}
 	c.strategy = StrategyRandom
 	if config.Config != nil {
@@ -90,8 +72,6 @@ func NewCachedRegistry(delegate RegistryClient) *CachedRegistry {
 			c.strategy = SelectionStrategy(v)
 		}
 	}
-	c.refresh = time.NewTicker(refresh)
-	go c.backgroundRefresh()
 	if subscriber, ok := delegate.(OfflineSubscriber); ok {
 		_ = subscriber.SubscribeOffline(func(service, group string) { c.Invalidate(service, group) })
 	}
@@ -200,12 +180,12 @@ func (c *CachedRegistry) GetServiceURL(servicename string, groupName ...string) 
 
 	c.mu.Lock()
 	if entry, ok := c.entries[key]; ok {
-		entry.lastAccess = time.Now()
 		if time.Now().Before(entry.expiresAt) {
 			url, grp := entry.url, entry.group
 			c.mu.Unlock()
 			return url, grp
 		}
+		delete(c.entries, key)
 	}
 	c.mu.Unlock()
 	if provider, ok := c.delegate.(InstanceProvider); ok {
@@ -213,7 +193,7 @@ func (c *CachedRegistry) GetServiceURL(servicename string, groupName ...string) 
 		selected := selectInstances(instances, c.strategy, &c.sequence)
 		if len(selected) > 0 && selected[0].URL != "" {
 			c.mu.Lock()
-			c.entries[key] = &cacheEntry{url: selected[0].URL, group: group, service: servicename, groupArgs: groupName, expiresAt: time.Now().Add(c.ttl), lastAccess: time.Now()}
+			c.entries[key] = &cacheEntry{url: selected[0].URL, group: group, service: servicename, groupArgs: groupName, expiresAt: time.Now().Add(c.ttl)}
 			c.mu.Unlock()
 			c.watch(servicename, group)
 			return selected[0].URL, group
@@ -251,15 +231,7 @@ func (c *CachedRegistry) GetServiceURL(servicename string, groupName ...string) 
 			service:    servicename,
 			groupArgs:  groupName,
 			expiresAt:  time.Now().Add(c.ttl),
-			lastAccess: time.Now(),
 		}
-	} else if e, ok := c.entries[key]; ok {
-		// 后端无实例但有旧缓存：降级复用，避免全部调用失败
-		e.expiresAt = time.Now().Add(c.ttl)
-		e.lastAccess = time.Now()
-		url = e.url
-		grp = e.group
-		logger.Warn("服务 " + servicename + " 发现后端无实例，复用旧缓存实例: " + url)
 	}
 	delete(c.inflight, key)
 	if !exists {
@@ -279,8 +251,6 @@ func (c *CachedRegistry) Register(registryConfigData []byte) {
 
 func (c *CachedRegistry) DeRegister() {
 	c.once.Do(func() {
-		c.refresh.Stop()
-		close(c.stop)
 		c.mu.Lock()
 		for key, cancel := range c.watchers {
 			if cancel != nil {
@@ -294,50 +264,4 @@ func (c *CachedRegistry) DeRegister() {
 			c.delegate.DeRegister()
 		}
 	})
-}
-
-// backgroundRefresh 周期性刷新“热”key，让负载在实例间轮换并剔除已下线的实例。
-func (c *CachedRegistry) backgroundRefresh() {
-	for {
-		select {
-		case <-c.stop:
-			return
-		case <-c.refresh.C:
-			c.refreshHot()
-		}
-	}
-}
-
-func (c *CachedRegistry) refreshHot() {
-	c.mu.Lock()
-	keys := make([]string, 0, len(c.entries))
-	svcs := make([]string, 0, len(c.entries))
-	args := make([][]string, 0, len(c.entries))
-	for k, e := range c.entries {
-		if time.Since(e.lastAccess) < c.ttl {
-			keys = append(keys, k)
-			svcs = append(svcs, e.service)
-			args = append(args, e.groupArgs)
-		}
-	}
-	c.mu.Unlock()
-
-	for i, k := range keys {
-		url, grp := c.delegate.GetServiceURL(svcs[i], args[i]...)
-		c.mu.Lock()
-		if url != "" {
-			if e, ok := c.entries[k]; ok {
-				e.url = url
-				e.group = grp
-				e.expiresAt = time.Now().Add(c.ttl)
-				e.lastAccess = time.Now()
-			} else {
-				c.entries[k] = &cacheEntry{
-					url: url, group: grp, service: svcs[i], groupArgs: args[i],
-					expiresAt: time.Now().Add(c.ttl), lastAccess: time.Now(),
-				}
-			}
-		}
-		c.mu.Unlock()
-	}
 }
