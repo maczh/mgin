@@ -50,8 +50,8 @@ func TestCachedRegistry_CacheHit(t *testing.T) {
 	}
 }
 
-func TestCachedRegistry_StaleFallbackOnError(t *testing.T) {
-	// 用极短 TTL 强制缓存过期，使下一次读取必须回源；此时 fake 报错但已有旧数据，应降级返回旧数据。
+func TestCachedRegistry_ExpiredCacheIsRemoved(t *testing.T) {
+	// 缓存固定保留 5 秒；过期后删除，下一次读取必须回源且不复用旧数据。
 	config.Config.Discovery.CacheTTL = 1
 	fc := &fakeClient{urls: []string{"http://10.0.0.1:8080"}, afterEmpty: true}
 	c := NewCachedRegistry(fc)
@@ -61,18 +61,17 @@ func TestCachedRegistry_StaleFallbackOnError(t *testing.T) {
 	if _, err := c.GetServices("svcB"); err != nil {
 		t.Fatalf("首次调用应成功: %v", err)
 	}
-	// 等待缓存过期（TTL=1s），下一次读取回源将失败
-	time.Sleep(1200 * time.Millisecond)
+	// 等待缓存过期（固定 TTL=5s），下一次读取回源将失败
+	time.Sleep(5200 * time.Millisecond)
 	urls, err := c.GetServices("svcB")
-	if err != nil {
-		t.Fatalf("注册中心抖动时应降级返回旧数据，但报错: %v", err)
+	if err == nil {
+		t.Fatalf("缓存过期后应返回注册中心错误")
 	}
-	if len(urls) != 1 || urls[0] != "http://10.0.0.1:8080" {
-		t.Fatalf("降级应返回旧实例列表，实际 %v", urls)
+	if len(urls) != 0 {
+		t.Fatalf("过期缓存应删除，实际返回 %v", urls)
 	}
-	// 必须确实回源过（第二次回源失败被降级吞掉），验证未走缓存命中
-	if fc.calls < 2 {
-		t.Fatalf("期望至少回源 2 次（首次成功 + 过期后降级回源），实际 %d 次", fc.calls)
+	if fc.calls != 2 {
+		t.Fatalf("期望回源 2 次（首次成功 + 过期后按需回源），实际 %d 次", fc.calls)
 	}
 }
 
