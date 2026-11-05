@@ -175,7 +175,7 @@ Nacos 作为配置中心和注册中心时，`apiversion` 支持 `v1`、`v2`、`
                         ┌──────────────────────────────────────────┐
    HTTP/HTTPS  :port    │              gin.Engine                  │
    ──────────────────►  │  /health/*  /metrics  /healthz  (最先挂) │
-                        │  trace → postlog → cors → xlang →        │
+                        │  requestid? → trace → postlog → cors → xlang → │
                         │  ratelimit → recovery → 业务路由         │
                         └───────────────┬──────────────────────────┘
                                         │ controller
@@ -656,6 +656,7 @@ go:
 | `go.health.enabled` | false | 挂载 `/health/live`、`/health/ready`、`/health/startup` 与 `/healthz` |
 | `go.health.autoStarted` | false | 监听启动后自动 `MarkStarted()` |
 | `go.metrics.enabled` | false | **仅当**已调用 `App.EnableMetrics()` 时才参与判断 |
+| `go.requestid.enabled` | false | 启用 `X-Request-ID` 幂等拦截；缺失返回 400，60 秒内重复返回 409 |
 
 #### `go.ratelimit.*`
 

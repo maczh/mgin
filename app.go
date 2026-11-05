@@ -17,6 +17,7 @@ import (
 	"github.com/maczh/mgin/v2/pkg/metrics"
 	"github.com/maczh/mgin/v2/pkg/middleware/cors"
 	"github.com/maczh/mgin/v2/pkg/middleware/postlog"
+	"github.com/maczh/mgin/v2/pkg/middleware/requestid"
 	"github.com/maczh/mgin/v2/pkg/middleware/ratelimit"
 	"github.com/maczh/mgin/v2/pkg/middleware/trace"
 	"github.com/maczh/mgin/v2/pkg/middleware/xlang"
@@ -173,6 +174,10 @@ func (app *App) baseRouter() {
 	}
 
 	//添加跟踪日志
+	// RequestId 校验在 trace 前执行，避免 trace 自动生成的 ID 被当成客户端 ID。
+	if config.Config.GetConfigBool("go.requestid.enabled") {
+		app.Router.Use(requestid.Idempotency())
+	}
 	app.Router.Use(trace.TraceId())
 
 	//设置接口日志
