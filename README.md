@@ -128,7 +128,7 @@ App 运行时 (app.go)  ── 中间件链 / 路由 / 生命周期 / 重载
 
 `App.baseRouter()` 按以下顺序装配，后续 `Use` 不会回溯影响已注册路由：
 
-1. `mountHealth()`（可选）→ 2. `/metrics`（可选）→ 3. `trace.TraceId()` → 4. `postlog.RequestLogger()` → 5. `cors.Cors(...)` → 6. `xlang.RequestLanguage()`（i18n 开启时）→ 7. `ratelimit.RateLimit()`（可选）→ 8. `nice.Recovery`
+1. `mountHealth()`（可选）→ 2. `/metrics`（可选）→ 3. `requestid.Idempotency()`（可选）→ 4. `trace.TraceId()` → 5. `postlog.RequestLogger()` → 6. `cors.Cors(...)` → 7. `xlang.RequestLanguage()`（i18n 开启时）→ 8. `ratelimit.RateLimit()`（可选）→ 9. `nice.Recovery`
 → 业务路由（业务自行追加 jwt / casbin / xss / iplimit / limit / session）
 → `NoRoute` 404 → i18n 管理路由（可选）→ `/job`（可选）→ `PUT /cfg/reload`（可选）
 
@@ -272,6 +272,7 @@ go:
 | | `go.cors.headers` | 空 | 追加允许头（基础头已固定） |
 | 探针 | `go.health.enabled` / `autoStarted` | false / false | 挂载探针 / 监听后自动标记启动完成 |
 | 指标 | `go.metrics.enabled` | false | 挂载 `/metrics` |
+| RequestId 幂等 | `go.requestid.enabled` | false | 启用后要求请求携带唯一 `X-Request-ID`；60 秒内重复或缺失时拦截（400/409） |
 | 限流 | `go.ratelimit.enabled` / `rules[]` | false | 规则见 `application.example.yml` |
 | 任务 | `go.job.enabled` / `initdb` / `tablePrefix` / `scanInterval` / `refreshInterval` / `logRetainDays` / `maxConcurrent` / `maxSerialQueue` / `timezone` | false / true / `mgin_` / 1 / 30 / 30 / 50 / 10 / Local | 调度器与管理接口 |
 | 国际化 | `go.i18n.enabled` / `default` / `dbName` / `sqlite` / `api.enabled` | false / `zh-cn` / 空 / 空 / false | 字典库与 CRUD 路由 |

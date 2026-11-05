@@ -19,6 +19,7 @@ import (
 	"github.com/maczh/mgin/metrics"
 	"github.com/maczh/mgin/middleware/cors"
 	"github.com/maczh/mgin/middleware/postlog"
+	"github.com/maczh/mgin/middleware/requestid"
 	"github.com/maczh/mgin/middleware/ratelimit"
 	"github.com/maczh/mgin/middleware/trace"
 	"github.com/maczh/mgin/middleware/xlang"
@@ -148,6 +149,12 @@ func (app *App) baseRouter() {
 		app.Router.GET("/metrics", gin.WrapH(metrics.Handler()))
 		app.metricsMounted = true
 		logs.Info("Prometheus 指标端点已挂载: /metrics")
+	}
+
+	// RequestId 幂等校验必须先于 trace.TraceId，避免 trace 自动生成的 ID
+	// 被误认为客户端提供的 RequestId。
+	if config.Config.Cnf.Bool("go.requestid.enabled") {
+		app.Router.Use(requestid.Idempotency())
 	}
 
 	//添加跟踪日志
