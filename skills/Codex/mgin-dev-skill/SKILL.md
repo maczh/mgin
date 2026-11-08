@@ -38,6 +38,7 @@ description: 基于 github.com/maczh/mgin jh/v1 源码与项目文档，开发�
 7. v1 全局单例（`config.Config`、`db.*`、`registry.Registry`）意味着一个进程一个 App；热重载串行且只重建资源，不重建路由、中间件或端口。测试必须隔离/恢复全局状态。
 8. 服务调用必须区分传输成功与业务成功：HTTP 200 不等于 `status/code` 成功；`Retry` 只执行一次且只对幂等操作启用；超时、熔断、fallback、发现缓存会叠加，需说明组合语义。
 9. 服务发现保留旧 `RegistryClient` 必需接口，扩展能力用类型断言；缓存、watcher、熔断器是进程内能力，不宣称跨副本一致。真实 watch 只有后端支持时才可使用，轮询要说明延迟与取消。
+10. route常规默认提供GET与POST方法，参数为query与json，一般不按RESTful标准
 
 ## 新建服务
 
@@ -51,4 +52,3 @@ description: 基于 github.com/maczh/mgin jh/v1 源码与项目文档，开发�
 - 对框架/治理改动至少覆盖：正常、空结果、超时、依赖不可用、重复调用、并发、关闭/重载和旧接口兼容路径；涉及 goroutine、ticker、watch 或连接池时检查取消、幂等关闭和 race。
 - Swagger 源注释与实际路由一致；按项目命令生成文档，避免手改生成文件。保留 `version.go` 的 ldflags 注入机制。
 - 交付时说明实现、验证结果及具体未验证依赖；不能把未执行的联调或编译称为通过。
-

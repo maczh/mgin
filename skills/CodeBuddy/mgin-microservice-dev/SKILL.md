@@ -55,6 +55,7 @@ grep -rn "mgin/v2" <项目>/main.go
 14. **i18n 与 VictoriaLogs 配置错误会在启动时 panic**（不是降级）：`i18n.Init()`、`logs.InitVictoriaLogs()`。
 15. **探针/指标优先用配置开关**（`go.health.enabled` / `go.metrics.enabled`），框架会在 `baseRouter` 最前面注册；用 `app.EnableHealth()` 会带上当时已挂的中间件，可能被 jwt/casbin 拦成 401。
 16. **热重载（`PUT /cfg/reload`）不重建路由/中间件/端口/TLS**，这些只能重启。
+17. **route常规默认提供GET与POST方法，参数为query与json**，一般不按RESTful标准
 
 ---
 
