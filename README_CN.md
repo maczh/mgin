@@ -914,8 +914,11 @@ go:
     weight: 1
     lan: true          # 以内网地址注册
     lanNet: 192.168.3. # 网段前缀
+    mse: false          # 阿里云 MSE Nacos 开启为 true，使用 AK/SK 签名认证
+    accessKey: ""       # MSE 专用 AccessKey（勿提交真实凭据）
+    secretKey: ""       # MSE 专用 SecretKey（勿提交真实凭据）
 ```
-其余（etcd/consul/polaris）结构类似，`polaris` 额外需要 `namespace` 与 `token`。其中 consul 的 `port` 对应其 HTTP API 端口（如 8500）。
+阿里云 MSE Nacos 设置 `mse: true`，并配置 `accessKey`、`secretKey`。注册、发现、心跳和重注册请求使用 Naming API 的 AK/SK 签名认证；MSE 模式跳过用户名密码登录。此选项仅作用于注册中心客户端，不改变配置中心认证。其余（etcd/consul/polaris）结构类似，`polaris` 额外需要 `namespace` 与 `token`；Consul 的 `port` 对应 HTTP API 端口（如 8500）。
 
 > 📌 **jh 分支增强**：etcd 注册自 `v1.21.17-jh` 起改用**租约（lease）+ keepalive 自动续租**，实例离线后注册信息可自动清理；Nacos 注册自 `v1.21.15-jh` 起改用社区 `nacos-sdk-go`，不再依赖阿里云 SDK。
 

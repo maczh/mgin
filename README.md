@@ -112,8 +112,9 @@ mgin 不是"Go 版 Spring Cloud"，而是**面向单进程服务的框架 + 基�
 `GetServiceURL` 兼容路径都会使用同一个目标注册中心。
 
 Nacos 作为配置中心和注册中心时，`apiversion` 支持 `v1`、`v2`、`v3`；
-框架会使用对应 Client OpenAPI 路径、响应结构和心跳方式。鉴权支持直接配置
-`accessToken`，或通过 `username/password` 登录获取 token。
+框架会使用对应 Client OpenAPI 路径、响应结构和心跳方式。普通 Nacos 支持直接配置
+`accessToken`，或通过 `username/password` 登录获取 token；阿里云 MSE Nacos 支持通过
+`mse: true`、`accessKey` 和 `secretKey` 启用 Naming API 的 AK/SK 签名认证。
 
 | 能力 | 包 / API | 状态 |
 |------|----------|------|
@@ -743,7 +744,10 @@ go:
     clusterName: DEFAULT
     username: ""            # 开启鉴权时填写
     password: ""
-    accessToken: ""         # 已有 token 时直接使用，优先于用户名密码登录
+    accessToken: ""         # 普通 Nacos 已有 token 时直接使用，优先于用户名密码登录
+    mse: false               # 阿里云 MSE Nacos 开启为 true
+    accessKey: ""            # MSE 专用 AccessKey（勿提交真实凭据）
+    secretKey: ""            # MSE 专用 SecretKey（勿提交真实凭据）
     lan: ""                 # true 时优先用内网 IP 注册
     lanNet: ""
 
@@ -902,9 +906,11 @@ SQLite、PostgreSQL、Kafka 等不参与；且 `db.Redis.Check()`、`db.Sqlite.C
 | v3 | `{server}/nacos/v3/client/cs/config?groupName=&dataId=&namespaceId=`，响应取 `data.content` |
 
 常见原因：`apiversion` 与服务端不一致、`go.config.namespace` 与实际命名空间不一致、
-开启鉴权却没配 `accessToken` 或 `username/password`（v3 登录路径为 `/nacos/v3/auth/user/login`）。
+开启普通 Nacos 鉴权却没配 `accessToken` 或 `username/password`（v3 登录路径为 `/nacos/v3/auth/user/login`）。MSE 注册中心认证配置见 §5 的 `go.nacos.mse/accessKey/secretKey`。
 其它来源（consul/etcd/polaris/springconfig）以及 `server_type` 未识别的默认分支不会自动补 `/`，
 此时 `server` 需自带斜杠。
+
+MSE Nacos 的注册中心认证需在 `nacos-test.yml` 中设置 `mse: true` 并填写 `accessKey`、`secretKey`。注册、发现、心跳和重注册请求会携带基于 Naming 协议生成的 `ak`、`data`、`signature`；启用 MSE 后跳过用户名密码登录。此设置针对注册发现客户端，不改变配置中心的认证方式。
 
 ### Q9. 使用 Polaris 时服务能发现、但注册不上去
 

@@ -1,6 +1,9 @@
 package nacos
 
 import (
+	"crypto/hmac"
+	"crypto/sha1"
+	"encoding/base64"
 	stdjson "encoding/json"
 	"fmt"
 	"math/rand"
@@ -33,6 +36,8 @@ type NacosClient struct {
 	ver         string
 	namespace   string
 	accessToken string
+	accessKey   string
+	secretKey   string
 	headers     map[string]string
 	param       map[string]string
 	worker      *nacosHeartbeatWorker
@@ -131,7 +136,9 @@ func (n *NacosClient) Register(nacosConfigData []byte) {
 		}
 		n.headers = map[string]string{"User-Agent": "Nacos-Go-Client:mgin-v2", "Client-Version": "Nacos-Go-Client:mgin-v2"}
 		n.accessToken = n.conf.String("go.nacos.accessToken")
-		if n.accessToken == "" {
+		n.accessKey = n.conf.String("go.nacos.accessKey")
+		n.secretKey = n.conf.String("go.nacos.secretKey")
+		if n.accessToken == "" && !n.isMSE() {
 			n.accessToken = n.login(ipstr, portstr)
 		}
 		n.param = map[string]string{
@@ -148,6 +155,7 @@ func (n *NacosClient) Register(nacosConfigData []byte) {
 			n.param["accessToken"] = n.accessToken
 			n.headers["Authorization"] = "Bearer " + n.accessToken
 		}
+		n.authorize(n.param)
 		resp, err := grequests.DoRegularRequest(http.MethodPost, n.nsurl, &grequests.RequestOptions{
 			Params: n.param, Headers: n.headers,
 		})
@@ -177,7 +185,7 @@ func (n *NacosClient) GetServiceURL(servicename string, groupName ...string) (st
 		"serviceName": servicename,
 		"namespaceId": n.namespace,
 	}
-	addAuth(query, n.accessToken)
+	n.authorize(query)
 	addClusterQuery(query, n.ver, n.cluster)
 	var resp *grequests.Response
 	if len(groupName) > 0 {
@@ -256,7 +264,7 @@ func (n *NacosClient) GetServices(servicename string, groupName ...string) ([]st
 
 	doList := func(group string) {
 		q := map[string]string{"serviceName": servicename, "namespaceId": n.namespace}
-		addAuth(q, n.accessToken)
+		n.authorize(q)
 		addClusterQuery(q, n.ver, n.cluster)
 		if group != "" {
 			q["groupName"] = group
@@ -427,6 +435,32 @@ func cloneParams(in map[string]string) map[string]string {
 	}
 	return out
 }
+func (n *NacosClient) isMSE() bool {
+	return n.conf != nil && n.conf.Bool("go.nacos.mse")
+}
+
+func (n *NacosClient) authorize(params map[string]string) {
+	if !n.isMSE() {
+		addAuth(params, n.accessToken)
+		return
+	}
+	if n.accessKey == "" || n.secretKey == "" {
+		logger.Error("MSE Nacos认证配置错误：accessKey和secretKey不能为空")
+		return
+	}
+	service := params["serviceName"]
+	group := params["groupName"]
+	if group != "" && !strings.Contains(service, "@@") {
+		service = group + "@@" + service
+	}
+	data := strconv.FormatInt(time.Now().UnixMilli(), 10) + "@@" + service
+	mac := hmac.New(sha1.New, []byte(n.secretKey))
+	_, _ = mac.Write([]byte(data))
+	params["ak"] = n.accessKey
+	params["data"] = data
+	params["signature"] = base64.StdEncoding.EncodeToString(mac.Sum(nil))
+}
+
 func addAuth(params map[string]string, token string) {
 	if token != "" {
 		params["accessToken"] = token
@@ -446,10 +480,11 @@ func heartbeatParams(n *NacosClient) map[string]string {
 	if n.ver == "v3" {
 		params := cloneParams(n.param)
 		params["heartBeat"] = "true"
+		n.authorize(params)
 		return params
 	}
 	params := map[string]string{"serviceName": n.param["serviceName"], "groupName": n.param["groupName"], "namespaceId": n.param["namespaceId"], "beat": toJSON(map[string]any{"ip": n.param["ip"], "port": n.param["port"], "serviceName": n.param["serviceName"], "cluster": n.param["clusterName"], "weight": 1, "metadata": stdjson.RawMessage(n.param["metadata"])})}
-	addAuth(params, n.accessToken)
+	n.authorize(params)
 	return params
 }
 func decodeInstances(version string, body []byte, target *InstanceResp) error {
