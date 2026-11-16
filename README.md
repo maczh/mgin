@@ -312,11 +312,16 @@ go:
     username: nacos           # 开启鉴权时填写
     password: ""
     accessToken: ""           # 已有 token 时直接使用，优先于用户名密码登录
+    mse: false                 # 阿里云 MSE Nacos 开启为 true，使用下方 AK/SK 签名认证
+    accessKey: ""              # MSE 专用 AccessKey；不要提交真实凭据
+    secretKey: ""              # MSE 专用 SecretKey；不要提交真实凭据
     lan: true                 # 优先用内网 IP 注册
     lanNet: 192.168.          # 内网网段前缀，配合 lan
 ```
 
 使用本地子配置文件时要显式配置 `go.config.server_type: file`（留空会按 HTTP 源拼接地址，子配置取不到）；除 `sqlite` 外，`go.config.prefix.<组件>` 都是文件名前缀，框架按 `<prefix>-<env>.yml` 查找。多库示例、MongoDB 与 SQLite 说明见 [配置与数据结构设计](docs/development/03-development/04-data-access.md#2-数据源与配置键)。
+
+阿里云 MSE Nacos 使用 `mse: true` 并配置 `accessKey`、`secretKey`。客户端对注册、心跳、注销和服务发现请求按 Naming 协议生成签名；启用 MSE 后不再执行用户名密码登录。普通 Nacos 的 `username`/`password`/`accessToken` 配置保持原有行为。
 
 ### 5.5 多注册中心与 Nacos 版本
 

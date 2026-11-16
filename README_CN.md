@@ -965,8 +965,11 @@ go:
     apiversion: v1
     clusterName: DEFAULT
     group: DEFAULT_GROUP
-    username: ""       # 开启鉴权时填写
+    username: ""       # 普通 Nacos 开启鉴权时填写
     password: ""
+    mse: false          # 阿里云 MSE Nacos 开启为 true，使用 AK/SK 签名认证
+    accessKey: ""       # MSE 专用 AccessKey；不要提交真实凭据
+    secretKey: ""       # MSE 专用 SecretKey；不要提交真实凭据
     lan: true          # 以内网地址注册
     lanNet: 192.168.   # 网段前缀
 
@@ -997,6 +1000,8 @@ go:
     token: ""
     namespace: default
 ```
+
+阿里云 MSE Nacos 设置 `mse: true`，并配置 `accessKey`、`secretKey`。注册、心跳、注销和服务发现请求会使用 Naming 协议签名；启用 MSE 后不会执行用户名密码登录。普通 Nacos 的用户名、密码和 `accessToken` 认证方式保持不变。不要将真实 AK/SK 提交到代码仓库。
 
 **发现侧配置与本地缓存：**
 
