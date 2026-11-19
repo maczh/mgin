@@ -174,7 +174,10 @@ logs.Info("target={}://{}", scheme, host)
 | 键 | 类型 | 默认 | 作用 | 约束 |
 |----|------|------|------|------|
 | `timeout` | duration | `10s` | 单次调用超时 | 支持 `5s`/`500ms` 或数字（秒）；`Options.Timeout` 优先 |
-| `fallback.enabled` | bool | false | 失败时回放上次成功响应 | 需 `Options.Fallback == nil` 才生效；缓存无 TTL |
+| `fallback.enabled` | bool | false | 失败时回放上次成功响应 | 需 `Options.Fallback == nil`；仅 GET；按调用方身份隔离；401/403 等 4xx 不兜底 |
+| `cache.enabled` | bool | false | 允许写入成功响应缓存 | 仅 GET；`Options.Cache` 可对单次调用开启 |
+| `cache.ttl` | duration | `30s` | 缓存条目有效期 | 支持 `30s`/`500ms` 或数字（秒）；`Options.CacheTTL` 优先 |
+| `cache.maxEntries` | int | 1024 | 缓存条目上限，超出后淘汰最旧条目 | 进程内，多副本各自独立 |
 
 子配置键：
 

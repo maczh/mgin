@@ -89,9 +89,8 @@ func (m *mgin) Reload(configFile string) error {
 func initResources(m *mgin) {
 	configs := config.Config.Config.Used
 	registry.Registry = registry.NewRegistry()
-	if registrar, ok := registry.Registry.(registry.ConfiguredRegistrar); ok {
-		registrar.RegisterConfigured()
-	}
+	// Service registration is deferred until App.RunContext has acquired every
+	// configured listener successfully.
 
 	if strings.Contains(configs, "mysql") {
 		db.Mysql.Init(config.Config.GetConfigData(config.Config.Config.Prefix.Mysql))

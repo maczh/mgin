@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"strings"
 	"sync"
@@ -48,12 +49,38 @@ type Options struct {
 	// CircuitFailures and CircuitOpenWindow override the safe defaults when set.
 	CircuitFailures   int           `json:"circuit_failures"`
 	CircuitOpenWindow time.Duration `json:"circuit_open_window"`
+	// Cache opts a successful GET response into the shared response cache and
+	// installs the built-in cached fallback when Fallback is nil. It can also be
+	// enabled process-wide with go.client.cache.enabled.
+	Cache bool `json:"cache"`
+	// CacheTTL bounds how long a cached response stays usable; zero uses
+	// go.client.cache.ttl (default 30s).
+	CacheTTL time.Duration `json:"cache_ttl"`
+	// CacheScope isolates cached entries by an explicit tenant, principal or
+	// permission version. Never place raw tokens in it. When empty, an opaque
+	// identity is derived from the credential headers.
+	CacheScope string `json:"cache_scope"`
+	// OnFallback is invoked with the original error when a fallback result is
+	// returned, letting callers mark the response as degraded.
+	OnFallback func(error) `json:"-"`
+}
+
+type cacheEntry struct {
+	value     string
+	storedAt  time.Time
+	expiresAt time.Time
 }
 
 var responseCache = struct {
 	sync.RWMutex
-	values map[string]string
-}{values: make(map[string]string)}
+	values map[string]cacheEntry
+}{values: make(map[string]cacheEntry)}
+
+const defaultCacheTTL = 30 * time.Second
+const defaultCacheMaxEntries = 1024
+
+// responseCacheCapacity overrides the configured capacity when non-zero.
+var responseCacheCapacity int
 
 type circuitState struct {
 	failures int
@@ -81,8 +108,8 @@ func Call(service, uri string, op *Options) (result string, callErr error) {
 	if op.Registry != "" {
 		discoveryService = op.Registry + "\x00" + service
 	}
-	if op.Fallback == nil && config.Config.GetConfigBool("go.client.fallback.enabled") {
-		op.Fallback = CachedFallback(discoveryService, uri, requestParams(op))
+	if op.Fallback == nil && (op.Cache || config.Config.GetConfigBool("go.client.fallback.enabled")) {
+		op.Fallback = cachedFallbackFor(discoveryService, uri, op)
 	}
 	fallbackUsed := false
 	if op.Fallback != nil {
@@ -91,6 +118,9 @@ func Call(service, uri string, op *Options) (result string, callErr error) {
 			value, ok := fallback(err)
 			if ok {
 				fallbackUsed = true
+				if op.OnFallback != nil {
+					op.OnFallback(err)
+				}
 			}
 			return value, ok
 		}
@@ -122,7 +152,9 @@ func Call(service, uri string, op *Options) (result string, callErr error) {
 		return "", err
 	}
 	result, err := call(service, uri, op)
-	if err != nil || fallbackUsed {
+	// Client-side rejections (401/403/4xx) say nothing about downstream health,
+	// so they must not trip the breaker for other callers of the same endpoint.
+	if (err != nil && fallbackEligible(err)) || fallbackUsed {
 		circuitFailure(key, threshold)
 	} else {
 		circuitSuccess(key)
@@ -225,10 +257,12 @@ func call(service, uri string, op *Options) (result string, callErr error) {
 		}
 		return "", err
 	}
+	// Keep op.Group as requested by the caller so cache keys stay stable even
+	// when discovery fails; the resolved group is only needed for the lookup.
 	if resolver, ok := registry.Registry.(registry.NamedRegistryResolver); ok {
-		host, op.Group = resolver.GetServiceURLFrom(op.Registry, service, op.Group)
+		host, _ = resolver.GetServiceURLFrom(op.Registry, service, op.Group)
 	} else {
-		host, op.Group = registry.Registry.GetServiceURL(service, op.Group)
+		host, _ = registry.Registry.GetServiceURL(service, op.Group)
 	}
 	if host == "" {
 		err := errors.New("微服务获取" + service + "服务主机IP端口失败")
@@ -300,8 +334,10 @@ func call(service, uri string, op *Options) (result string, callErr error) {
 		return "", err
 	}
 	if !resp.Ok {
-		err := fmt.Errorf("service returned HTTP %d", resp.StatusCode)
-		if op.Fallback != nil {
+		err := &httpStatusError{statusCode: resp.StatusCode}
+		// Authentication, authorization and other client-side rejections must
+		// surface to the caller; replaying a stale success would bypass them.
+		if op.Fallback != nil && fallbackEligible(err) {
 			if value, ok := op.Fallback(err); ok {
 				return value, nil
 			}
@@ -310,39 +346,191 @@ func call(service, uri string, op *Options) (result string, callErr error) {
 	}
 	logs.Debug("微服务{}返回 HTTP {}", service, resp.StatusCode)
 	result = resp.String()
-	responseCache.Lock()
-	discoveryService := service
-	if op.Registry != "" {
-		discoveryService = op.Registry + "\x00" + service
+	if cacheable(op) {
+		discoveryService := service
+		if op.Registry != "" {
+			discoveryService = op.Registry + "\x00" + service
+		}
+		cachePut(op.responseCacheKey(discoveryService, uri), result, op.CacheTTL)
 	}
-	responseCache.values[cacheKey(discoveryService, uri, requestParams(op))] = result
-	responseCache.Unlock()
 	return result, nil
 }
 
-// CachedFallback supplies the latest successful response when a downstream
-// call fails. It is opt-in and therefore preserves existing fail-fast behavior.
+// CachedFallback is the legacy entry point. It only reads responses cached for
+// the current caller's credential headers, so it can never replay another
+// principal's data, but it cannot match entries cached under a Method/Group
+// variant. Prefer CachedFallbackFor.
+//
+// Deprecated: use CachedFallbackFor.
 func CachedFallback(service, uri string, params ...map[string]any) func(error) (string, bool) {
 	var request map[string]any
 	if len(params) > 0 {
 		request = params[0]
 	}
-	return func(_ error) (string, bool) {
-		responseCache.RLock()
-		value, ok := responseCache.values[cacheKey(service, uri, request)]
-		responseCache.RUnlock()
-		return value, ok
+	return func(err error) (string, bool) {
+		if !fallbackEligible(err) {
+			return "", false
+		}
+		return cacheGet(cacheKey(service, http.MethodGet, "", "", cacheIdentity(trace.GetHeaders()), uri, request))
 	}
+}
+
+// cachedFallbackFor replays the response cached for exactly these options:
+// method, group, caller identity (or CacheScope) and request parameters. It
+// refuses to degrade authentication and business rejections. Call installs it
+// with the effective options, so the key always matches the one used to write.
+func cachedFallbackFor(service, uri string, op *Options) func(error) (string, bool) {
+	return func(err error) (string, bool) {
+		if op == nil || !fallbackEligible(err) {
+			return "", false
+		}
+		return cacheGet(op.responseCacheKey(service, uri))
+	}
+}
+
+// httpStatusError carries the downstream status so fallbacks can classify it.
+type httpStatusError struct {
+	statusCode int
+}
+
+func (e *httpStatusError) Error() string {
+	return fmt.Sprintf("service returned HTTP %d", e.statusCode)
+}
+
+// fallbackEligible reports whether a failure may be degraded to a success
+// response. Authentication (401), authorization (403) and other client-side
+// rejections are never eligible; transport errors, 5xx, 408 and 429 are.
+func fallbackEligible(err error) bool {
+	if err == nil {
+		return false
+	}
+	var statusErr *httpStatusError
+	if errors.As(err, &statusErr) {
+		switch {
+		case statusErr.statusCode == http.StatusRequestTimeout, statusErr.statusCode == http.StatusTooManyRequests:
+			return true
+		case statusErr.statusCode >= 500 && statusErr.statusCode <= 599:
+			return true
+		}
+		return false
+	}
+	return true
 }
 
 func requestParams(op *Options) map[string]any {
 	return map[string]any{"query": op.Query, "data": op.Data, "json": op.Json, "path": op.Path}
 }
 
-func cacheKey(service, uri string, params map[string]any) string {
+// cacheable reports whether a response may be cached. Caching is opt-in and
+// restricted to GET so that state-changing calls are never replayed.
+func cacheable(op *Options) bool {
+	if !op.Cache && !config.Config.GetConfigBool("go.client.cache.enabled") {
+		return false
+	}
+	return strings.EqualFold(op.Method, http.MethodGet)
+}
+
+func (op *Options) responseCacheKey(service, uri string) string {
+	scope := op.CacheScope
+	identity := ""
+	if scope == "" {
+		identity = cacheIdentity(utils.AnyToMap(op.Header))
+	}
+	return cacheKey(service, strings.ToUpper(op.Method), op.Group, scope, identity, uri, requestParams(op))
+}
+
+func cacheGet(key string) (string, bool) {
+	responseCache.Lock()
+	defer responseCache.Unlock()
+	entry, ok := responseCache.values[key]
+	if !ok {
+		return "", false
+	}
+	if !entry.expiresAt.IsZero() && time.Now().After(entry.expiresAt) {
+		delete(responseCache.values, key)
+		return "", false
+	}
+	return entry.value, true
+}
+
+func cachePut(key, value string, ttl time.Duration) {
+	if ttl <= 0 {
+		ttl = config.Config.GetConfigDuration("go.client.cache.ttl", defaultCacheTTL)
+	}
+	if ttl <= 0 {
+		return
+	}
+	maxEntries := responseCacheCapacity
+	if maxEntries <= 0 {
+		maxEntries = config.Config.GetConfigInt("go.client.cache.maxEntries")
+	}
+	if maxEntries <= 0 {
+		maxEntries = defaultCacheMaxEntries
+	}
+	now := time.Now()
+	responseCache.Lock()
+	defer responseCache.Unlock()
+	for k, entry := range responseCache.values {
+		if !entry.expiresAt.IsZero() && now.After(entry.expiresAt) {
+			delete(responseCache.values, k)
+		}
+	}
+	for len(responseCache.values) >= maxEntries {
+		oldestKey := ""
+		var oldest time.Time
+		for k, entry := range responseCache.values {
+			if oldestKey == "" || entry.storedAt.Before(oldest) {
+				oldestKey, oldest = k, entry.storedAt
+			}
+		}
+		if oldestKey == "" {
+			return
+		}
+		delete(responseCache.values, oldestKey)
+	}
+	responseCache.values[key] = cacheEntry{value: value, storedAt: now, expiresAt: now.Add(ttl)}
+}
+
+var cacheIdentityHeaders = []string{"Authorization", "Token", "AccessToken", "X-User-Id", "X-Tenant-Id", "Cookie"}
+
+// cacheIdentity hashes the credential headers into an opaque identity. Raw
+// tokens are never embedded in cache keys or logs.
+func cacheIdentity(headers map[string]string) string {
+	parts := make([]string, 0, len(cacheIdentityHeaders))
+	for _, name := range cacheIdentityHeaders {
+		value := headerValue(headers, name)
+		if value == "" {
+			continue
+		}
+		sum := sha256.Sum256([]byte(value))
+		parts = append(parts, name+"="+fmt.Sprintf("%x", sum[:]))
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	sum := sha256.Sum256([]byte(strings.Join(parts, "|")))
+	return fmt.Sprintf("%x", sum[:])
+}
+
+func headerValue(headers map[string]string, name string) string {
+	if value, ok := headers[name]; ok {
+		return value
+	}
+	// Pick the smallest matching key so the identity stays deterministic when
+	// a header appears under several casings.
+	matchedKey, matchedValue := "", ""
+	for k, v := range headers {
+		if strings.EqualFold(k, name) && (matchedKey == "" || k < matchedKey) {
+			matchedKey, matchedValue = k, v
+		}
+	}
+	return matchedValue
+}
+
+func cacheKey(service, method, group, scope, identity, uri string, params map[string]any) string {
 	raw, _ := json.Marshal(params)
 	sum := sha256.Sum256(raw)
-	return service + "\x00" + uri + "\x00" + fmt.Sprintf("%x", sum[:])
+	return strings.Join([]string{service, method, group, scope, identity, uri, fmt.Sprintf("%x", sum[:])}, "\x00")
 }
 
 func cloneHeader(header any) any {

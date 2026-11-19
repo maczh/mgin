@@ -3,6 +3,8 @@ package mgin
 import (
 	"context"
 	"crypto/subtle"
+	"crypto/tls"
+	"errors"
 	"flag"
 	"fmt"
 	"net"
@@ -19,10 +21,11 @@ import (
 	"github.com/maczh/mgin/metrics"
 	"github.com/maczh/mgin/middleware/cors"
 	"github.com/maczh/mgin/middleware/postlog"
-	"github.com/maczh/mgin/middleware/requestid"
 	"github.com/maczh/mgin/middleware/ratelimit"
+	"github.com/maczh/mgin/middleware/requestid"
 	"github.com/maczh/mgin/middleware/trace"
 	"github.com/maczh/mgin/middleware/xlang"
+	"github.com/maczh/mgin/registry"
 	"github.com/scylladb/termtables"
 
 	"net/http"
@@ -322,6 +325,14 @@ func (app *App) MarkHealthStarted() {
 
 // Run 方法用于启动 HTTP 和 HTTPS 服务器，并监听系统信号以实现优雅关闭。
 func (app *App) Run() {
+	if err := app.RunContext(context.Background()); err != nil {
+		logs.Error("Application stopped: {}", err.Error())
+	}
+}
+
+// RunContext runs HTTP/HTTPS listeners and returns listener or shutdown errors.
+// It is suitable for hosts that need to make the process exit policy explicit.
+func (app *App) RunContext(ctx context.Context) error {
 	// 获取当前可执行文件所在的绝对路径
 	path, _ := filepath.Abs(filepath.Dir(os.Args[0]))
 
@@ -339,7 +350,43 @@ func (app *App) Run() {
 		// 设置服务器的处理器为应用的路由
 		Handler: app.Router,
 	}
-	// 打印应用启动信息
+	listeners := make([]net.Listener, 0, 2)
+	servers := make([]*http.Server, 0, 2)
+	if config.Config.App.Port > 0 {
+		ln, err := net.Listen("tcp", server.Addr)
+		if err != nil {
+			return fmt.Errorf("HTTP listen %s: %w", server.Addr, err)
+		}
+		listeners = append(listeners, ln)
+		servers = append(servers, server)
+	}
+	if config.Config.App.Cert != "" {
+		cert, err := tls.LoadX509KeyPair(path+"/"+config.Config.App.Cert, path+"/"+config.Config.App.Key)
+		if err != nil {
+			for _, ln := range listeners {
+				_ = ln.Close()
+			}
+			return fmt.Errorf("HTTPS certificate: %w", err)
+		}
+		ln, err := net.Listen("tcp", serverSsl.Addr)
+		if err != nil {
+			for _, l := range listeners {
+				_ = l.Close()
+			}
+			return fmt.Errorf("HTTPS listen %s: %w", serverSsl.Addr, err)
+		}
+		serverSsl.TLSConfig = &tls.Config{Certificates: []tls.Certificate{cert}, MinVersion: tls.VersionTLS12}
+		listeners = append(listeners, tls.NewListener(ln, serverSsl.TLSConfig))
+		servers = append(servers, serverSsl)
+	}
+	if len(listeners) == 0 {
+		return errors.New("no HTTP or HTTPS listener configured")
+	}
+	// Register only after every configured listener and TLS key pair is ready.
+	if registrar, ok := registry.Registry.(registry.ConfiguredRegistrar); ok {
+		registrar.RegisterConfigured()
+	}
+
 	table := termtables.CreateTable()
 	table.Style.Width = 100
 	table.Style.Alignment = termtables.AlignCenter
@@ -359,27 +406,17 @@ func (app *App) Run() {
 	//logs.Info("")
 
 	// 如果配置文件中设置的 HTTP 端口大于 0，则启动 HTTP 服务器
-	if config.Config.App.Port > 0 {
-		go func() {
-			// 启动 HTTP 服务器监听连接
-			if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-				// 记录 HTTP 服务器监听错误信息
-				logs.Error("HTTP server listen: " + err.Error())
-			}
-		}()
-	}
-
-	// 如果配置文件中设置了 SSL 证书路径，则启动 HTTPS 服务器
-	if config.Config.App.Cert != "" {
-		go func() {
-			var err error
-			// 启动 HTTPS 服务器监听连接
-			err = serverSsl.ListenAndServeTLS(path+"/"+config.Config.App.Cert, path+"/"+config.Config.App.Key)
+	serveErr := make(chan error, len(listeners))
+	for i, ln := range listeners {
+		srv := servers[i]
+		go func(s *http.Server, l net.Listener) {
+			err := s.Serve(l)
 			if err != nil && err != http.ErrServerClosed {
-				// 记录 HTTPS 服务器监听错误信息
-				logs.Error("HTTPS server listen: {}", err.Error())
+				serveErr <- err
+			} else {
+				serveErr <- nil
 			}
-		}()
+		}(srv, ln)
 	}
 	// 若配置了 go.health.autoStarted=true，则在监听启动之后自动标记启动完成，
 	// 使 /startup 探针返回 200。默认不自动标记，由业务自行调用 health.MarkStarted()。
@@ -394,9 +431,28 @@ func (app *App) Run() {
 	// 监听指定的系统信号
 	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGHUP, syscall.SIGTERM, syscall.SIGQUIT)
 	// 阻塞等待系统信号
-	sig := <-signalChan
-	// 记录接收到的系统信号
-	logs.Error("Get Signal:" + sig.String())
+	stopSignals := make(chan struct{})
+	go func() {
+		select {
+		case <-ctx.Done():
+			signalChan <- syscall.SIGTERM
+		case <-stopSignals:
+		}
+	}()
+	var runErr error
+	select {
+	case sig := <-signalChan:
+		// 记录接收到的系统信号
+		logs.Error("Get Signal:" + sig.String())
+	case runErr = <-serveErr:
+		if runErr == nil {
+			runErr = errors.New("listener stopped unexpectedly")
+		}
+	case <-ctx.Done():
+		runErr = ctx.Err()
+	}
+	close(stopSignals)
+	signal.Stop(signalChan)
 	// 记录服务器开始关闭的信息
 	logs.Error("Shutdown Server ...")
 	// 安全退出应用
@@ -405,13 +461,20 @@ func (app *App) Run() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	// 优雅关闭 HTTP 服务器
-	if err := server.Shutdown(ctx); err != nil {
+	var shutdownErr error
+	for _, srv := range servers {
+		if err := srv.Shutdown(ctx); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			shutdownErr = errors.Join(shutdownErr, err)
+			_ = srv.Close()
+		}
+	}
+	if err := shutdownErr; err != nil {
 		// 记录服务器关闭错误信息
 		logs.Error("Server Shutdown:" + err.Error())
 	}
 	// 记录服务器退出信息
 	logs.Error("Server exiting")
-	return
+	return errors.Join(runErr, shutdownErr)
 }
 
 func recoveryHandler(c *gin.Context, err interface{}) {

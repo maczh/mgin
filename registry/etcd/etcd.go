@@ -41,6 +41,9 @@ type EtcdClient struct {
 
 var logger = gologger.GetLogger()
 
+// leaseTTL 是服务注册租约的有效期（秒），keepAlive 会按 TTL/3 自动续约。
+const leaseTTL int64 = 10
+
 func (c *EtcdClient) Register(etcdConfigData []byte) {
 	if etcdConfigData == nil || len(etcdConfigData) == 0 {
 		logger.Error("Etcd 配置错误，无法获取配置地址")
@@ -134,7 +137,7 @@ func (c *EtcdClient) Register(etcdConfigData []byte) {
 				c.client.Delete(context.Background(), prefix+instanceId)
 			}
 		}
-		respGrant, err := c.client.Grant(context.Background(), 10000)
+		respGrant, err := c.client.Grant(context.Background(), leaseTTL)
 		if err != nil {
 			logger.Error("Etcd注册服务失败:" + err.Error())
 			return
@@ -370,7 +373,7 @@ func (c *EtcdClient) reRegister() bool {
 	if c.leaseID != clientv3.NoLease {
 		_, _ = c.client.Revoke(context.Background(), c.leaseID)
 	}
-	respGrant, err := c.client.Grant(context.Background(), 10000)
+	respGrant, err := c.client.Grant(context.Background(), leaseTTL)
 	if err != nil {
 		logger.Error("Etcd重新申请租约失败: " + err.Error())
 		return false

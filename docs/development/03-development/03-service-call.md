@@ -135,7 +135,7 @@ resp := client.CallT[User]("user-service", "/api/v1/users/{id}", &client.Options
 
 ## 7. 熔断与兜底
 
-`client.Call` 内置一个按 key 的轻量熔断器（`go.discovery.circuitFailures` / `go.discovery.circuitOpenWindow`），并对成功响应做本地留存，用于失败兜底。
+`client.Call` 内置一个按 key 的轻量熔断器（`go.discovery.circuitFailures` / `go.discovery.circuitOpenWindow`），并对开启缓存的 GET 成功响应做有界留存，用于失败兜底。
 
 状态机：
 
@@ -148,7 +148,7 @@ resp := client.CallT[User]("user-service", "/api/v1/users/{id}", &client.Options
 兜底（fallback）三种用法：
 
 ```go
-// 1) 全局开启：失败时回放该 service+uri+参数 的上一次成功响应
+// 1) 全局开启：失败时回放该次调用的上一次成功响应
 //    go.client.fallback.enabled: true
 
 // 2) 单次调用自定义
@@ -156,19 +156,24 @@ resp := client.CallT[User]("user-service", "/api/v1/users/{id}", &client.Options
 	Fallback: func(err error) (string, bool) {
 		return `{"code":0,"data":{"id":42,"name":"缓存用户"}}`, true
 	},
+	OnFallback: func(err error) { /* 结果已降级，按需打标 */ },
 })
 
-// 3) 只取缓存，不自定义逻辑
-op := &client.Options{}
-op.Fallback = client.CachedFallback("user-service", "/api/v1/users/{id}",
-	map[string]any{"path": map[string]string{"id": "42"}})
+// 3) 只取缓存，不自定义逻辑（推荐）：Cache 同时开启写入与内置缓存兜底
+resp := client.CallT[User]("user-service", "/api/v1/users/{id}", &client.Options{
+	Method: "GET",
+	Cache:  true, // 也可由 go.client.cache.enabled 全局开启
+})
 ```
 
 注意：
 
 - 兜底返回原始 JSON 字符串，因此必须与 `CallT`/`CallResultT` 期望的结构一致，否则解析失败。
-- 兜底命中同样会记为「失败」并累加熔断计数，避免下游长期不可用时无限重试。
-- 响应缓存是**进程内**的 `map`，无 TTL、无容量上限；key 为 `service + uri + 参数 SHA256`，只在成功且未走兜底时写入。
+- 仅 **GET** 成功响应会写入缓存；POST/PUT/DELETE 不会被回放。写入由 `Options.Cache` 或 `go.client.cache.enabled` 显式开启；`Options.Cache` 在 `Fallback` 为空时同时启用内置缓存兜底。
+- 缓存 key 含 `registry + service + method + group + 身份 + uri + 参数`。身份来自 `Authorization`/`Token`/`AccessToken`/`X-User-Id`/`X-Tenant-Id`/`Cookie` 的 SHA256，原始 token 不进入 key 与日志；可用 `Options.CacheScope` 显式指定租户/权限版本，切勿放入原始 token。
+- **401/403 及其他 4xx 不会走兜底**，鉴权失败始终返回失败；仅传输错误、5xx、408、429 可降级。
+- 缓存为**进程内**有界 `map`：默认 TTL 30s（`go.client.cache.ttl`/`Options.CacheTTL`），默认上限 1024 条（`go.client.cache.maxEntries`），超出淘汰最旧条目。
+- 兜底命中同样会记为「失败」并累加熔断计数，避免下游长期不可用时无限重试；401/403 等客户端拒绝不计入熔断失败次数，避免个别调用方把共享熔断器打开。
 - 熔断状态也在进程内，多副本各自独立。
 
 ## 8. 调用日志
@@ -186,5 +191,5 @@ op.Fallback = client.CachedFallback("user-service", "/api/v1/users/{id}",
 | 文件上传失败 | 未填 `FileName`/`FileField` | 按 `grequests.FileUpload` 要求补齐 |
 | 下游收不到请求 ID | 手工设置了同名 Header 覆盖 | 不要覆盖 `X-Request-ID` |
 | 「circuit breaker is open」 | 熔断打开，尚未过探测窗口 | 修复下游或调 `circuitFailures`/`circuitOpenWindow` |
-| 兜底数据一直是旧值 | 响应缓存无 TTL | 只在幂等查询上开启兜底 |
+| 兜底数据一直是旧值 | 缓存 TTL 过长，或命中其他 method/group 未隔离的历史数据 | 调整 `go.client.cache.ttl`/`Options.CacheTTL`，只在幂等 GET 上开启 `Cache` |
 | 请求体被并发改写 | 直接复用同一个 `Options` 并改字段 | 每次调用新建 `Options`（`Call` 只做浅拷贝） |
