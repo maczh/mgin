@@ -69,6 +69,7 @@ func (w *nacosHeartbeatWorker) Start(nc *NacosClient) {
 			return
 		case <-w.ticker.C:
 			params := heartbeatParams(nc)
+			nc.authorize(params)
 			method, endpoint := http.MethodPut, nc.nsurl+"/beat"
 			if nc.ver == "v3" {
 				method, endpoint = http.MethodPost, nc.nsurl
@@ -215,13 +216,14 @@ func (n *NacosClient) GetServiceURL(servicename string, groupName ...string) (st
 		"namespaceId": n.namespace,
 	}
 	addClusterQuery(query, n.ver, n.cluster)
-	n.authorize(query)
 	var resp *grequests.Response
 	if len(groupName) > 0 {
 		for _, g := range groupName {
-			query["groupName"] = g
+			requestParams := cloneParams(query)
+			requestParams["groupName"] = g
+			n.authorize(requestParams)
 			resp, err = grequests.DoRegularRequest(http.MethodGet, n.nsurl+"/list", &grequests.RequestOptions{
-				Params: query, Headers: n.headers,
+				Params: requestParams, Headers: n.headers,
 			})
 			if err != nil {
 				logger.Error("获取Nacos服务" + servicename + "失败:" + err.Error())
@@ -251,6 +253,7 @@ func (n *NacosClient) GetServiceURL(servicename string, groupName ...string) (st
 
 		}
 	} else {
+		n.authorize(query)
 		resp, err = grequests.DoRegularRequest(http.MethodGet, n.nsurl+"/list", &grequests.RequestOptions{
 			Params: query, Headers: n.headers,
 		})
@@ -361,8 +364,10 @@ func (n *NacosClient) DeRegister() {
 	if n.nsurl == "" || n.param == nil {
 		return
 	}
+	params := cloneParams(n.param)
+	n.authorize(params)
 	_, err := grequests.DoRegularRequest(http.MethodDelete, n.nsurl, &grequests.RequestOptions{
-		Params: n.param, Headers: n.headers,
+		Params: params, Headers: n.headers,
 	})
 	if err != nil {
 		logger.Error("Nacos注销服务失败:" + err.Error())
@@ -376,8 +381,10 @@ func (n *NacosClient) reRegister() bool {
 	if n.nsurl == "" || n.param == nil {
 		return false
 	}
+	params := cloneParams(n.param)
+	n.authorize(params)
 	resp, err := grequests.DoRegularRequest(http.MethodPost, n.nsurl, &grequests.RequestOptions{
-		Params: n.param, Headers: n.headers,
+		Params: params, Headers: n.headers,
 	})
 	if err != nil {
 		logger.Error("Nacos重新注册失败: " + err.Error())
@@ -458,6 +465,10 @@ func (n *NacosClient) isMSE() bool {
 }
 
 func (n *NacosClient) authorize(params map[string]string) {
+	delete(params, "ak")
+	delete(params, "data")
+	delete(params, "signature")
+	delete(params, "accessToken")
 	if !n.isMSE() || n.accessKey == "" || n.secretKey == "" {
 		addAuth(params, n.accessToken)
 		return

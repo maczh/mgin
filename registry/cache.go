@@ -38,15 +38,16 @@ type CachedRegistry struct {
 	sequence uint64
 	watchers map[string]func()
 	stopped  bool
+	active   sync.WaitGroup
 
 	once sync.Once
 }
 type cacheEntry struct {
-	url        string
-	group      string
-	service    string
-	groupArgs  []string
-	expiresAt  time.Time
+	url       string
+	group     string
+	service   string
+	groupArgs []string
+	expiresAt time.Time
 }
 
 // singleFlight 合并同一 key 的并发发现请求，leader 真正调用后端，follower 等待结果。
@@ -83,6 +84,9 @@ func NewCachedRegistry(delegate RegistryClient) *CachedRegistry {
 func (c *CachedRegistry) Invalidate(service, group string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if c.stopped {
+		return
+	}
 	for key, entry := range c.entries {
 		if entry.service == service && (group == "" || entry.group == group) {
 			delete(c.entries, key)
@@ -106,7 +110,9 @@ func (c *CachedRegistry) watch(service, group string) {
 		return
 	}
 	c.watchers[key] = nil
+	c.active.Add(1)
 	c.mu.Unlock()
+	defer c.active.Done()
 	cancel, err := watcher.WatchService(service, group, func() { c.Invalidate(service, group) })
 	if err != nil || cancel == nil {
 		c.mu.Lock()
@@ -127,6 +133,14 @@ func (c *CachedRegistry) watch(service, group string) {
 // GetServiceInstances exposes a complete instance list when the delegate
 // supports it, applying the configured local selection strategy.
 func (c *CachedRegistry) GetServiceInstances(service string, group ...string) ([]ServiceInstance, string) {
+	c.mu.Lock()
+	if c.stopped {
+		c.mu.Unlock()
+		return nil, ""
+	}
+	c.active.Add(1)
+	c.mu.Unlock()
+	defer c.active.Done()
 	p, ok := c.delegate.(InstanceProvider)
 	if !ok {
 		url, grp := c.GetServiceURL(service, group...)
@@ -179,6 +193,10 @@ func (c *CachedRegistry) GetServiceURL(servicename string, groupName ...string) 
 	key := servicename + "\x00" + strings.Join(groupName, "\x00")
 
 	c.mu.Lock()
+	if c.stopped {
+		c.mu.Unlock()
+		return "", ""
+	}
 	if entry, ok := c.entries[key]; ok {
 		if time.Now().Before(entry.expiresAt) {
 			url, grp := entry.url, entry.group
@@ -189,12 +207,26 @@ func (c *CachedRegistry) GetServiceURL(servicename string, groupName ...string) 
 	}
 	c.mu.Unlock()
 	if provider, ok := c.delegate.(InstanceProvider); ok {
+		c.mu.Lock()
+		if c.stopped {
+			c.mu.Unlock()
+			return "", ""
+		}
+		c.active.Add(1)
+		c.mu.Unlock()
+		defer c.active.Done()
 		instances, group := provider.GetServiceInstances(servicename, groupName...)
 		selected := selectInstances(instances, c.strategy, &c.sequence)
 		if len(selected) > 0 && selected[0].URL != "" {
 			c.mu.Lock()
-			c.entries[key] = &cacheEntry{url: selected[0].URL, group: group, service: servicename, groupArgs: groupName, expiresAt: time.Now().Add(c.ttl)}
+			if !c.stopped {
+				c.entries[key] = &cacheEntry{url: selected[0].URL, group: group, service: servicename, groupArgs: groupName, expiresAt: time.Now().Add(c.ttl)}
+			}
+			stopped := c.stopped
 			c.mu.Unlock()
+			if stopped {
+				return "", group
+			}
 			c.watch(servicename, group)
 			return selected[0].URL, group
 		}
@@ -205,13 +237,26 @@ func (c *CachedRegistry) GetServiceURL(servicename string, groupName ...string) 
 		sf = &singleFlight{}
 		sf.wg.Add(1)
 		c.inflight[key] = sf
+		c.active.Add(1)
 	}
 	c.mu.Unlock()
 
 	if exists {
+		c.mu.Lock()
+		if c.stopped {
+			c.mu.Unlock()
+			return "", ""
+		}
+		c.active.Add(1)
+		c.mu.Unlock()
+		defer c.active.Done()
 		// 已有 leader 在回源，等待其完成后直接复用结果
 		sf.wg.Wait()
 		c.mu.Lock()
+		if c.stopped {
+			c.mu.Unlock()
+			return "", ""
+		}
 		if e, ok := c.entries[key]; ok {
 			url, grp := e.url, e.group
 			c.mu.Unlock()
@@ -222,27 +267,36 @@ func (c *CachedRegistry) GetServiceURL(servicename string, groupName ...string) 
 	}
 
 	url, grp := c.delegate.GetServiceURL(servicename, groupName...)
-	c.watch(servicename, grp)
 	c.mu.Lock()
-	if url != "" {
+	if url != "" && !c.stopped {
 		c.entries[key] = &cacheEntry{
-			url:        url,
-			group:      grp,
-			service:    servicename,
-			groupArgs:  groupName,
-			expiresAt:  time.Now().Add(c.ttl),
+			url:       url,
+			group:     grp,
+			service:   servicename,
+			groupArgs: groupName,
+			expiresAt: time.Now().Add(c.ttl),
 		}
 	}
 	delete(c.inflight, key)
 	if !exists {
 		sf.wg.Done()
+		c.active.Done()
 	}
 	c.mu.Unlock()
+	if url != "" {
+		c.watch(servicename, grp)
+	}
 	return url, grp
 }
 
 // Register / DeRegister 直接透传给真实客户端，并在关闭时优雅停止后台刷新。
 func (c *CachedRegistry) Register(registryConfigData []byte) {
+	c.mu.Lock()
+	stopped := c.stopped
+	c.mu.Unlock()
+	if stopped {
+		return
+	}
 	if c.delegate == nil {
 		return
 	}
@@ -252,14 +306,20 @@ func (c *CachedRegistry) Register(registryConfigData []byte) {
 func (c *CachedRegistry) DeRegister() {
 	c.once.Do(func() {
 		c.mu.Lock()
+		c.stopped = true
+		watchers := make([]func(), 0, len(c.watchers))
 		for key, cancel := range c.watchers {
 			if cancel != nil {
-				cancel()
+				watchers = append(watchers, cancel)
 			}
 			delete(c.watchers, key)
 		}
 		c.entries = make(map[string]*cacheEntry)
 		c.mu.Unlock()
+		for _, cancel := range watchers {
+			cancel()
+		}
+		c.active.Wait()
 		if c.delegate != nil {
 			c.delegate.DeRegister()
 		}

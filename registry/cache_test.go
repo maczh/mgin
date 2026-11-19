@@ -19,6 +19,57 @@ type fakeClient struct {
 	emptyAlways bool
 }
 
+type blockingRegistry struct {
+	started      chan struct{}
+	release      chan struct{}
+	watchStarted chan struct{}
+	watchRelease chan struct{}
+	mu           sync.Mutex
+	watches      int
+	cancels      int
+	closed       int
+}
+
+func (b *blockingRegistry) Register([]byte) {}
+func (b *blockingRegistry) GetServiceURL(string, ...string) (string, string) {
+	close(b.started)
+	<-b.release
+	return "http://late", "g"
+}
+func (b *blockingRegistry) DeRegister() { b.mu.Lock(); b.closed++; b.mu.Unlock() }
+func (b *blockingRegistry) WatchService(string, string, func()) (func(), error) {
+	close(b.watchStarted)
+	<-b.watchRelease
+	b.mu.Lock()
+	b.watches++
+	b.mu.Unlock()
+	return func() { b.mu.Lock(); b.cancels++; b.mu.Unlock() }, nil
+}
+
+func TestCachedRegistry_DeRegisterWaitsForLookupAndRejectsLateWatch(t *testing.T) {
+	b := &blockingRegistry{started: make(chan struct{}), release: make(chan struct{}), watchStarted: make(chan struct{}), watchRelease: make(chan struct{})}
+	c := NewCachedRegistry(b)
+	doneLookup := make(chan struct{})
+	go func() { defer close(doneLookup); c.GetServiceURL("svc") }()
+	<-b.started
+	doneClose := make(chan struct{})
+	go func() { c.DeRegister(); close(doneClose) }()
+	close(b.release)
+	<-doneLookup
+	<-doneClose
+	if url, _ := c.GetServiceURL("svc"); url != "" {
+		t.Fatalf("stopped registry returned %q", url)
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.watches != 0 || b.cancels != 0 {
+		t.Fatalf("watch started after terminal close: created=%d canceled=%d", b.watches, b.cancels)
+	}
+	if b.closed != 1 {
+		t.Fatalf("delegate close count = %d", b.closed)
+	}
+}
+
 func (f *fakeClient) Register([]byte) {}
 func (f *fakeClient) DeRegister()     {}
 func (f *fakeClient) GetServiceURL(service string, group ...string) (string, string) {

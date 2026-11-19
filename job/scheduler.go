@@ -95,9 +95,10 @@ type jobRuntime struct {
 	onceAt   time.Time     // once 类型的执行时刻
 	next     time.Time     // 下次触发时间，零值表示不再调度
 
-	active   int32 // 正在执行的实例数
-	queued   int32 // serial 策略下的排队数
-	serialMu sync.Mutex
+	active     int32 // 正在执行的实例数
+	queued     int32 // serial 策略下的排队数
+	serialMu   chan struct{}
+	serialOnce sync.Once
 
 	cancelMu sync.Mutex
 	cancels  map[int64]context.CancelFunc // logId -> cancel，用于 cover 策略
@@ -138,18 +139,21 @@ func (jr *jobRuntime) snapshot() JobInfo {
 //   - 支持超时中断、失败重试、阻塞策略、调度过期补偿
 //   - 纯单机调度：调度器只在本进程内工作，不做多实例协调
 type Manager struct {
-	mu       sync.RWMutex
-	cfg      *Config
-	st       *store
-	parser   cron.Parser
-	loc      *time.Location
-	jobs     map[int64]*jobRuntime
-	sem      chan struct{}
-	hostname string
+	mu               sync.RWMutex
+	cfg              *Config
+	st               *store
+	parser           cron.Parser
+	loc              *time.Location
+	jobs             map[int64]*jobRuntime
+	sem              chan struct{}
+	admissionTimeout time.Duration
+	hostname         string
 
 	running  bool
 	stopChan chan struct{}
+	stopDone chan struct{}
 	wg       sync.WaitGroup
+	submitMu sync.Mutex // serializes execution admission against Stop
 }
 
 var (
@@ -230,6 +234,12 @@ func (m *Manager) Start() error {
 
 	m.sem = make(chan struct{}, cfg.MaxConcurrent)
 	m.stopChan = make(chan struct{})
+	m.stopDone = make(chan struct{})
+	loopCount := 2
+	if cfg.LogRetainDays > 0 {
+		loopCount++
+	}
+	m.wg.Add(loopCount)
 	m.running = true
 	m.mu.Unlock()
 
@@ -242,12 +252,9 @@ func (m *Manager) Start() error {
 		logs.Error("[Job] 载入任务列表失败: {}", err.Error())
 	}
 
-	m.wg.Add(1)
 	go m.scheduleLoop()
-	m.wg.Add(1)
 	go m.refreshLoop()
 	if cfg.LogRetainDays > 0 {
-		m.wg.Add(1)
 		go m.cleanLoop()
 	}
 
@@ -258,17 +265,33 @@ func (m *Manager) Start() error {
 
 // Stop 停止调度器，等待运行中的任务执行完毕
 func (m *Manager) Stop() {
+	m.submitMu.Lock()
 	m.mu.Lock()
 	if !m.running {
+		done := m.stopDone
 		m.mu.Unlock()
+		m.submitMu.Unlock()
+		if done != nil {
+			<-done
+		}
 		return
 	}
 	m.running = false
 	close(m.stopChan)
+	for _, jr := range m.jobs {
+		jr.cancelAll()
+	}
 	m.mu.Unlock()
+	m.submitMu.Unlock()
 
 	logs.Info("[Job] 正在停止定时任务调度器，等待运行中的任务结束...")
 	m.wg.Wait()
+	m.mu.Lock()
+	if m.stopDone != nil {
+		close(m.stopDone)
+		m.stopDone = nil
+	}
+	m.mu.Unlock()
 	logs.Info("[Job] 定时任务调度器已停止")
 }
 
@@ -314,7 +337,6 @@ func (m *Manager) Trigger(id int64, param map[string]interface{}) (int64, error)
 	m.mu.RLock()
 	running := m.running
 	jr, ok := m.jobs[id]
-	st := m.st
 	m.mu.RUnlock()
 	if !running {
 		return 0, errors.New("定时任务调度器未运行")
@@ -326,35 +348,7 @@ func (m *Manager) Trigger(id int64, param map[string]interface{}) (int64, error)
 	if param == nil || len(param) == 0 {
 		param = info.JobParam
 	}
-	// 同步执行以便立即返回结果与日志 ID
-	jl := &JobLog{
-		JobId:       info.ID,
-		JobName:     info.JobName,
-		JobGroup:    info.JobGroup,
-		HandlerName: info.HandlerName,
-		JobParam:    param,
-		TriggerType: TriggerManual,
-		Status:      LogRunning,
-		StartAt:     time.Now(),
-		Hostname:    m.hostname,
-	}
-	if err := st.createLog(jl); err != nil {
-		return 0, err
-	}
-	handler := GetHandler(info.HandlerName)
-	if handler == nil {
-		jl.Status = LogFailed
-		now := time.Now()
-		jl.EndAt = &now
-		jl.Message = "执行器[" + info.HandlerName + "]未注册"
-		_ = st.finishLog(jl)
-		return jl.ID, fmt.Errorf("执行器[%s]未注册", info.HandlerName)
-	}
-	ok = m.runOnce(jr, handler, info, TriggerManual, param, 0)
-	if !ok {
-		return jl.ID, errors.New("任务执行失败，请查看执行日志")
-	}
-	return jl.ID, nil
+	return m.submitManual(jr, info, param)
 }
 
 // reload 从数据库全量载入启用中的任务，并与内存运行时状态做增量比对
@@ -635,6 +629,7 @@ func (m *Manager) fire(jr *jobRuntime, triggerType string, param map[string]inte
 		logs.Error("[Job] 任务[{}]的执行器[{}]未注册，跳过本次调度", info.JobName, info.HandlerName)
 		m.writeBlockedLog(info, triggerType, param, LogFailed,
 			"执行器["+info.HandlerName+"]未注册")
+		m.rescheduleFixedDelay(jr, info)
 		return
 	}
 
@@ -643,6 +638,7 @@ func (m *Manager) fire(jr *jobRuntime, triggerType string, param map[string]inte
 		if atomic.LoadInt32(&jr.active) > 0 {
 			logs.Warn("[Job] 任务[{}]上次执行未结束，按 discard 策略丢弃本次调度", info.JobName)
 			m.writeBlockedLog(info, triggerType, param, LogBlocked, "上次执行未结束，按 discard 策略丢弃")
+			m.rescheduleFixedDelay(jr, info)
 			return
 		}
 	case BlockCover:
@@ -654,33 +650,75 @@ func (m *Manager) fire(jr *jobRuntime, triggerType string, param map[string]inte
 		if atomic.LoadInt32(&jr.queued) >= maxQueue {
 			logs.Warn("[Job] 任务[{}]串行排队已满({})，丢弃本次调度", info.JobName, maxQueue)
 			m.writeBlockedLog(info, triggerType, param, LogBlocked, "串行队列已满，丢弃本次调度")
+			m.rescheduleFixedDelay(jr, info)
 			return
 		}
+		atomic.AddInt32(&jr.queued, 1)
 	}
 
+	m.submitMu.Lock()
+	m.mu.RLock()
+	running := m.running
+	m.mu.RUnlock()
+	if !running {
+		m.submitMu.Unlock()
+		if info.BlockStrategy == BlockSerial {
+			atomic.AddInt32(&jr.queued, -1)
+		}
+		m.rescheduleFixedDelay(jr, info)
+		return
+	}
 	m.wg.Add(1)
+	m.submitMu.Unlock()
 	go func() {
 		defer m.wg.Done()
+		if info.BlockStrategy == BlockSerial {
+			defer atomic.AddInt32(&jr.queued, -1)
+		}
 		// serial 策略：排队等待上一次执行完成
 		if info.BlockStrategy == BlockSerial {
-			atomic.AddInt32(&jr.queued, 1)
-			jr.serialMu.Lock()
-			atomic.AddInt32(&jr.queued, -1)
-			defer jr.serialMu.Unlock()
+			jr.serialOnce.Do(func() { jr.serialMu = make(chan struct{}, 1) })
+			select {
+			case jr.serialMu <- struct{}{}:
+				defer func() { <-jr.serialMu }()
+			case <-m.stopChan:
+				m.rescheduleFixedDelay(jr, info)
+				return
+			}
 		}
 		// 全局并发控制
 		select {
 		case m.sem <- struct{}{}:
 			defer func() { <-m.sem }()
-		case <-time.After(30 * time.Second):
+		case <-time.After(m.admissionWait()):
 			logs.Error("[Job] 任务[{}]等待全局并发槽位超时，放弃本次执行", info.JobName)
 			m.writeBlockedLog(info, triggerType, param, LogBlocked, "全局并发已满，等待槽位超时")
+			m.rescheduleFixedDelay(jr, info)
 			return
 		case <-m.stopChan:
+			m.rescheduleFixedDelay(jr, info)
 			return
 		}
 		m.execute(jr, handler, triggerType, param)
 	}()
+}
+
+func (m *Manager) rescheduleFixedDelay(jr *jobRuntime, info JobInfo) {
+	if info.ScheduleType != ScheduleFixedDelay {
+		return
+	}
+	jr.mu.Lock()
+	jr.next = time.Now().In(m.loc).Add(jr.interval)
+	next := jr.next
+	jr.mu.Unlock()
+	m.asyncUpdateNext(info.ID, next)
+}
+
+func (m *Manager) admissionWait() time.Duration {
+	if m.admissionTimeout > 0 {
+		return m.admissionTimeout
+	}
+	return 30 * time.Second
 }
 
 // execute 执行任务并处理超时、重试与日志落库
@@ -703,16 +741,26 @@ func (m *Manager) execute(jr *jobRuntime, handler HandlerFunc, triggerType strin
 
 	totalTry := info.RetryCount + 1
 	for try := 0; try < totalTry; try++ {
+		select {
+		case <-m.stopChan:
+			return
+		default:
+		}
 		tt := triggerType
 		if try > 0 {
 			tt = TriggerRetry
 		}
-		ok := m.runOnce(jr, handler, info, tt, param, try)
+		ok, _ := m.runOnce(jr, handler, info, tt, param, try)
 		if ok {
 			return
 		}
 		// 失败且仍有重试机会
 		if try < totalTry-1 {
+			select {
+			case <-m.stopChan:
+				return
+			default:
+			}
 			wait := time.Duration(info.RetryInterval) * time.Second
 			logs.Warn("[Job] 任务[{}]第{}次执行失败，{}后重试", info.JobName, try+1, wait.String())
 			if wait > 0 {
@@ -728,12 +776,12 @@ func (m *Manager) execute(jr *jobRuntime, handler HandlerFunc, triggerType strin
 
 // runOnce 单次执行，返回是否成功
 func (m *Manager) runOnce(jr *jobRuntime, handler HandlerFunc, info JobInfo,
-	triggerType string, param map[string]interface{}, retryNum int) bool {
+	triggerType string, param map[string]interface{}, retryNum int) (bool, int64) {
 	m.mu.RLock()
 	st := m.st
 	m.mu.RUnlock()
 	if st == nil {
-		return false
+		return false, 0
 	}
 
 	start := time.Now()
@@ -755,6 +803,25 @@ func (m *Manager) runOnce(jr *jobRuntime, handler HandlerFunc, info JobInfo,
 
 	// 构造带超时的执行上下文
 	baseCtx := context.Background()
+	m.mu.RLock()
+	stopChan := m.stopChan
+	m.mu.RUnlock()
+	stopDone := make(chan struct{})
+	if stopChan != nil {
+		stopCtx, stopCancel := context.WithCancel(baseCtx)
+		go func() {
+			defer close(stopDone)
+			select {
+			case <-stopChan:
+				stopCancel()
+			case <-stopCtx.Done():
+			}
+		}()
+		baseCtx = stopCtx
+		defer func() { stopCancel(); <-stopDone }()
+	} else {
+		close(stopDone)
+	}
 	var cancel context.CancelFunc
 	if info.Timeout > 0 {
 		baseCtx, cancel = context.WithTimeout(baseCtx, time.Duration(info.Timeout)*time.Second)
@@ -811,6 +878,9 @@ func (m *Manager) runOnce(jr *jobRuntime, handler HandlerFunc, info JobInfo,
 			status = LogCanceled
 			message = "任务被取消(cover策略或服务停止)"
 		}
+		// A context timeout does not stop a handler that ignores cancellation.
+		// Keep active/semaphore ownership until the actual goroutine exits.
+		<-done
 	}
 
 	end := time.Now()
@@ -832,7 +902,69 @@ func (m *Manager) runOnce(jr *jobRuntime, handler HandlerFunc, info JobInfo,
 	} else {
 		logs.Error("[Job] 任务[{}]执行失败({}ms): {}", info.JobName, jl.CostMs, message)
 	}
-	return success
+	return success, jl.ID
+}
+
+func (m *Manager) submitManual(jr *jobRuntime, info JobInfo, param map[string]interface{}) (int64, error) {
+	handler := GetHandler(info.HandlerName)
+	if handler == nil {
+		return 0, fmt.Errorf("执行器[%s]未注册", info.HandlerName)
+	}
+	switch info.BlockStrategy {
+	case BlockDiscard:
+		if atomic.LoadInt32(&jr.active) > 0 {
+			return 0, errors.New("任务上次执行未结束，按 discard 策略拒绝")
+		}
+	case BlockCover:
+		jr.cancelAll()
+	case BlockSerial:
+		m.mu.RLock()
+		maxQueue := int32(m.cfg.MaxSerialQueue)
+		m.mu.RUnlock()
+		if atomic.LoadInt32(&jr.queued) >= maxQueue {
+			return 0, errors.New("任务串行队列已满")
+		}
+		atomic.AddInt32(&jr.queued, 1)
+	}
+	if info.BlockStrategy == BlockSerial {
+		defer atomic.AddInt32(&jr.queued, -1)
+		jr.serialOnce.Do(func() { jr.serialMu = make(chan struct{}, 1) })
+		select {
+		case jr.serialMu <- struct{}{}:
+			defer func() { <-jr.serialMu }()
+		case <-m.stopChan:
+			return 0, errors.New("调度器正在停止")
+		}
+	}
+	m.submitMu.Lock()
+	m.mu.RLock()
+	running := m.running
+	m.mu.RUnlock()
+	if !running {
+		m.submitMu.Unlock()
+		return 0, errors.New("调度器正在停止")
+	}
+	m.wg.Add(1)
+	m.submitMu.Unlock()
+	defer m.wg.Done()
+	select {
+	case m.sem <- struct{}{}:
+		defer func() { <-m.sem }()
+	case <-m.stopChan:
+		return 0, errors.New("调度器正在停止")
+	case <-time.After(m.admissionWait()):
+		return 0, errors.New("等待全局并发槽位超时")
+	}
+	atomic.AddInt32(&jr.active, 1)
+	defer atomic.AddInt32(&jr.active, -1)
+	ok, id := m.runOnce(jr, handler, info, TriggerManual, param, 0)
+	if id == 0 {
+		return 0, errors.New("任务执行日志创建失败")
+	}
+	if !ok {
+		return id, errors.New("任务执行失败，请查看执行日志")
+	}
+	return id, nil
 }
 
 // writeBlockedLog 记录一条未真正执行的调度日志（阻塞丢弃、执行器缺失等）

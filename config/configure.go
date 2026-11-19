@@ -171,34 +171,24 @@ const config_file = "./application.yml"
 const configRequestTimeout = 10 * time.Second
 
 func (c *config) Init(cf string) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	if c == nil {
+		return
+	}
 	if cf == "" {
 		cf = config_file
 	}
-	c.WorkDir = filepath.Dir(cf)
 	logger.Debug("读取配置文件:" + cf)
-	c.Cnf = koanf.New(".")
+	candidate := &config{WorkDir: filepath.Dir(cf), Cnf: koanf.New(".")}
 	f := file.Provider(cf)
-	err := c.Cnf.Load(f, yaml.Parser())
+	err := candidate.Cnf.Load(f, yaml.Parser())
 	if err != nil {
 		logger.Error("读取配置文件错误:" + err.Error())
-		// Do not expose a partially loaded configuration. Callers can safely
-		// retry Init after fixing the file.
-		c.Cnf = nil
 		return
 	}
 	// Init may be called more than once in tests or during controlled reloads.
-	// Clear all typed fields first so removed keys cannot survive a reload.
-	c.WorkDir = filepath.Dir(cf)
-	c.App = app{}
-	c.Config = appConfig{}
-	c.Log = appLog{}
-	c.Logger = appLogger{}
-	c.Discovery = discovery{}
-	c.Jwt = jwtConfig{}
-	c.Sys = sys{}
-	c.Casbin = casbin{}
+	// Build all typed fields on the private candidate so failed loads leave the
+	// previously published configuration untouched.
+	c = candidate
 	c.App.Name = c.Cnf.String("go.application.name")
 	c.App.Project = c.Cnf.String("go.application.project")
 	if c.App.Project == "" {
@@ -309,6 +299,22 @@ func (c *config) Init(cf string) {
 		c.Casbin.ModelFile = filepath.Join(c.WorkDir, c.Casbin.ModelFile)
 	}
 	c.Sys.Casbin = c.Cnf.Bool("go.sys.casbin")
+
+	// Publish only after the candidate is fully populated. Readers using the
+	// config accessors synchronize on this mutex; direct public-field reads are
+	// retained for compatibility and must not race with Init.
+	Config.mu.Lock()
+	defer Config.mu.Unlock()
+	Config.Cnf = candidate.Cnf
+	Config.WorkDir = candidate.WorkDir
+	Config.App = candidate.App
+	Config.Config = candidate.Config
+	Config.Log = candidate.Log
+	Config.Logger = candidate.Logger
+	Config.Discovery = candidate.Discovery
+	Config.Jwt = candidate.Jwt
+	Config.Sys = candidate.Sys
+	Config.Casbin = candidate.Casbin
 }
 
 func (c *config) GetConfigString(name string) string {

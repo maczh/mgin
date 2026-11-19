@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"net"
 	"strings"
+	"sync"
 	"time"
 
 	jsoniter "github.com/json-iterator/go"
@@ -37,6 +38,8 @@ type EtcdClient struct {
 	apiUrl        string
 	ctx           context.Context
 	cancel        context.CancelFunc
+	closeOnce     sync.Once
+	workerWG      sync.WaitGroup
 }
 
 var logger = gologger.GetLogger()
@@ -155,7 +158,8 @@ func (c *EtcdClient) Register(etcdConfigData []byte) {
 		c.apiUrl = apiUrl
 		c.registeredKey = key
 		c.ctx, c.cancel = context.WithCancel(context.Background())
-		go c.keepAliveLoop()
+		c.workerWG.Add(1)
+		go func() { defer c.workerWG.Done(); c.keepAliveLoop() }()
 	}
 }
 
@@ -211,24 +215,33 @@ func (c *EtcdClient) GetServiceInstances(servicename string, groupName ...string
 }
 
 func (c *EtcdClient) DeRegister() {
-	if c.client == nil {
-		logger.Error("Etcd 未初始化，无法注销服务")
-		return
-	}
-	if c.cancel != nil {
-		c.cancel()
-	}
-	key := c.registeredKey
-	if key == "" {
-		// 兜底：按 instanceId 拼出 key（极端情况下 registeredKey 未记录）
-		key = c.serviceKey(c.group, config.Config.App.Name, c.instanceId)
-	}
-	resp, err := c.client.Delete(context.Background(), key)
-	if err != nil {
-		logger.Error("Etcd取消注册服务失败:" + err.Error())
-		return
-	}
-	logger.Debug("Etcd注销服务结果: " + toJSON(resp))
+	c.closeOnce.Do(func() {
+		if c.cancel != nil {
+			c.cancel()
+		}
+		c.workerWG.Wait()
+		if c.client == nil {
+			return
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if c.registeredKey != "" {
+			resp, err := c.client.Delete(ctx, c.registeredKey)
+			if err != nil {
+				logger.Error("Etcd取消注册服务失败:" + err.Error())
+			} else {
+				logger.Debug("Etcd注销服务结果: " + toJSON(resp))
+			}
+		}
+		if c.leaseID != clientv3.NoLease {
+			if _, err := c.client.Revoke(ctx, c.leaseID); err != nil {
+				logger.Error("Etcd撤销租约失败:" + err.Error())
+			}
+		}
+		if err := c.client.Close(); err != nil {
+			logger.Error("Etcd关闭客户端失败:" + err.Error())
+		}
+	})
 }
 
 func (c *EtcdClient) serviceKey(group, service, instance string) string {
@@ -249,7 +262,9 @@ func (c *EtcdClient) SubscribeOffline(callback func(service, group string)) erro
 	if c.ctx != nil {
 		watchCtx = c.ctx
 	}
+	c.workerWG.Add(1)
 	go func() {
+		defer c.workerWG.Done()
 		watch := c.client.Watch(watchCtx, c.watchPrefix(), clientv3.WithPrefix())
 		for response := range watch {
 			for _, event := range response.Events {
@@ -307,8 +322,10 @@ func (c *EtcdClient) WatchService(service, group string, callback func()) (func(
 		group = c.group
 	}
 	ctx, cancel := context.WithCancel(context.Background())
+	c.workerWG.Add(1)
 	prefix := c.servicePrefix(group, service)
 	go func() {
+		defer c.workerWG.Done()
 		watch := c.client.Watch(ctx, prefix, clientv3.WithPrefix())
 		for response := range watch {
 			for _, event := range response.Events {
@@ -370,16 +387,23 @@ func (c *EtcdClient) reRegister() bool {
 	if c.client == nil || c.apiUrl == "" || c.registeredKey == "" {
 		return false
 	}
-	if c.leaseID != clientv3.NoLease {
-		_, _ = c.client.Revoke(context.Background(), c.leaseID)
+	if c.ctx == nil || c.ctx.Err() != nil {
+		return false
 	}
-	respGrant, err := c.client.Grant(context.Background(), leaseTTL)
+	ctx := c.ctx
+	if c.leaseID != clientv3.NoLease {
+		_, _ = c.client.Revoke(ctx, c.leaseID)
+	}
+	respGrant, err := c.client.Grant(ctx, leaseTTL)
 	if err != nil {
 		logger.Error("Etcd重新申请租约失败: " + err.Error())
 		return false
 	}
 	c.leaseID = respGrant.ID
-	_, err = c.client.Put(context.Background(), c.registeredKey, c.apiUrl, clientv3.WithLease(c.leaseID))
+	if ctx.Err() != nil {
+		return false
+	}
+	_, err = c.client.Put(ctx, c.registeredKey, c.apiUrl, clientv3.WithLease(c.leaseID))
 	if err != nil {
 		logger.Error("Etcd重新注册服务失败: " + err.Error())
 		return false

@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
@@ -97,6 +98,14 @@ const circuitFailureThreshold = 3
 const circuitOpenWindow = 30 * time.Second
 
 func Call(service, uri string, op *Options) (result string, callErr error) {
+	return CallContext(context.Background(), service, uri, op)
+}
+
+// CallContext performs discovery and the outbound request within one caller-owned deadline.
+func CallContext(ctx context.Context, service, uri string, op *Options) (result string, callErr error) {
+	if ctx == nil {
+		return "", errors.New("client context cannot be nil")
+	}
 	if op == nil {
 		return "", errors.New("client options cannot be nil")
 	}
@@ -128,6 +137,16 @@ func Call(service, uri string, op *Options) (result string, callErr error) {
 	if op.Header != nil {
 		op.Header = cloneHeader(op.Header)
 	}
+	circuitEnabled := circuitEnabled("go.discovery.circuit.enabled")
+	if !circuitEnabled {
+		if op.Timeout > 0 {
+			var cancel context.CancelFunc
+			ctx, cancel = context.WithTimeout(ctx, op.Timeout)
+			defer cancel()
+		}
+		return call(ctx, service, uri, op)
+	}
+
 	key := op.CircuitKey
 	if key == "" {
 		key = discoveryService + "\x00" + uri
@@ -151,7 +170,12 @@ func Call(service, uri string, op *Options) (result string, callErr error) {
 		}
 		return "", err
 	}
-	result, err := call(service, uri, op)
+	if op.Timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, op.Timeout)
+		defer cancel()
+	}
+	result, err := call(ctx, service, uri, op)
 	// Client-side rejections (401/403/4xx) say nothing about downstream health,
 	// so they must not trip the breaker for other callers of the same endpoint.
 	if (err != nil && fallbackEligible(err)) || fallbackUsed {
@@ -161,6 +185,8 @@ func Call(service, uri string, op *Options) (result string, callErr error) {
 	}
 	return result, err
 }
+
+func circuitEnabled(key string) bool { return config.Config != nil && config.Config.GetConfigBool(key) }
 
 func circuitAllow(key string, window time.Duration) bool {
 	circuits.Lock()
@@ -205,7 +231,7 @@ func circuitSuccess(key string) {
 	}
 }
 
-func call(service, uri string, op *Options) (result string, callErr error) {
+func call(ctx context.Context, service, uri string, op *Options) (result string, callErr error) {
 	start := time.Now()
 	requestID := trace.GetRequestId()
 	defer func() {
@@ -243,8 +269,14 @@ func call(service, uri string, op *Options) (result string, callErr error) {
 	if op.Method == "" {
 		op.Method = "POST"
 	}
-	if op.Timeout <= 0 {
-		op.Timeout = config.Config.GetConfigDuration("go.client.timeout", 10*time.Second)
+	if _, ok := ctx.Deadline(); !ok {
+		timeout := config.Config.GetConfigDuration("go.client.timeout", 10*time.Second)
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
+	}
+	if err := ctx.Err(); err != nil {
+		return "", err
 	}
 	host := ""
 	var err error
@@ -260,9 +292,9 @@ func call(service, uri string, op *Options) (result string, callErr error) {
 	// Keep op.Group as requested by the caller so cache keys stay stable even
 	// when discovery fails; the resolved group is only needed for the lookup.
 	if resolver, ok := registry.Registry.(registry.NamedRegistryResolver); ok {
-		host, _ = resolver.GetServiceURLFrom(op.Registry, service, op.Group)
+		host, _ = resolveWithContext(ctx, resolver, op.Registry, service, op.Group)
 	} else {
-		host, _ = registry.Registry.GetServiceURL(service, op.Group)
+		host, _ = resolveLegacyWithContext(ctx, registry.Registry, service, op.Group)
 	}
 	if host == "" {
 		err := errors.New("微服务获取" + service + "服务主机IP端口失败")
@@ -286,7 +318,7 @@ func call(service, uri string, op *Options) (result string, callErr error) {
 			Data:           utils.AnyToMap(op.Data),
 			Params:         utils.AnyToMap(op.Query),
 			Headers:        headers,
-			RequestTimeout: op.Timeout,
+			RequestTimeout: remaining(ctx), Context: ctx,
 		})
 	case CONTENT_TYPE_JSON, CONTENT_TYPE_RESTFUL:
 		headers["Content-Type"] = gin.MIMEJSON
@@ -294,7 +326,7 @@ func call(service, uri string, op *Options) (result string, callErr error) {
 			JSON:           op.Json,
 			Params:         utils.AnyToMap(op.Query),
 			Headers:        utils.AnyToMap(op.Header),
-			RequestTimeout: op.Timeout,
+			RequestTimeout: remaining(ctx), Context: ctx,
 		})
 	case CONTENT_TYPE_FILE:
 		delete(headers, "Content-Type")
@@ -303,16 +335,16 @@ func call(service, uri string, op *Options) (result string, callErr error) {
 			Params:         utils.AnyToMap(op.Query),
 			Headers:        headers,
 			Files:          op.Files,
-			RequestTimeout: op.Timeout,
+			RequestTimeout: remaining(ctx), Context: ctx,
 		}))
 	default:
 		return "", fmt.Errorf("unsupported client protocol %q", op.Protocol)
 	}
 	if err != nil {
 		logs.Error("微服务{}请求错误:{}", service, err.Error())
-		if op.Retry {
+		if op.Retry && retryableMethod(op.Method) && ctx.Err() == nil {
 			op.Retry = false
-			return call(service, uri, op)
+			return call(ctx, service, uri, op)
 		}
 		if strings.Contains(err.Error(), "dial tcp") {
 			err = errors.New("微服务获取" + service + "服务主机IP端口失败")
@@ -354,6 +386,55 @@ func call(service, uri string, op *Options) (result string, callErr error) {
 		cachePut(op.responseCacheKey(discoveryService, uri), result, op.CacheTTL)
 	}
 	return result, nil
+}
+
+func remaining(ctx context.Context) time.Duration {
+	if deadline, ok := ctx.Deadline(); ok {
+		return time.Until(deadline)
+	}
+	return 0
+}
+
+func retryableMethod(method string) bool {
+	switch strings.ToUpper(method) {
+	case http.MethodGet, http.MethodHead, http.MethodOptions, http.MethodPut, http.MethodDelete:
+		return true
+	default:
+		return false
+	}
+}
+
+type contextURLResolver interface {
+	GetServiceURLFromContext(context.Context, string, string, ...string) (string, string)
+}
+
+func resolveWithContext(ctx context.Context, r registry.NamedRegistryResolver, name, service string, group ...string) (string, string) {
+	if cr, ok := any(r).(contextURLResolver); ok {
+		return cr.GetServiceURLFromContext(ctx, name, service, group...)
+	}
+	return resolveLegacyWithContext(ctx, namedResolverAdapter{r, name}, service, group...)
+}
+
+type namedResolverAdapter struct {
+	registry.NamedRegistryResolver
+	name string
+}
+
+func (a namedResolverAdapter) GetServiceURL(service string, group ...string) (string, string) {
+	return a.NamedRegistryResolver.GetServiceURLFrom(a.name, service, group...)
+}
+func resolveLegacyWithContext(ctx context.Context, r interface {
+	GetServiceURL(string, ...string) (string, string)
+}, service string, group ...string) (string, string) {
+	type result struct{ host, group string }
+	done := make(chan result, 1)
+	go func() { h, g := r.GetServiceURL(service, group...); done <- result{h, g} }()
+	select {
+	case v := <-done:
+		return v.host, v.group
+	case <-ctx.Done():
+		return "", ""
+	}
 }
 
 // CachedFallback is the legacy entry point. It only reads responses cached for

@@ -48,7 +48,13 @@ func (c *MemCache) IsExist(key any) bool {
 清空表內容
 */
 func (c *MemCache) Clear() bool {
-	c.Close()
+	if c == nil {
+		return false
+	}
+	c.items.Range(func(key, _ any) bool {
+		c.items.Delete(key)
+		return true
+	})
 	return true
 }
 

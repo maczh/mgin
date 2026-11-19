@@ -31,6 +31,7 @@ type ConsulClient struct {
 	conf       *koanf.Koanf
 	confData   []byte
 	instanceID string
+	checkID    string
 	ctx        context.Context
 	cancel     context.CancelFunc
 }
@@ -109,6 +110,7 @@ func (c *ConsulClient) Register(etcdConfigData []byte) {
 			protocol = "https://"
 		}
 		c.instanceID = getInstanceId(ip, port, config.Config.App.Name, c.namespace, c.group, c.cluster)
+		c.checkID = c.instanceID + ":service:ttl"
 		registration := &api.AgentServiceRegistration{
 			ID:      c.instanceID,
 			Name:    config.Config.App.Name,
@@ -116,6 +118,7 @@ func (c *ConsulClient) Register(etcdConfigData []byte) {
 			Port:    int(port),
 			Tags:    []string{c.group, c.cluster, protocol},
 			Check: &api.AgentServiceCheck{
+				CheckID:                        c.checkID,
 				DeregisterCriticalServiceAfter: "10m",
 				TLSSkipVerify:                  false,
 				TTL:                            "30s",
@@ -127,6 +130,9 @@ func (c *ConsulClient) Register(etcdConfigData []byte) {
 			return
 		}
 		c.ctx, c.cancel = context.WithCancel(context.Background())
+		if err := c.client.Agent().UpdateTTL(c.checkID, "initial health check passed", api.HealthPassing); err != nil {
+			logger.Error("Consul TTL健康检查首次更新失败: " + err.Error())
+		}
 		go c.passTTL()
 	}
 }
@@ -301,7 +307,7 @@ func (c *ConsulClient) DeRegister() {
 
 // passTTL 周期性向 Consul 上报 TTL 健康检查通过，避免实例被自动反注册。
 func (c *ConsulClient) passTTL() {
-	if c.client == nil || c.instanceID == "" {
+	if c.client == nil || c.checkID == "" {
 		return
 	}
 	ticker := time.NewTicker(25 * time.Second)
@@ -311,7 +317,7 @@ func (c *ConsulClient) passTTL() {
 		case <-c.ctx.Done():
 			return
 		case <-ticker.C:
-			err := c.client.Agent().UpdateTTL(c.instanceID, "", api.HealthPassing)
+			err := c.client.Agent().UpdateTTL(c.checkID, "", api.HealthPassing)
 			if err != nil {
 				logger.Error("Consul TTL健康检查更新失败: " + err.Error())
 			}

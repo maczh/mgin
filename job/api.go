@@ -160,19 +160,11 @@ func updateHandler(c *gin.Context) {
 		c.JSON(200, i18n.Error(errcode.STORAGE_ERROR, errcode.StorageError))
 		return
 	}
-	old, err := st.getById(j.ID)
-	if err != nil {
+	if _, err := st.getById(j.ID); err != nil {
 		c.JSON(200, i18n.Error(errcode.JOB_ERROR, "任务不存在"))
 		return
 	}
-	// 保留不允许通过接口修改的字段
-	j.Status = old.Status
-	j.LastFireTime = old.LastFireTime
-	j.NextFireTime = old.NextFireTime
-	j.TriggerCount = old.TriggerCount
-	j.SuccessCount = old.SuccessCount
-	j.FailCount = old.FailCount
-	if err = st.update(&j); err != nil {
+	if err := st.update(&j); err != nil {
 		c.JSON(200, i18n.Error(errcode.JOB_ERROR, err.Error()))
 		return
 	}

@@ -1,6 +1,7 @@
 package job
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -168,9 +169,19 @@ func (s *store) create(j *JobInfo) error {
 	return s.db.Create(j).Error
 }
 
-// update 全量更新任务配置（不含统计字段与调度时间）
+// update 仅更新 API 可编辑的配置字段，避免覆盖状态、统计值和调度时间。
 func (s *store) update(j *JobInfo) error {
-	return s.db.Save(j).Error
+	params, err := json.Marshal(j.JobParam)
+	if err != nil {
+		return err
+	}
+	return s.db.Model(&JobInfo{}).Where("id = ?", j.ID).Updates(map[string]any{
+		"job_name": j.JobName, "job_group": j.JobGroup, "description": j.Description,
+		"schedule_type": j.ScheduleType, "schedule_conf": j.ScheduleConf,
+		"handler_name": j.HandlerName, "job_param": string(params),
+		"timeout": j.Timeout, "retry_count": j.RetryCount, "retry_interval": j.RetryInterval,
+		"block_strategy": j.BlockStrategy, "misfire_strategy": j.MisfireStrategy, "remark": j.Remark,
+	}).Error
 }
 
 // remove 删除任务及其执行日志

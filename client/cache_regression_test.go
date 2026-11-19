@@ -8,6 +8,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/knadh/koanf"
+	"github.com/knadh/koanf/parsers/yaml"
+	"github.com/knadh/koanf/providers/rawbytes"
+	"github.com/maczh/mgin/config"
 	"github.com/maczh/mgin/registry"
 )
 
@@ -133,6 +137,28 @@ func TestAuthRejectionDoesNotTripCircuit(t *testing.T) {
 	got, err := Call("svc", "/item", cachedGet("Bearer B"))
 	if err != nil || got != "ok" {
 		t.Fatalf("breaker opened for a different caller: got=%q err=%v", got, err)
+	}
+}
+
+func TestCircuitBreakerDisabledByDefaultAndCanBeEnabled(t *testing.T) {
+	oldCnf := config.Config.Cnf
+	defer func() { config.Config.Cnf = oldCnf }()
+	c := koanf.New(".")
+	config.Config.Cnf = c
+	circuits.Lock()
+	circuits.values = make(map[string]*circuitState)
+	circuits.Unlock()
+	if config.Config.GetConfigBool("go.discovery.cricuit.enabled") {
+		t.Fatal("missing key must default to disabled")
+	}
+	if circuitEnabled("go.discovery.cricuit.enabled") {
+		t.Fatal("disabled circuit helper returned enabled")
+	}
+	if err := c.Load(rawbytes.Provider([]byte("go:\n  discovery:\n    cricuit:\n      enabled: true\n")), yaml.Parser()); err != nil {
+		t.Fatal(err)
+	}
+	if !config.Config.GetConfigBool("go.discovery.cricuit.enabled") {
+		t.Fatal("explicit enablement was not read")
 	}
 }
 
