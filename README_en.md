@@ -878,7 +878,7 @@ result := client.CallResultT[any]("file-service", "/upload", &client.Options{
 |---|---|---|---|
 | Timeout | `Options.Timeout` → `go.client.timeout` | `10s` | Applied as `grequests.RequestTimeout`; accepts `5s`/`500ms` or plain seconds |
 | Retry | `Options.Retry` | false | One recursive retry, regardless of error type |
-| Circuit breaker | `go.discovery.circuitFailures` / `circuitOpenWindow` | 3 / `30s` | Opens after N consecutive failures; one probe is allowed after the window (half-open) |
+| Circuit breaker | `go.discovery.circuit.failures` / `circuit.openWindow` | 3 / `30s` | Opens after N consecutive failures; one probe is allowed after the window (half-open) |
 | Fallback | `Options.Fallback` / `go.client.fallback.enabled` | off | Replays the last successful response for the same `service+uri+params` |
 
 ```go

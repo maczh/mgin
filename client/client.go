@@ -153,13 +153,13 @@ func CallContext(ctx context.Context, service, uri string, op *Options) (result 
 	}
 	threshold, window := op.CircuitFailures, op.CircuitOpenWindow
 	if threshold <= 0 {
-		threshold = config.Config.GetConfigInt("go.discovery.circuitFailures")
+		threshold = config.Config.GetConfigInt("go.discovery.circuit.failures")
 	}
 	if threshold <= 0 {
 		threshold = circuitFailureThreshold
 	}
 	if window <= 0 {
-		window = config.Config.GetConfigDuration("go.discovery.circuitOpenWindow", circuitOpenWindow)
+		window = config.Config.GetConfigDuration("go.discovery.circuit.openWindow", circuitOpenWindow)
 	}
 	if !circuitAllow(key, window) {
 		err := errors.New("circuit breaker is open")

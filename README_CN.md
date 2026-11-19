@@ -886,7 +886,7 @@ result := client.CallResultT[any]("file-service", "/upload", &client.Options{
 |------|-------------|------|------|
 | 超时 | `Options.Timeout` → `go.client.timeout` | `10s` | 落到 `grequests.RequestTimeout`，支持 `5s`/`500ms` 或数字秒 |
 | 重试 | `Options.Retry` | false | 失败后递归重试一次，不区分错误类型 |
-| 熔断 | `go.discovery.circuitFailures` / `circuitOpenWindow` | 3 / `30s` | 连续失败达到阈值即打开，窗口后放行一个探测请求（半开） |
+| 熔断 | `go.discovery.circuit.failures` / `circuit.openWindow` | 3 / `30s` | 连续失败达到阈值即打开，窗口后放行一个探测请求（半开） |
 | 兜底 | `Options.Fallback` / `go.client.fallback.enabled` | 关闭 | 命中时返回该 `service+uri+参数` 的上一次成功响应 |
 
 ```go

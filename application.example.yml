@@ -52,10 +52,10 @@ go:
   i18n:
     enabled: false
     default: zh-cn
-    dbName: ""               # MySQL 多库连接名，留空选第一个
-    sqlite: ""               # 未使用 MySQL/共享 SQLite 时的独立文件路径
+    dbName: "" # MySQL 多库连接名，留空选第一个
+    sqlite: "" # 未使用 MySQL/共享 SQLite 时的独立文件路径
     api:
-      enabled: false         # true 自动挂载 /i18n CRUD；也可手动挂载路由组
+      enabled: false # true 自动挂载 /i18n CRUD；也可手动挂载路由组
 
   # ------------------------------------------------------------------
   # 接口日志中 GET 响应输出：full 完整输出，line 控制台/文件最多 120 字符，off 不输出也不保存响应
@@ -63,18 +63,18 @@ go:
   log:
     get: full
     sink:
-      queue: 100             # 最大 100；满时淘汰最早待写日志
-      workers: 1             # 固定单消费者，保证 FIFO
+      queue: 100 # 最大 100；满时淘汰最早待写日志
+      workers: 1 # 固定单消费者，保证 FIFO
       shutdown: 3000
     # 启用对应开关即可上报，无需应用注册 handler。
     # 运行日志另在 go.logger.outputs 中配置 target: victorialogs。
     victorialogs:
       url: https://172.16.88.119:37624
-      api_token: ""          # 填写采集服务 token
-      api_crt: ""            # 使用 YAML | 块填写完整 api.crt PEM 证书
-      request: false         # PostLog 接口访问日志
-      client: false          # client.Call 调用结果及耗时，独立于 logger.level
-      timeout: 5000          # 每次 HTTP 请求超时，毫秒
+      api_token: "" # 填写采集服务 token
+      api_crt: "" # 使用 YAML | 块填写完整 api.crt PEM 证书
+      request: false # PostLog 接口访问日志
+      client: false # client.Call 调用结果及耗时，独立于 logger.level
+      timeout: 5000 # 每次 HTTP 请求超时，毫秒
 
   # ------------------------------------------------------------------
   # 2) 微服务注册/发现（registry + client）
@@ -85,7 +85,7 @@ go:
   #    cacheRefresh: 后台刷新“热”服务发现的间隔（秒）。仅刷新近期被访问的服务，
   #             让负载在实例间轮换并剔除已下线实例。<=0 时由框架补默认值（60 秒）。
   #    strategy: 实例选择策略 random / round_robin / weighted（默认 random）
-  #    circuitFailures / circuitOpenWindow: client.Call 熔断阈值与探测窗口
+  #    circuit.failures / circuit.openWindow: client.Call 熔断阈值与探测窗口
   # ------------------------------------------------------------------
   discovery:
     # 单注册中心兼容配置。配置 registries 后将忽略此项。
@@ -112,8 +112,10 @@ go:
     cacheTTL: 3
     cacheRefresh: 1
     strategy: random
-    circuitFailures: 3
-    circuitOpenWindow: 30s
+    circuit:
+      enabled: true
+      failures: 3
+      openWindow: 30s
 
   # 微服务调用（client.Call）
   #    timeout: 单次调用超时，支持 10s / 500ms，纯数字按秒处理
@@ -128,27 +130,27 @@ go:
   # ------------------------------------------------------------------
   ratelimit:
     enabled: true
-    idleTimeout: 600          # 空闲限流器回收间隔（秒）
-    whitelist:                # 前缀路径白名单，匹配即放行
+    idleTimeout: 600 # 空闲限流器回收间隔（秒）
+    whitelist: # 前缀路径白名单，匹配即放行
       - "/health"
       - "/actuator"
-    whiteIps:                 # IP 白名单
+    whiteIps: # IP 白名单
       - "127.0.0.1"
     rules:
       - name: "全局令牌桶"
-        algorithm: "token_bucket"   # token_bucket | sliding_window | concurrency
-        dimension: "global"         # global | ip | path | ip_path | header
-        rate: 100                    # 令牌桶：每秒补充令牌；滑动窗口：窗口内允许次数
-        burst: 20                    # 令牌桶突发容量（仅 token_bucket）
-        httpStatus: 429             # 触发限流时的 HTTP 状态码
-        code: 1011                   # 业务错误码
+        algorithm: "token_bucket" # token_bucket | sliding_window | concurrency
+        dimension: "global" # global | ip | path | ip_path | header
+        rate: 100 # 令牌桶：每秒补充令牌；滑动窗口：窗口内允许次数
+        burst: 20 # 令牌桶突发容量（仅 token_bucket）
+        httpStatus: 429 # 触发限流时的 HTTP 状态码
+        code: 1011 # 业务错误码
         message: "请求过于频繁，请稍后再试"
       - name: "登录按 IP 限流"
-        path: "/api/login/*"        # 精确 / 前缀"/*" / Gin 路由模板
+        path: "/api/login/*" # 精确 / 前缀"/*" / Gin 路由模板
         methods: ["POST"]
         algorithm: "sliding_window"
         dimension: "ip"
-        rate: 5                      # 每个 IP 在 window 秒内最多 rate 次
+        rate: 5 # 每个 IP 在 window 秒内最多 rate 次
         window: 60
         httpStatus: 429
         code: 1011
@@ -157,7 +159,7 @@ go:
         path: "/api/upload"
         algorithm: "concurrency"
         dimension: "global"
-        maxConcurrent: 10           # 同时最多 10 个上传进行中
+        maxConcurrent: 10 # 同时最多 10 个上传进行中
 
   # ------------------------------------------------------------------
   # 2) 定时任务管理器（job，类 xxl-job）
@@ -165,14 +167,14 @@ go:
   # ------------------------------------------------------------------
   job:
     enabled: true
-    dbName: ""              # 多库模式指定库名；单库留空
-    initdb: true            # 自动建表 mgin_job_info / mgin_job_log
+    dbName: "" # 多库模式指定库名；单库留空
+    initdb: true # 自动建表 mgin_job_info / mgin_job_log
     tablePrefix: "mgin_"
-    scanInterval: 1         # 调度扫描间隔（秒）
-    refreshInterval: 30     # 从数据库同步任务配置间隔（秒）
-    logRetainDays: 30       # 执行日志保留天数，0 不清理
-    maxConcurrent: 50       # 全局最大并发执行数
-    maxSerialQueue: 10      # serial 阻塞策略最大排队数
+    scanInterval: 1 # 调度扫描间隔（秒）
+    refreshInterval: 30 # 从数据库同步任务配置间隔（秒）
+    logRetainDays: 30 # 执行日志保留天数，0 不清理
+    maxConcurrent: 50 # 全局最大并发执行数
+    maxSerialQueue: 10 # serial 阻塞策略最大排队数
     timezone: "Asia/Shanghai"
 
   # ------------------------------------------------------------------
@@ -181,21 +183,21 @@ go:
   # ------------------------------------------------------------------
   s3:
     enabled: true
-    endpoint: "https://s3.amazonaws.com"   # MinIO 示例: http://localhost:9000
+    endpoint: "https://s3.amazonaws.com" # MinIO 示例: http://localhost:9000
     region: "cn-north-1"
     accessKey: "AKIDEXAMPLE"
     secretKey: "YOUR_SECRET_KEY"
     # sessionToken: ""                   # 使用临时凭证时填写
-    pathStyle: true                      # MinIO / 自建服务必须为 true；AWS S3 可 false
+    pathStyle: true # MinIO / 自建服务必须为 true；AWS S3 可 false
     ssl: true
     maxRetries: 3
-    uploadPartSize: 16777216             # 分片上传单片大小（字节）
+    uploadPartSize: 16777216 # 分片上传单片大小（字节）
     downloadPartSize: 16777216
     maxUploadParts: 10
     maxDownloadParts: 10
-    presignExpiry: 3600                  # 预签名 URL 有效期（秒）
-    singleBucket: "my-bucket"            # 单桶模式（不配置 buckets 时使用）
-    buckets:                             # 多桶模式（与 singleBucket 二选一）
+    presignExpiry: 3600 # 预签名 URL 有效期（秒）
+    singleBucket: "my-bucket" # 单桶模式（不配置 buckets 时使用）
+    buckets: # 多桶模式（与 singleBucket 二选一）
       - name: "public-assets"
         public: true
         defaultContentType: "image/png"
@@ -209,9 +211,10 @@ go:
   #    三种启用方式任选其一：配置 enabled=true、代码 app.EnableHealth()、或自行 health.Router(...)。
   # ------------------------------------------------------------------
   health:
-    enabled: false            # true 时框架自动挂载 /health/* 探针
-    autoStarted: false        # true 时监听启动后自动标记“已完成启动”，使 /startup 返回 200；
-                              # 否则需业务在初始化完成后调用 health.MarkStarted() 或 app.MarkHealthStarted()
+    enabled: false # true 时框架自动挂载 /health/* 探针
+    autoStarted:
+      false # true 时监听启动后自动标记“已完成启动”，使 /startup 返回 200；
+      # 否则需业务在初始化完成后调用 health.MarkStarted() 或 app.MarkHealthStarted()
 
   # ------------------------------------------------------------------
   # 5) Prometheus 指标端点（metrics 包）
@@ -221,7 +224,8 @@ go:
   #    并在启动时调用 metrics.SetBuildInfo(version, commit, goVersion) 注入版本标签。
   # ------------------------------------------------------------------
   metrics:
-    enabled: false            # true 时框架自动挂载 /metrics 端点
+    enabled: false # true 时框架自动挂载 /metrics 端点
+
 
   # 定时任务执行器与 S3 桶的取用均在代码中完成，例如：
   #   job.Register("demoJob", func(ctx *job.Context) error { ... })

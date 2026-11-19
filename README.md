@@ -264,7 +264,7 @@ go:
 | | `go.discovery.callType` | `x-form` | 调用协议默认值 |
 | | `go.discovery.cacheTTL` / `cacheRefresh` | 60 / 60（秒） | 发现结果缓存与热刷新 |
 | | `go.discovery.strategy` | `random` | `random`/`round_robin`/`weighted` 实例选择策略 |
-| | `go.discovery.circuitFailures` / `circuitOpenWindow` | 3 / `30s` | `client.Call` 熔断阈值与探测窗口 |
+| | `go.discovery.circuit.failures` / `circuit.openWindow` | 3 / `30s` | `client.Call` 熔断阈值与探测窗口 |
 | 调用 | `go.client.timeout` | `10s` | 单次调用超时，支持 `5s` 或数字（秒） |
 | | `go.client.fallback.enabled` | false | 失败时回放上次成功响应（缓存无 TTL） |
 | 安全 | `go.jwt.secret` | 空 | HS 系列签名密钥；未配置时 jwt 中间件直接 401 |

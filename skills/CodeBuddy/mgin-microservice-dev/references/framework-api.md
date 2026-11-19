@@ -133,8 +133,10 @@ go:
     cacheTTL: 60             # 发现缓存秒数（未配/<=0 → 60）
     cacheRefresh: 60         # 热刷新秒数（未配/<=0 → 60）
     strategy: random         # random|round_robin|weighted（直读，未进结构体）
-    circuitFailures: 3       # client 熔断阈值
-    circuitOpenWindow: 30s   # 支持 30s 或纯数字秒
+    circuit:
+      enabled: true
+      failures: 3       # client 熔断阈值
+      openWindow: 30s   # 支持 30s 或纯数字秒
   client:
     timeout: 10s             # 单次调用超时，支持 10s/500ms 或数字秒
     fallback:
