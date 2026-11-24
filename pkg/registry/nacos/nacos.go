@@ -46,46 +46,65 @@ type NacosClient struct {
 var logger = gologger.GetLogger()
 
 type nacosHeartbeatWorker struct {
-	ticker   *time.Ticker
-	quit     chan struct{}
-	quitOnce sync.Once
-	wg       *sync.WaitGroup
+	ticker    *time.Ticker
+	quit      chan struct{}
+	quitOnce  sync.Once
+	wg        *sync.WaitGroup
+	failCount int
+	maxFails  int
 }
 
 func (w *nacosHeartbeatWorker) Start(nc *NacosClient) {
 	defer w.wg.Done()
 	w.ticker = time.NewTicker(5 * time.Second)
 	defer w.ticker.Stop()
-	failCount := 0
+	if w.maxFails <= 0 {
+		w.maxFails = 3
+	}
 	for {
 		select {
 		case <-w.quit:
 			return
 		case <-w.ticker.C:
-			params := heartbeatParams(nc)
-			method, endpoint := http.MethodPut, nc.nsurl+"/beat"
-			if nc.ver == "v3" {
-				method, endpoint = http.MethodPost, nc.nsurl
-			}
-			resp, err := grequests.DoRegularRequest(method, endpoint, &grequests.RequestOptions{Params: params, Headers: nc.headers})
-			if err == nil && (resp == nil || !resp.Ok) {
-				err = fmt.Errorf("nacos heartbeat failed")
-			}
-			if err != nil {
-				logger.Error("Nacos心跳失败:" + err.Error())
-				failCount++
-				// 连续失败达到阈值：本实例可能已被 Nacos 摘除（心跳长期失败），
-				// 主动重新注册以恢复，避免"假死"（注册中心里没有、但进程还活着）。
-				if failCount >= 3 {
-					if rerr := nc.reRegister(); rerr == nil {
-						failCount = 0
+			if err := nc.heartbeat(); err != nil {
+				w.failCount++
+				logger.Error(fmt.Sprintf("Nacos心跳失败(%d/%d): %s", w.failCount, w.maxFails, err.Error()))
+				if w.failCount >= w.maxFails {
+					w.failCount = 0
+					if err := nc.reRegister(); err != nil {
+						logger.Error("Nacos心跳连续失败且重新注册失败: " + err.Error())
 					}
 				}
 				continue
 			}
-			failCount = 0
+			w.failCount = 0
 		}
 	}
+}
+
+// heartbeat performs one health renewal. MSE uses the instance registration
+// endpoint for AK/SK-authenticated renewal, while ordinary v1/v2 Nacos uses
+// the legacy /beat endpoint.
+func (n *NacosClient) heartbeat() error {
+	params := heartbeatParams(n)
+	method, endpoint := http.MethodPut, n.nsurl+"/beat"
+	if n.ver == "v3" || n.isMSE() {
+		params = cloneParams(n.param)
+		n.authorize(params)
+		params["heartBeat"] = "true"
+		method, endpoint = http.MethodPost, n.nsurl
+	}
+	resp, err := grequests.DoRegularRequest(method, endpoint, &grequests.RequestOptions{Params: params, Headers: n.headers})
+	if err != nil {
+		return err
+	}
+	if resp == nil {
+		return fmt.Errorf("empty response")
+	}
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return fmt.Errorf("unexpected status %d: %s", resp.StatusCode, resp.String())
+	}
+	return nil
 }
 
 func (n *NacosClient) Register(nacosConfigData []byte) {
@@ -169,7 +188,7 @@ func (n *NacosClient) Register(nacosConfigData []byte) {
 		}
 		// 启动心跳线程
 		n.worker = &nacosHeartbeatWorker{
-			wg: &sync.WaitGroup{}, quit: make(chan struct{}),
+			wg: &sync.WaitGroup{}, quit: make(chan struct{}), maxFails: 3,
 		}
 		n.worker.wg.Add(1)
 		go n.worker.Start(n)
@@ -341,8 +360,10 @@ func (n *NacosClient) GetServices(servicename string, groupName ...string) ([]st
 // reRegister 在心跳连续失败后主动重新注册本实例，恢复其在 Nacos 中的可用状态。
 // 依赖 Register 阶段已填充的 nsurl / param（含 ip、port、serviceName 等），可安全重复调用。
 func (n *NacosClient) reRegister() error {
+	params := cloneParams(n.param)
+	n.authorize(params)
 	resp, err := grequests.DoRegularRequest(http.MethodPost, n.nsurl, &grequests.RequestOptions{
-		Params: n.param, Headers: n.headers,
+		Params: params, Headers: n.headers,
 	})
 	if err != nil {
 		logger.Error("Nacos重新注册失败:" + err.Error())
