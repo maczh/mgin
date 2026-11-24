@@ -43,6 +43,8 @@ type EtcdClient struct {
 
 var logger = gologger.GetLogger()
 
+const leaseTTLSeconds int64 = 10
+
 func (c *EtcdClient) Register(etcdConfigData []byte) {
 	if c == nil {
 		return
@@ -135,7 +137,7 @@ func (c *EtcdClient) Register(etcdConfigData []byte) {
 				c.client.Delete(context.Background(), prefix+instanceId)
 			}
 		}
-		respGrant, err := c.client.Grant(context.Background(), 10000)
+		respGrant, err := c.client.Grant(context.Background(), leaseTTLSeconds)
 		if err != nil {
 			logger.Error("Etcd注册服务失败:" + err.Error())
 			return
@@ -282,7 +284,7 @@ func (c *EtcdClient) reRegister(ctx context.Context) bool {
 		return false
 	}
 	// 1) 申请新租约（与原注册保持一致：10 秒 TTL）
-	respGrant, err := c.client.Grant(ctx, 10000)
+	respGrant, err := c.client.Grant(ctx, leaseTTLSeconds)
 	if err != nil {
 		logger.Error("Etcd重新注册失败,申请租约错误:" + err.Error())
 		return false
