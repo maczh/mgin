@@ -1,6 +1,16 @@
 package nacos
 
-import "testing"
+import (
+	"crypto/hmac"
+	"crypto/sha1"
+	"encoding/base64"
+	"strings"
+	"testing"
+
+	"github.com/knadh/koanf"
+	"github.com/knadh/koanf/parsers/yaml"
+	"github.com/knadh/koanf/providers/rawbytes"
+)
 
 func TestNacosVersionPaths(t *testing.T) {
 	tests := map[string]string{
@@ -30,5 +40,34 @@ func TestDecodeInstancesAcrossVersions(t *testing.T) {
 		if len(result.Hosts) != 1 || result.Hosts[0].Port != 8080 {
 			t.Fatalf("%s result = %+v", version, result)
 		}
+	}
+}
+
+func TestMSEAuthorizeSignsNamingRequest(t *testing.T) {
+	conf := koanf.New(".")
+	if err := conf.Load(rawbytes.Provider([]byte("go:\n  nacos:\n    mse: true\n")), yaml.Parser()); err != nil {
+		t.Fatalf("load conf: %v", err)
+	}
+	n := &NacosClient{conf: conf, accessKey: "ak", secretKey: "sk"}
+
+	params := map[string]string{"serviceName": "svc", "groupName": "DEFAULT_GROUP"}
+	n.authorize(params)
+	if params["ak"] != "ak" {
+		t.Fatalf("ak = %q", params["ak"])
+	}
+	if !strings.HasSuffix(params["data"], "@@DEFAULT_GROUP@@svc") {
+		t.Fatalf("data = %q, want <timestamp>@@DEFAULT_GROUP@@svc", params["data"])
+	}
+	mac := hmac.New(sha1.New, []byte("sk"))
+	_, _ = mac.Write([]byte(params["data"]))
+	if want := base64.StdEncoding.EncodeToString(mac.Sum(nil)); params["signature"] != want {
+		t.Fatalf("signature = %q, want %q", params["signature"], want)
+	}
+
+	// 服务名已带分组前缀时不能重复拼接。
+	prefixed := map[string]string{"serviceName": "DEFAULT_GROUP@@svc", "groupName": "DEFAULT_GROUP"}
+	n.authorize(prefixed)
+	if strings.Contains(prefixed["data"], "DEFAULT_GROUP@@DEFAULT_GROUP") {
+		t.Fatalf("data = %q, group prefix duplicated", prefixed["data"])
 	}
 }

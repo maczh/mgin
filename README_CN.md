@@ -5,12 +5,10 @@
 > 模块路径：`github.com/maczh/mgin`
 >
 > [[英文版](README_en.md)]
->
 > ⚠️ **本手册为历史长文，部分章节已与 `jh` 分支代码不一致**：PostgreSQL / ClickHouse / ElasticSearch / Kafka 数据源、`db.Pg`、`db.Mysql.UseCache()`、S3、内置系统管理模块的 HTTP 实现等在本分支均不存在。
 > 新成员请先阅读 [README.md](README.md) 与 [docs/](docs/)；两者冲突时，以代码与 `docs/` 为准（能力边界见 README §2.4）。
 
 ## 目录
-
 
 **第一部分：入门与架构**
 
@@ -61,42 +59,49 @@
 **第五部分：请求处理与横切能力**
 
 11. [中间件（Middleware）](#11-中间件middleware)
-   - 11.1 [CORS 跨域](#111-cors-跨域)
-   - 11.2 [JWT 鉴权](#112-jwt-鉴权)
-   - 11.3 [Casbin 接口鉴权](#113-casbin-接口鉴权)
-   - 11.4 [IP 限制（CIDR）](#114-ip-限制cidr)
-   - 11.5 [并发限流](#115-并发限流)
-   - 11.6 [接口访问日志](#116-接口访问日志)
-   - 11.7 [Session](#117-session)
-   - 11.8 [Trace 请求跟踪](#118-trace-请求跟踪)
-   - 11.9 [国际化语言](#119-国际化语言)
-   - 11.10 [XSS 防护](#1110-xss-防护)
+
+- 11.1 [CORS 跨域](#111-cors-跨域)
+- 11.2 [JWT 鉴权](#112-jwt-鉴权)
+- 11.3 [Casbin 接口鉴权](#113-casbin-接口鉴权)
+- 11.4 [IP 限制（CIDR）](#114-ip-限制cidr)
+- 11.5 [并发限流](#115-并发限流)
+- 11.6 [接口访问日志](#116-接口访问日志)
+- 11.7 [Session](#117-session)
+- 11.8 [Trace 请求跟踪](#118-trace-请求跟踪)
+- 11.9 [国际化语言](#119-国际化语言)
+- 11.10 [XSS 防护](#1110-xss-防护)
+
 12. [国际化与错误码（i18n / errcode）](#12-国际化与错误码i18n--errcode)
-   - 12.1 [错误码常量（`errcode` 包）](#121-错误码常量errcode-包)
-   - 12.2 [i18n 返回（需在 `NewApp(..., true)` 启用）](#122-i18n-返回需在-newapp-true-启用)
+
+- 12.1 [错误码常量（`errcode` 包）](#121-错误码常量errcode-包)
+- 12.2 [i18n 返回（需在 `NewApp(..., true)` 启用）](#122-i18n-返回需在-newapp-true-启用)
+
 13. [统一返回结构（Result）](#13-统一返回结构result)
 14. [日志（logs）](#14-日志logs)
 
 **第六部分：内置模块与工具**
 
 15. [内置系统管理模块与 Casbin 权限](#15-内置系统管理模块与-casbin-权限)
-   - 15.1 [启用](#151-启用)
-   - 15.2 [内置数据模型（表名）](#152-内置数据模型表名)
-   - 15.3 [权限模型](#153-权限模型)
-   - 15.4 [请求/响应 DTO](#154-请求响应-dto)
+
+- 15.1 [启用](#151-启用)
+- 15.2 [内置数据模型（表名）](#152-内置数据模型表名)
+- 15.3 [权限模型](#153-权限模型)
+- 15.4 [请求/响应 DTO](#154-请求响应-dto)
+
 16. [工具集（utils）](#16-工具集utils)
-   - 16.1 [加解密（Crypto）](#161-加解密crypto)
-   - 16.2 [字符串与中文（String）](#162-字符串与中文string)
-   - 16.3 [时间日期（Time）](#163-时间日期time)
-   - 16.4 [序列化（JSON / XML / YAML）](#164-序列化json--xml--yaml)
-   - 16.5 [Map 与 Struct 转换](#165-map-与-struct-转换)
-   - 16.6 [集合与切片（Slice / Set）](#166-集合与切片slice--set)
-   - 16.7 [网络与 IP（Net / IP）](#167-网络与-ipnet--ip)
-   - 16.8 [文件与压缩（File / Zip）](#168-文件与压缩file--zip)
-   - 16.9 [UUID 与随机（UUID / Rand）](#169-uuid-与随机uuid--rand)
-   - 16.10 [并发安全与数据结构（Concurrent / DS）](#1610-并发安全与数据结构concurrent--ds)
-   - 16.11 [校验与防护（Validate）](#1611-校验与防护validate)
-   - 16.12 [其它（Misc）](#1612-其它misc)
+
+- 16.1 [加解密（Crypto）](#161-加解密crypto)
+- 16.2 [字符串与中文（String）](#162-字符串与中文string)
+- 16.3 [时间日期（Time）](#163-时间日期time)
+- 16.4 [序列化（JSON / XML / YAML）](#164-序列化json--xml--yaml)
+- 16.5 [Map 与 Struct 转换](#165-map-与-struct-转换)
+- 16.6 [集合与切片（Slice / Set）](#166-集合与切片slice--set)
+- 16.7 [网络与 IP（Net / IP）](#167-网络与-ipnet--ip)
+- 16.8 [文件与压缩（File / Zip）](#168-文件与压缩file--zip)
+- 16.9 [UUID 与随机（UUID / Rand）](#169-uuid-与随机uuid--rand)
+- 16.10 [并发安全与数据结构（Concurrent / DS）](#1610-并发安全与数据结构concurrent--ds)
+- 16.11 [校验与防护（Validate）](#1611-校验与防护validate)
+- 16.12 [其它（Misc）](#1612-其它misc)
 
 **第七部分：参考与分支**
 
@@ -104,25 +109,28 @@
 18. [常见问题（FAQ）](#18-常见问题faq)
 19. [版本与升级说明](#19-版本与升级说明)
 20. [jh 分支（寄海版）专项说明](#20-jh-分支寄海版专项说明)
-   - 20.1 [分支定位与由来](#201-分支定位与由来)
-   - 20.2 [与 master-1.25 的差异总览](#202-与-master-125-的差异总览)
-   - 20.3 [已移除的能力（重要）](#203-已移除的能力重要)
-   - 20.4 [新增：GORM 二级缓存层（UseCache）](#204-新增：gorm-二级缓存层usecache)
-   - 20.5 [新增：PostgreSQL 支持](#205-新增：postgresql-支持)
-   - 20.6 [新增：ClickHouse 支持](#206-新增：clickhouse-支持)
-   - 20.7 [其他改进（jh 分支）](#207-其他改进jh-分支)
-   - 20.8 [已知问题与注意事项](#208-已知问题与注意事项)
-   - 20.9 [升级 / 迁移建议](#209-升级--迁移建议)
+
+- 20.1 [分支定位与由来](#201-分支定位与由来)
+- 20.2 [与 master-1.25 的差异总览](#202-与-master-125-的差异总览)
+- 20.3 [已移除的能力（重要）](#203-已移除的能力重要)
+- 20.4 [新增：GORM 二级缓存层（UseCache）](#204-新增：gorm-二级缓存层usecache)
+- 20.5 [新增：PostgreSQL 支持](#205-新增：postgresql-支持)
+- 20.6 [新增：ClickHouse 支持](#206-新增：clickhouse-支持)
+- 20.7 [其他改进（jh 分支）](#207-其他改进jh-分支)
+- 20.8 [已知问题与注意事项](#208-已知问题与注意事项)
+- 20.9 [升级 / 迁移建议](#209-升级--迁移建议)
+
 21. [新增：单例限流中间件（ratelimit）](#21-新增单例限流中间件ratelimit)
 22. [新增：定时任务管理器（job）](#22-新增定时任务管理器job)
 23. [新增：S3 对象存储插件（storage/s3）](#23-新增s3-对象存储插件storages3)
 24. [新增能力汇总（jh 分支）](#24-新增能力汇总jh-分支)
 25. [接口日志异步总线（logsink）](#25-接口日志异步总线logsink)
-   - 25.1 [整体模型](#251-整体模型)
-   - 25.2 [配置](#252-配置)
-   - 25.3 [在应用中挂接处理逻辑](#253-在应用中挂接处理逻辑)
-   - 25.4 [运行期观测与注销](#254-运行期观测与注销)
-   - 25.5 [升级说明](#255-升级说明)
+
+- 25.1 [整体模型](#251-整体模型)
+- 25.2 [配置](#252-配置)
+- 25.3 [在应用中挂接处理逻辑](#253-在应用中挂接处理逻辑)
+- 25.4 [运行期观测与注销](#254-运行期观测与注销)
+- 25.5 [升级说明](#255-升级说明)
 
 ---
 
@@ -132,26 +140,24 @@
 
 MGin 是一个用于**快速创建基于 RESTful 的微服务程序**的 Go 框架，底层基于 [Gin](https://github.com/gin-gonic/gin)。它把微服务开发中常见的“脏活”预置好，让开发者只关心业务路由与数据模型：
 
-| 能力域 | 内置支持 |
-|---|---|
-| Web 框架 | Gin（HTTP/HTTPS 双端口、优雅关闭） |
-| 配置中心 | Nacos / Consul / Etcd / Polaris / SpringCloud Config / 本地文件 |
-| 服务注册与发现 | Nacos / Consul / Etcd / Polaris |
-| 关系型数据库 | MySQL、PostgreSQL、SQLite、ClickHouse（均基于 GORM v2） |
-| 文档型 / KV | MongoDB（仿 mgo.v2 API）、Redis（哨兵/集群/单机） |
-| 搜索 | ElasticSearch（olivere/elastic） |
-| 消息队列 | Kafka |
-| 缓存 | 内存缓存（带过期）、本地持久化缓存（bitcask） |
-| 通用能力 | 统一返回 Result、国际化、统一错误码、JWT、Casbin 鉴权、请求跟踪、CORS、XSS 防护、限流、IP 限制、接口访问日志 |
-| 内置业务 | 系统管理模块（用户/角色/部门/岗位/菜单/字典/API/配置 + RBAC） |
+| 能力域         | 内置支持                                                                                                     |
+| -------------- | ------------------------------------------------------------------------------------------------------------ |
+| Web 框架       | Gin（HTTP/HTTPS 双端口、优雅关闭）                                                                           |
+| 配置中心       | Nacos / Consul / Etcd / Polaris / SpringCloud Config / 本地文件                                              |
+| 服务注册与发现 | Nacos / Consul / Etcd / Polaris                                                                              |
+| 关系型数据库   | MySQL、PostgreSQL、SQLite、ClickHouse（均基于 GORM v2）                                                      |
+| 文档型 / KV    | MongoDB（仿 mgo.v2 API）、Redis（哨兵/集群/单机）                                                            |
+| 搜索           | ElasticSearch（olivere/elastic）                                                                             |
+| 消息队列       | Kafka                                                                                                        |
+| 缓存           | 内存缓存（带过期）、本地持久化缓存（bitcask）                                                                |
+| 通用能力       | 统一返回 Result、国际化、统一错误码、JWT、Casbin 鉴权、请求跟踪、CORS、XSS 防护、限流、IP 限制、接口访问日志 |
+| 内置业务       | 系统管理模块（用户/角色/部门/岗位/菜单/字典/API/配置 + RBAC）                                                |
 
 **设计原则**
 
 - **约定优于配置**：绝大多数能力通过 `application.yml` 的 `go.config.used` 开关启用，框架自动按配置连接并做 5 分钟健康检查（断线自动重连）。
 - **插件化数据源**：通过 `mgin.Use()` 可加载任意外部数据源（如 RabbitMQ）接入框架生命周期。
 - **泛型友好**：`Result`、`CallT`、`DAO` 全面使用 Go 泛型，编译期保证类型安全。
-
-
 
 ---
 
@@ -207,8 +213,6 @@ go build -o yourapp .
 # 查看版本：./yourapp -v
 ```
 
-
-
 ---
 
 ## 3. 应用生命周期
@@ -223,10 +227,10 @@ func (app *App) GetVersion() string
 
 `App` 结构（字段非导出，对外仅暴露 `Router *gin.Engine` 用于挂路由）：
 
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `Router` | `*gin.Engine` | Gin 引擎，业务路由与中间件挂载于此 |
-| `MGin` | `*mgin` | 框架内核，含 `Use`/`UsePlugin`/`SafeExit` |
+| 字段     | 类型          | 说明                                      |
+| -------- | ------------- | ----------------------------------------- |
+| `Router` | `*gin.Engine` | Gin 引擎，业务路由与中间件挂载于此        |
+| `MGin`   | `*mgin`       | 框架内核，含 `Use`/`UsePlugin`/`SafeExit` |
 
 `NewApp` 内部流程：
 
@@ -267,23 +271,6 @@ mgin.MGin.UsePlugin("rabbitmq", rabbitPluginInstance)
 
 > 注意：`Use` 的 `dbConfigName` 必须出现在 `go.config.used` 中，且对应配置文件前缀存在，否则不会加载。
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 ---
 
 **第二部分：配置管理**　（第 4–5 章）
@@ -297,7 +284,7 @@ mgin.MGin.UsePlugin("rabbitmq", rabbitPluginInstance)
 ```yaml
 go:
   config:
-    used: nacos,mysql,mongodb,redis,kafka   # 本次启用的组件，框架据此自动连接
+    used: nacos,mysql,mongodb,redis,kafka # 本次启用的组件，框架据此自动连接
 ```
 
 ### 4.2 应用与基础配置
@@ -305,31 +292,31 @@ go:
 ```yaml
 go:
   application:
-    name: myapp                 # 应用名，作为注册到注册中心的服务名
-    port: 8080                  # HTTP 端口
-    project: myproj             # 所属项目名
-    port_ssl: 8443              # HTTPS 端口（配置 cert/key 后生效）
-    cert: server.crt            # SSL 证书（位于可执行文件目录）
-    key: server.key             # SSL 私钥
-    debug: true                 # 调试模式（=true 时 Gin 为 debug 且日志强制 debug）
-    ip: 10.0.0.5                # 注册到注册中心时登记的 IP（Docker/外网场景需指定）
+    name: myapp # 应用名，作为注册到注册中心的服务名
+    port: 8080 # HTTP 端口
+    project: myproj # 所属项目名
+    port_ssl: 8443 # HTTPS 端口（配置 cert/key 后生效）
+    cert: server.crt # SSL 证书（位于可执行文件目录）
+    key: server.key # SSL 私钥
+    debug: true # 调试模式（=true 时 Gin 为 debug 且日志强制 debug）
+    ip: 10.0.0.5 # 注册到注册中心时登记的 IP（Docker/外网场景需指定）
   discovery:
-    registry: nacos             # 注册中心类型：nacos/consul/etcd/polaris，默认 nacos
-    callType: json              # 微服务调用参数模式：x-form / json / restful
+    registry: nacos # 注册中心类型：nacos/consul/etcd/polaris，默认 nacos
+    callType: json # 微服务调用参数模式：x-form / json / restful
   jwt:
-    secret: 1234567890abcdef    # JWT 签名密钥
-  logger:                       # 控制台/文件日志（logs 包）
+    secret: 1234567890abcdef # JWT 签名密钥
+  logger: # 控制台/文件日志（logs 包）
     level: debug
     out: console,file
-    file: /opt/logs/myapp       # 日志文件路径前缀，自动追加 .yyyy-MM-dd.log
-  log:                          # 接口访问日志与微服务调用日志
-    db: mongodb                 # 日志落库：mongodb / elasticsearch
-    dbName: Partner-Id          # 多库时从 header 取该参数作库名标签
-    req: MyappRequestLog        # 请求日志表/索引名
-    call: MyappCallLog          # 调用日志表/索引名
+    file: /opt/logs/myapp # 日志文件路径前缀，自动追加 .yyyy-MM-dd.log
+  log: # 接口访问日志与微服务调用日志
+    db: mongodb # 日志落库：mongodb / elasticsearch
+    dbName: Partner-Id # 多库时从 header 取该参数作库名标签
+    req: MyappRequestLog # 请求日志表/索引名
+    call: MyappCallLog # 调用日志表/索引名
     kafka:
-      use: true                 # 是否同时发往 kafka
-      topic: myapp              # kafka 主题（可逗号分隔多个）
+      use: true # 是否同时发往 kafka
+      topic: myapp # kafka 主题（可逗号分隔多个）
 ```
 
 ### 4.3 配置中心
@@ -337,12 +324,12 @@ go:
 ```yaml
 go:
   config:
-    server: http://192.168.1.5:8848/   # 配置服务器地址
-    server_type: nacos                 # nacos/consul/springconfig/etcd/polaris/file
-    token:                             # 访问 token（polaris 必填）
-    path: conf                         # 本地文件模式时配置所在目录
-    env: test                          # 环境：test/prod/dev 等
-    prefix:                            # 各组件配置文件名前缀
+    server: http://192.168.1.5:8848/ # 配置服务器地址
+    server_type: nacos # nacos/consul/springconfig/etcd/polaris/file
+    token: # 访问 token（polaris 必填）
+    path: conf # 本地文件模式时配置所在目录
+    env: test # 环境：test/prod/dev 等
+    prefix: # 各组件配置文件名前缀
       mysql: mysql
       mongodb: mongodb
       redis: redis
@@ -391,8 +378,6 @@ config.Config.Exists("go.sys.enabled")                 // bool
 
 全局配置实例为 `config.Config`（唯一单例）。
 
-
-
 ---
 
 ## 5. 统一配置中心
@@ -406,19 +391,6 @@ config.Config.Exists("go.sys.enabled")                 // bool
 
 由各组件的 `<prefix>-<env>.yml` 文件提供连接信息，框架在 `mgin.Init` 中按 `go.config.used` 拉取并初始化对应客户端。
 
-
-
-
-
-
-
-
-
-
-
-
-
-
 ---
 
 **第三部分：数据访问**　（第 6–8 章）
@@ -427,16 +399,16 @@ config.Config.Exists("go.sys.enabled")                 // bool
 
 框架启动时按 `go.config.used` 自动初始化下列全局客户端（位于 `github.com/maczh/mgin/db`）：
 
-| 全局变量 | 类型 | 说明 |
-|---|---|---|
-| `db.Mysql` | `*mysql.MysqlClient` | MySQL（GORM） |
-| `db.Pg` | `*postgres.PostgresClient` | PostgreSQL（GORM） |
-| `db.Sqlite` | `*sqlite.Sqlite` | SQLite（GORM） |
-| `db.Mongo` | `*mongo.Mongodb` | MongoDB |
-| `db.Redis` | `*redis.RedisClient` | Redis |
-| `db.Clickhouse` | `*clickhouse.ClickhouseClient` | ClickHouse（GORM） |
-| `db.ElasticSearch` | `*es.ElasticSearch` | ElasticSearch |
-| `db.Kafka` | `*kafka.Kafka` | Kafka |
+| 全局变量           | 类型                           | 说明               |
+| ------------------ | ------------------------------ | ------------------ |
+| `db.Mysql`         | `*mysql.MysqlClient`           | MySQL（GORM）      |
+| `db.Pg`            | `*postgres.PostgresClient`     | PostgreSQL（GORM） |
+| `db.Sqlite`        | `*sqlite.Sqlite`               | SQLite（GORM）     |
+| `db.Mongo`         | `*mongo.Mongodb`               | MongoDB            |
+| `db.Redis`         | `*redis.RedisClient`           | Redis              |
+| `db.Clickhouse`    | `*clickhouse.ClickhouseClient` | ClickHouse（GORM） |
+| `db.ElasticSearch` | `*es.ElasticSearch`            | ElasticSearch      |
+| `db.Kafka`         | `*kafka.Kafka`                 | Kafka              |
 
 通用方法（各客户端均具备）：`Init([]byte)`、`Check() error`、`Close()`、`GetConnection(dbName ...string)`、`IsMultiDB() bool`、`ListConnNames() []string`。
 
@@ -450,14 +422,14 @@ config.Config.Exists("go.sys.enabled")                 // bool
 go:
   data:
     mysql: user:pwd@tcp(127.0.0.1:3306)/dbname?charset=utf8&parseTime=True&loc=Local
-    mysql_debug: true    # 打印 SQL
-    mysql_cache: true    # 启用二级缓存
-    mysql_cache_expired: 300   # 缓存过期秒数，默认 300（5 分钟）；0 表示不过期
-    mysql_pool:          # 连接池（缺省为单一长连接）
-      max: 200           # 最大连接数
-      total: 1000        # 最大并发，缺省为 max*5
-      timeout: 30        # 空闲连接超时（秒）
-      life: 5            # 连接生命周期（分钟）
+    mysql_debug: true # 打印 SQL
+    mysql_cache: true # 启用二级缓存
+    mysql_cache_expired: 300 # 缓存过期秒数，默认 300（5 分钟）；0 表示不过期
+    mysql_pool: # 连接池（缺省为单一长连接）
+      max: 200 # 最大连接数
+      total: 1000 # 最大并发，缺省为 max*5
+      timeout: 30 # 空闲连接超时（秒）
+      life: 5 # 连接生命周期（分钟）
 ```
 
 **多库配置 `mysql-multidb-test.yml`：**
@@ -506,8 +478,8 @@ go:
       dsn: "host=localhost user=test password=test_pwd123 dbname=testdb port=5432 sslmode=disable TimeZone=Asia/Shanghai"
       debug: true
       cache:
-        enabled: true          # 二级缓存开关
-        expired: 300           # 缓存过期秒数，默认 300（5 分钟）；依赖 go.data.redis
+        enabled: true # 二级缓存开关
+        expired: 300 # 缓存过期秒数，默认 300（5 分钟）；依赖 go.data.redis
       pool:
         max: 200
         total: 1000
@@ -524,7 +496,7 @@ go:
 ```yaml
 go:
   data:
-    sqlite: mytest.db   # 本地文件名；缺省使用 <App.Name>.db
+    sqlite: mytest.db # 本地文件名；缺省使用 <App.Name>.db
 ```
 
 ```go
@@ -572,12 +544,12 @@ defer db.Mongo.ReturnConnection(db2)
 go:
   data:
     redis:
-      uri: 127.0.0.1:6379[,127.0.0.1:6380]   # uri 与 host+port 二选一；多 ip 即集群
+      uri: 127.0.0.1:6379[,127.0.0.1:6380] # uri 与 host+port 二选一；多 ip 即集群
       host: 127.0.0.1[,127.0.0.1]
       port: 6379[,6380]
       password: ""
       database: 1
-      master: mymaster          # 哨兵模式 master 名
+      master: mymaster # 哨兵模式 master 名
       timeout: 1000
     redis_pool:
       min: 3
@@ -658,10 +630,10 @@ db.ElasticSearch.DeleteDatabase("mydb")
 go:
   data:
     kafka:
-      servers: "127.0.0.1:9092,127.0.0.1:9093"   # 集群逗号分隔
-      ack: all              # no / local / all
+      servers: "127.0.0.1:9092,127.0.0.1:9093" # 集群逗号分隔
+      ack: all # no / local / all
       auto_commit: true
-      partitioner: hash     # hash / random / round-robin
+      partitioner: hash # hash / random / round-robin
       version: 2.8.1
 ```
 
@@ -684,20 +656,18 @@ err := db.Kafka.MessageListener("my_group_id", "my_topic", func(msg string) erro
 
 更多底层入口：`GetProducer() / GetConsumer() / GetAdminClient() / GetConsumerGroup(id)`。
 
-
-
 ---
 
 ## 7. DAO 泛型数据访问层
 
 为关系型与文档型数据库提供类型安全的 CRUD。位于 `github.com/maczh/mgin/db/dao`。
 
-| DAO | 适用 | 构造 |
-|---|---|---|
-| `dao.MySQLDao[E]` | MySQL | `&dao.MySQLDao[E]{}`，E 需实现 `schema.Tabler`（有 `TableName()`） |
-| `dao.PostgresDao[E]` | PostgreSQL | 同上 |
-| `dao.ClickhouseDao[E]` | ClickHouse | 同上 |
-| `dao.MgoDao[E]` | MongoDB | 需先设置 `CollectionName` 字段 |
+| DAO                    | 适用       | 构造                                                               |
+| ---------------------- | ---------- | ------------------------------------------------------------------ |
+| `dao.MySQLDao[E]`      | MySQL      | `&dao.MySQLDao[E]{}`，E 需实现 `schema.Tabler`（有 `TableName()`） |
+| `dao.PostgresDao[E]`   | PostgreSQL | 同上                                                               |
+| `dao.ClickhouseDao[E]` | ClickHouse | 同上                                                               |
+| `dao.MgoDao[E]`        | MongoDB    | 需先设置 `CollectionName` 字段                                     |
 
 ### 7.1 关系型 DAO（以 MySQL 为例）
 
@@ -756,12 +726,6 @@ mgoDao.Delete(bson.M{"name": "张三"})
 mgoDao.Pager(bson.M{}, "name", 1, 20)
 ```
 
-
-
-
-
-
-
 ---
 
 ## 8. 缓存（Cache）
@@ -797,19 +761,6 @@ cache.CloseCache()                            // 释放所有缓存实例
 ```
 
 > 内存缓存 `New(cleaningInterval)` 后台清理过期项；磁盘缓存基于 bitcask，**`Get` 返回 `string` 类型**，需自行转换为目标类型。
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 ---
 
@@ -882,12 +833,12 @@ result := client.CallResultT[any]("file-service", "/upload", &client.Options{
 
 ### 9.3 超时、熔断与兜底
 
-| 能力 | 配置 / 字段 | 默认 | 说明 |
-|------|-------------|------|------|
-| 超时 | `Options.Timeout` → `go.client.timeout` | `10s` | 落到 `grequests.RequestTimeout`，支持 `5s`/`500ms` 或数字秒 |
-| 重试 | `Options.Retry` | false | 失败后递归重试一次，不区分错误类型 |
-| 熔断 | `go.discovery.circuit.failures` / `circuit.openWindow` | 3 / `30s` | 连续失败达到阈值即打开，窗口后放行一个探测请求（半开） |
-| 兜底 | `Options.Fallback` / `go.client.fallback.enabled` | 关闭 | 命中时返回该 `service+uri+参数` 的上一次成功响应 |
+| 能力 | 配置 / 字段                                            | 默认      | 说明                                                        |
+| ---- | ------------------------------------------------------ | --------- | ----------------------------------------------------------- |
+| 超时 | `Options.Timeout` → `go.client.timeout`                | `10s`     | 落到 `grequests.RequestTimeout`，支持 `5s`/`500ms` 或数字秒 |
+| 重试 | `Options.Retry`                                        | false     | 失败后递归重试一次，不区分错误类型                          |
+| 熔断 | `go.discovery.circuit.failures` / `circuit.openWindow` | 3 / `30s` | 连续失败达到阈值即打开，窗口后放行一个探测请求（半开）      |
+| 兜底 | `Options.Fallback` / `go.client.fallback.enabled`      | 关闭      | 命中时返回该 `service+uri+参数` 的上一次成功响应            |
 
 ```go
 // 单次调用自定义兜底
@@ -903,8 +854,6 @@ resp := client.CallT[User]("user-service", "/api/v1/users/{id}", &client.Options
 ```
 
 注意：兜底必须返回与 `CallT`/`CallResultT` 匹配的 JSON；兜底命中同样计入熔断失败；响应缓存与熔断状态都是**进程内**的，多副本各自独立，且缓存无 TTL/容量上限，只适合幂等查询。
-
-
 
 ---
 
@@ -947,12 +896,12 @@ type ServiceInstance struct { // registry.ServiceInstance，等同 registry/mode
 
 **能力对照：**
 
-| 能力 | Nacos | Consul | etcd | Polaris |
-|------|-------|--------|------|---------|
-| 保活 | 5s 心跳，连续 3 次失败自动重注册 | TTL 30s，25s 上报；`DeregisterCriticalServiceAfter=10m` | lease 10s + KeepAlive，续约失败自动重注册 | 注册中心心跳/探活 |
-| `GetServiceInstances` | ✅ 带权重与元数据 | ✅ 仅单 group、无 `Metadata` | ✅ 权重固定 1、无 `Metadata` | ✅ 带权重与元数据 |
-| `SubscribeOffline` | ✅ 轮询降级 | ❌ | ✅ 真实 watch（删除事件） | ✅ 轮询降级 |
-| `WatchService` | ✅ 5s 轮询 | ✅ 5s 轮询 | ✅ 真实 watch | ✅ 5s 轮询 |
+| 能力                  | Nacos                            | Consul                                                  | etcd                                      | Polaris           |
+| --------------------- | -------------------------------- | ------------------------------------------------------- | ----------------------------------------- | ----------------- |
+| 保活                  | 5s 心跳，连续 3 次失败自动重注册 | TTL 30s，25s 上报；`DeregisterCriticalServiceAfter=10m` | lease 10s + KeepAlive，续约失败自动重注册 | 注册中心心跳/探活 |
+| `GetServiceInstances` | ✅ 带权重与元数据                | ✅ 仅单 group、无 `Metadata`                            | ✅ 权重固定 1、无 `Metadata`              | ✅ 带权重与元数据 |
+| `SubscribeOffline`    | ✅ 轮询降级                      | ❌                                                      | ✅ 真实 watch（删除事件）                 | ✅ 轮询降级       |
+| `WatchService`        | ✅ 5s 轮询                       | ✅ 5s 轮询                                              | ✅ 真实 watch                             | ✅ 5s 轮询        |
 
 **各注册中心配置（`*-test.yml`）：**
 
@@ -965,21 +914,21 @@ go:
     apiversion: v1
     clusterName: DEFAULT
     group: DEFAULT_GROUP
-    username: ""       # 普通 Nacos 开启鉴权时填写
+    username: "" # 普通 Nacos 开启鉴权时填写
     password: ""
-    mse: false          # 阿里云 MSE Nacos 开启为 true，使用 AK/SK 签名认证
-    accessKey: ""       # MSE 专用 AccessKey；不要提交真实凭据
-    secretKey: ""       # MSE 专用 SecretKey；不要提交真实凭据
-    lan: true          # 以内网地址注册
-    lanNet: 192.168.   # 网段前缀
+    mse: false # 阿里云 MSE Nacos 开启为 true，使用 AK/SK 签名认证
+    accessKey: "" # MSE 专用 AccessKey；不要提交真实凭据
+    secretKey: "" # MSE 专用 SecretKey；不要提交真实凭据
+    lan: true # 以内网地址注册
+    lanNet: 192.168. # 网段前缀
 
 # etcd-test.yml
 go:
   etcd:
     server: 127.0.0.1
     port: 2379
-    prefix: mgin         # key: /{prefix}/{group}/{service}/{instance}
-    keyTemplate: ""      # 自定义 key 模板，空用内置
+    prefix: mgin # key: /{prefix}/{group}/{service}/{instance}
+    keyTemplate: "" # 自定义 key 模板，空用内置
     group: DEFAULT_GROUP
     username: ""
     password: ""
@@ -1008,11 +957,11 @@ go:
 ```yaml
 go:
   discovery:
-    registry: nacos        # 留空=不注册不发现（空实现，不 panic）
+    registry: nacos # 留空=不注册不发现（空实现，不 panic）
     callType: x-form
-    cacheTTL: 3            # 发现缓存秒数（未配置时 configure 补 60）
-    cacheRefresh: 1        # 热刷新秒数
-    strategy: random       # random / round_robin / weighted
+    cacheTTL: 3 # 发现缓存秒数（未配置时 configure 补 60）
+    cacheRefresh: 1 # 热刷新秒数
+    strategy: random # random / round_robin / weighted
 ```
 
 `CachedRegistry` 的行为：TTL 缓存 + 回退路径 singleflight 合并 + 后台热刷新 + 空结果不缓存 + 注册中心抖动时复用旧实例并打 Warn + 通过 `SubscribeOffline`/`WatchService` 精确失效；`DeRegister` 时停止刷新、取消 watch、清空缓存。
@@ -1020,19 +969,6 @@ go:
 > 📌 **注意**：`Polaris` 未接入自动初始化，需业务显式调用 `registry.Registry.Register(config.Config.GetConfigData("polaris"))`（前提是 `go.config.used` 含 `polaris`）。`CachedRegistry.GetServiceInstances` 会再套一次选择策略，通常只返回 1 条；需要全量列表请直接使用具体后端。
 >
 > 📌 **jh 分支增强**：etcd 注册自 `v1.21.17-jh` 起改用**租约（lease）+ keepalive 自动续租**，实例离线后注册信息可自动清理；Nacos 注册自 `v1.21.15-jh` 起改用社区 `nacos-sdk-go`，不再依赖阿里云 SDK。
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 ---
 
@@ -1134,8 +1070,6 @@ app.Router.Use(xssMw.RemoveXss())
 
 对 POST/PUT 的 JSON、form、multipart 及 GET query 做 bluemonday 净化，自动跳过 `password` 字段。
 
-
-
 ---
 
 ## 12. 国际化与错误码（i18n / errcode）
@@ -1205,12 +1139,6 @@ func GetUser(c *gin.Context) {
 
 > 多语言数据源为内置数据库字典，表名为 `<app.name>_i18n`。已配置 MySQL 时复用其连接，否则使用 SQLite；翻译直接查询字典。CRUD 与迁移配置见 [内置 i18n 字典](docs/i18n.md)。
 
-
-
-
-
-
-
 ---
 
 ## 13. 统一返回结构（Result）
@@ -1249,12 +1177,6 @@ models.ToAny[T](r)   // Result[any] -> Result[T]（断言 Data 类型必须一�
 
 > 框架的 `NoRoute`（404）与全局 `recoveryHandler`（panic）均使用 `i18n.Error` 返回标准 Result，保证错误格式统一。
 
-
-
-
-
-
-
 ---
 
 ## 14. 日志（logs）
@@ -1270,23 +1192,6 @@ logs.Error("MySQL check failed： {}", err.Error())
 - 输出目标由 `go.logger.out`（console,file）决定，文件路径前缀 `go.logger.file`。
 - 日志自动注入 `traceId`，便于链路排查。
 - 输出器类型（`logs` 内部）：`console` / `file` / `es` / `simple` / `color`。
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 ---
 
@@ -1314,21 +1219,21 @@ go:
 
 ### 15.2 内置数据模型（表名）
 
-| 模型 | 表名 | 说明 |
-|---|---|---|
-| `SysUser` | `sys_user` | 用户（LoginName 唯一） |
-| `SysRole` | `sys_role` | 角色（RoleIdent 唯一） |
-| `SysUserExt` | `sys_user_ext` | 用户扩展（部门/岗位/角色关联） |
-| `SysDept` | `sys_dept` | 部门（树形） |
-| `SysPost` | `sys_post` | 岗位 |
-| `SysDict` | `sys_dict` | 字典 |
-| `SysResource` | `sys_resource` | 前端菜单/资源树 |
-| `SysApi` | `sys_api` | 后端接口（NeedAuth/NeedLog） |
-| `SysRoleApi` | `sys_role_api` | 角色-接口 |
-| `SysRoleResource` | `sys_role_resource` | 角色-资源（菜单） |
-| `SysUserOnline` | `sys_user_online` | 在线用户 |
-| `SysSocial` | `sys_social` | 第三方登录 |
-| `SysConfig` | `sys_config` | 动态配置（Key 唯一） |
+| 模型              | 表名                | 说明                           |
+| ----------------- | ------------------- | ------------------------------ |
+| `SysUser`         | `sys_user`          | 用户（LoginName 唯一）         |
+| `SysRole`         | `sys_role`          | 角色（RoleIdent 唯一）         |
+| `SysUserExt`      | `sys_user_ext`      | 用户扩展（部门/岗位/角色关联） |
+| `SysDept`         | `sys_dept`          | 部门（树形）                   |
+| `SysPost`         | `sys_post`          | 岗位                           |
+| `SysDict`         | `sys_dict`          | 字典                           |
+| `SysResource`     | `sys_resource`      | 前端菜单/资源树                |
+| `SysApi`          | `sys_api`           | 后端接口（NeedAuth/NeedLog）   |
+| `SysRoleApi`      | `sys_role_api`      | 角色-接口                      |
+| `SysRoleResource` | `sys_role_resource` | 角色-资源（菜单）              |
+| `SysUserOnline`   | `sys_user_online`   | 在线用户                       |
+| `SysSocial`       | `sys_social`        | 第三方登录                     |
+| `SysConfig`       | `sys_config`        | 动态配置（Key 唯一）           |
 
 公共基类 `BaseModel` 含 `DelFlag, CreateAt, UpdateAt, UpdateBy, CreateBy, TenantId`。
 
@@ -1351,8 +1256,6 @@ go:
 
 `models/sys/request` 与 `models/sys/vo` 提供常用 DTO，如 `RegisterReq`、`LoginReq`、`CreateRoleReq`、`ListSysUserReq`、`BindRoleApiReq`、`CreateResourceReq` 等，可直接用于 Controller 绑定。
 
-
-
 ---
 
 ## 16. 工具集（utils）
@@ -1370,29 +1273,32 @@ ok := utils.IsChinaMobileString("13800138000")    // true
 ### 16.1 加解密（Crypto）
 
 #### AES（CBC / ECB）
-| 函数 | 说明 |
-| --- | --- |
-| `AESBase64Encrypt(origin, key string, iv []byte) (string, error)` | CBC 模式，输出标准 Base64 字符串 |
-| `AESBase64Decrypt(encrypt, key string, iv []byte) (string, error)` | 对应解密 |
-| `AesEncrypt(origData, key []byte) ([]byte, error)` | CBC，IV 取 `key[:16]` |
-| `AesDecrypt(encrypted, key []byte) ([]byte, error)` | 对应解密 |
-| `AESEncrypt(data, key string) string` / `AESDecrypt(data, key string) string` | string 封装，失败返回 `""` |
-| `AesEncryptEcb(src, key string) (string, error)` / `AesDecryptEcb(crypted, key string) (string, error)` | ECB 模式 |
-| `NewECBEncrypter(b)` / `NewECBDecrypter(b)` | 自定义 ECB BlockMode |
-| `PKCS5Padding` / `PKCS5UnPadding` | 填充 / 去填充辅助 |
+
+| 函数                                                                                                    | 说明                             |
+| ------------------------------------------------------------------------------------------------------- | -------------------------------- |
+| `AESBase64Encrypt(origin, key string, iv []byte) (string, error)`                                       | CBC 模式，输出标准 Base64 字符串 |
+| `AESBase64Decrypt(encrypt, key string, iv []byte) (string, error)`                                      | 对应解密                         |
+| `AesEncrypt(origData, key []byte) ([]byte, error)`                                                      | CBC，IV 取 `key[:16]`            |
+| `AesDecrypt(encrypted, key []byte) ([]byte, error)`                                                     | 对应解密                         |
+| `AESEncrypt(data, key string) string` / `AESDecrypt(data, key string) string`                           | string 封装，失败返回 `""`       |
+| `AesEncryptEcb(src, key string) (string, error)` / `AesDecryptEcb(crypted, key string) (string, error)` | ECB 模式                         |
+| `NewECBEncrypter(b)` / `NewECBDecrypter(b)`                                                             | 自定义 ECB BlockMode             |
+| `PKCS5Padding` / `PKCS5UnPadding`                                                                       | 填充 / 去填充辅助                |
 
 > 密钥长度需为 16 / 24 / 32 字节；`AesEncrypt` 系列以 `key` 前 16 字节作 IV。
 
 #### DES / 3DES
-| 函数 | 说明 |
-| --- | --- |
-| `DesEncrypt / DesDecrypt(origData, key []byte) ([]byte, error)` | DES CBC，key 需 8 字节 |
-| `DesEcbEncrypt / DesEcbDecrypt(src, key []byte) ([]byte, error)` | DES ECB |
-| `DESEncrypt / DESDecrypt(data, key string) string` | string 封装 |
-| `TripleDesEncrypt / TripleDesDecrypt(origData, key []byte, pcks5 bool) ([]byte, error)` | 3DES CBC，IV = `key[:8]` |
-| `TripleEcbDesEncrypt / TripleEcbDesDecrypt(origData, key []byte) ([]byte, error)` | 3DES ECB（k1/k2/k3 各 8 字节） |
+
+| 函数                                                                                    | 说明                           |
+| --------------------------------------------------------------------------------------- | ------------------------------ |
+| `DesEncrypt / DesDecrypt(origData, key []byte) ([]byte, error)`                         | DES CBC，key 需 8 字节         |
+| `DesEcbEncrypt / DesEcbDecrypt(src, key []byte) ([]byte, error)`                        | DES ECB                        |
+| `DESEncrypt / DESDecrypt(data, key string) string`                                      | string 封装                    |
+| `TripleDesEncrypt / TripleDesDecrypt(origData, key []byte, pcks5 bool) ([]byte, error)` | 3DES CBC，IV = `key[:8]`       |
+| `TripleEcbDesEncrypt / TripleEcbDesDecrypt(origData, key []byte) ([]byte, error)`       | 3DES ECB（k1/k2/k3 各 8 字节） |
 
 #### RSA
+
 - 便捷函数（自动 Base64 编解码）：`PublicEncrypt(data, publicKey string) (string, error)`、`PriKeyEncrypt`、`PublicDecrypt`、`PriKeyDecrypt`。
 - 实例方式：包级全局 `var RSA = &RSASecurity{}`。
   - `SetPublicKey(str)` / `SetPrivateKey(str)` 加载 PEM（支持 PKIX / PKCS1 / PKCS8）；
@@ -1402,178 +1308,175 @@ ok := utils.IsChinaMobileString("13800138000")    // true
   - `VerifySignSha1WithRsa / VerifySignSha256WithRsa(data, sign string) error` 验签。
 
 #### 摘要与 HMAC
-| 函数 | 说明 |
-| --- | --- |
-| `MD5Encode(content string) string` | Hex 小写 32 位 |
-| `FileMD5(filename string) (string, error)` | 文件 MD5 |
-| `MapMD5(m map[string]string) string` | 按键字典序拼接 `k=v&`（排除 `sign` 与空值）后 MD5，常用于签名 |
-| `Sha1(src)` / `Sha256(src) string` | Hex 小写 |
-| `FileSha256(filename string) (string, error)` | 文件 SHA256 |
-| `HmacSHA1 / HmacSHA256(key, data []byte) []byte` | 原始字节 |
-| `HmacSHA1Hex / HmacSHA256Hex(key, data string) string` | Hex |
-| `HmacSHA1Base64 / HmacSHA256Base64(key, data string) string` | 标准 Base64 |
+
+| 函数                                                         | 说明                                                          |
+| ------------------------------------------------------------ | ------------------------------------------------------------- |
+| `MD5Encode(content string) string`                           | Hex 小写 32 位                                                |
+| `FileMD5(filename string) (string, error)`                   | 文件 MD5                                                      |
+| `MapMD5(m map[string]string) string`                         | 按键字典序拼接 `k=v&`（排除 `sign` 与空值）后 MD5，常用于签名 |
+| `Sha1(src)` / `Sha256(src) string`                           | Hex 小写                                                      |
+| `FileSha256(filename string) (string, error)`                | 文件 SHA256                                                   |
+| `HmacSHA1 / HmacSHA256(key, data []byte) []byte`             | 原始字节                                                      |
+| `HmacSHA1Hex / HmacSHA256Hex(key, data string) string`       | Hex                                                           |
+| `HmacSHA1Base64 / HmacSHA256Base64(key, data string) string` | 标准 Base64                                                   |
 
 #### Base64 / JWT
+
 - `Base64Encode(str) string` / `Base64Decode(str) string`：标准 `StdEncoding`（带填充）。
 - `GenerateToken(claims jwt.MapClaims) (string, error)`：HS256 签名，固定 `exp = now+24h`，密钥取 `config.Config.Jwt.Secret`。
 - `ValidateToken(tokenStr string) (*jwt.Token, error)`：校验令牌。
 
 ### 16.2 字符串与中文（String）
-| 函数 | 说明 |
-| --- | --- |
-| `IsEmpty / IsNotEmpty / IsBlank / IsNotBlank(text)` | 空 / 空白判定 |
-| `Left / Right(src, size)`、`LeftJustin / RightJustin / CenterJustin` | 截断 / 补齐 |
-| `Length(text) int` | 按 rune 计长（合并变音标记） |
-| `Lowercase / Uppercase(s)`、`UpperFirst / LowerFirst(s)`、`UpperWord(s)` | 大小写 |
-| `IsNumeric / IsAlphabet / IsAlphaNum` | 字符类别 |
-| `StrPos / BytePos / RunePos`、`IsStartOf / IsEndOf` | 查找 |
-| `ReplacePunctuation(src, rep)`、`AddSpaceBetweenCharsAndNumbers` | 标点处理 |
-| `AnyToString(i any) (string, error)`、`StringToAny[T](src) (T, error)` | 泛型类型转换 |
-| `SubChineseString(str, begin, length)`、`ChineseLength(str)`、`IsChinese(str)` | 中文按 rune 安全截取 |
-| `DBCtoSBC(s)` | 全角转半角 |
-| `UnicodeEmojiDecode / UnicodeEmojiCode / TrimEmoji(s)` | Emoji 编解码 / 清除 |
+
+| 函数                                                                           | 说明                         |
+| ------------------------------------------------------------------------------ | ---------------------------- |
+| `IsEmpty / IsNotEmpty / IsBlank / IsNotBlank(text)`                            | 空 / 空白判定                |
+| `Left / Right(src, size)`、`LeftJustin / RightJustin / CenterJustin`           | 截断 / 补齐                  |
+| `Length(text) int`                                                             | 按 rune 计长（合并变音标记） |
+| `Lowercase / Uppercase(s)`、`UpperFirst / LowerFirst(s)`、`UpperWord(s)`       | 大小写                       |
+| `IsNumeric / IsAlphabet / IsAlphaNum`                                          | 字符类别                     |
+| `StrPos / BytePos / RunePos`、`IsStartOf / IsEndOf`                            | 查找                         |
+| `ReplacePunctuation(src, rep)`、`AddSpaceBetweenCharsAndNumbers`               | 标点处理                     |
+| `AnyToString(i any) (string, error)`、`StringToAny[T](src) (T, error)`         | 泛型类型转换                 |
+| `SubChineseString(str, begin, length)`、`ChineseLength(str)`、`IsChinese(str)` | 中文按 rune 安全截取         |
+| `DBCtoSBC(s)`                                                                  | 全角转半角                   |
+| `UnicodeEmojiDecode / UnicodeEmojiCode / TrimEmoji(s)`                         | Emoji 编解码 / 清除          |
 
 ### 16.3 时间日期（Time）
-| 函数 | 说明 |
-| --- | --- |
-| `ToDateTimeString / ToDateString / ToTimeString(t)` | `2006-01-02 15:04:05` / 日期 / 时间 |
-| `GetNowDateTime() / GetDate()` | 以 **CST（+08:00）** 返回当前时间串 |
-| `DateFormat(t, format)`、`ConvertDateFormat(str, format)` | 自定义 / 解析格式化（`yyyy/MM/dd` 等） |
-| `GormTimeFormat(t string)` | GORM 时间串规整（去 `T` 与 `+08:00`） |
-| `TimeSubDays(t1, t2) int`、`WeekByDate(t) int` | 相差天数 / 年内周次 |
-| `Get0Hour / Get0Yesterday / Get0Tomorrow / Get0Week / Get0Month ...` | 各粒度归零时间点 |
-| `GroupByWeekDate(start, end) []WeekDate` | 按周切片 |
-| `WaitNextMinute()` | 阻塞至下一分钟 0 秒 |
+
+| 函数                                                                 | 说明                                   |
+| -------------------------------------------------------------------- | -------------------------------------- |
+| `ToDateTimeString / ToDateString / ToTimeString(t)`                  | `2006-01-02 15:04:05` / 日期 / 时间    |
+| `GetNowDateTime() / GetDate()`                                       | 以 **CST（+08:00）** 返回当前时间串    |
+| `DateFormat(t, format)`、`ConvertDateFormat(str, format)`            | 自定义 / 解析格式化（`yyyy/MM/dd` 等） |
+| `GormTimeFormat(t string)`                                           | GORM 时间串规整（去 `T` 与 `+08:00`）  |
+| `TimeSubDays(t1, t2) int`、`WeekByDate(t) int`                       | 相差天数 / 年内周次                    |
+| `Get0Hour / Get0Yesterday / Get0Tomorrow / Get0Week / Get0Month ...` | 各粒度归零时间点                       |
+| `GroupByWeekDate(start, end) []WeekDate`                             | 按周切片                               |
+| `WaitNextMinute()`                                                   | 阻塞至下一分钟 0 秒                    |
 
 ### 16.4 序列化（JSON / XML / YAML）
-| 函数 | 说明 |
-| --- | --- |
-| `ToJSON(o any) string` | 序列化（还原 `<` `>` `&` 转义） |
-| `ToJSONPretty(o any) string` | 美化（2 空格缩进） |
-| `FromJSON(j string, o any) *any` | 反序列化（失败记日志返回 nil） |
-| `JSONPretty / CompactJSON(in string) string` | 美化 / 压缩 |
-| `DecodeXMLToMap(r)` / `EncodeXMLFromMap(w, m, root)` | XML ↔ map |
-| `LoadYaml(filename, cfg)` / `StoreYaml(filename, cfg)` | YAML 读写（写时自动建目录） |
+
+| 函数                                                   | 说明                            |
+| ------------------------------------------------------ | ------------------------------- |
+| `ToJSON(o any) string`                                 | 序列化（还原 `<` `>` `&` 转义） |
+| `ToJSONPretty(o any) string`                           | 美化（2 空格缩进）              |
+| `FromJSON(j string, o any) *any`                       | 反序列化（失败记日志返回 nil）  |
+| `JSONPretty / CompactJSON(in string) string`           | 美化 / 压缩                     |
+| `DecodeXMLToMap(r)` / `EncodeXMLFromMap(w, m, root)`   | XML ↔ map                       |
+| `LoadYaml(filename, cfg)` / `StoreYaml(filename, cfg)` | YAML 读写（写时自动建目录）     |
 
 ### 16.5 Map 与 Struct 转换
-| 函数 | 说明 |
-| --- | --- |
-| `MapItoS / MapStoI`、`Exists / Existi` | map 互转、键存在判断 |
-| `Map2Struct(input, output)` | `mapstructure` 弱类型转换（含 duration hook） |
-| `MapGet(input, field) interface{}` | 点号嵌套取值（`a.b.c`） |
-| `Struct2StringMap(obj)` / `AnyToMap(obj)` | 结构体转 `map[string]string` |
-| `Struct2Map(obj)` / `Struct2MapString(obj)` | 结构体转 map（递归） |
-| `Clone(src, dst)` / `CopyStruct(src, dst)` | JSON 深拷贝 / 反射逐字段拷贝 |
-| `DeepCopy[D any](src any) D` | 泛型深拷贝 |
-| `GetStructFields / GetStructJsonTags(obj)` | 反射取字段名 / json tag |
-| `SortMapByValue / SortMapByValueDesc(src)` | 按值排序（值需为 float64） |
+
+| 函数                                        | 说明                                          |
+| ------------------------------------------- | --------------------------------------------- |
+| `MapItoS / MapStoI`、`Exists / Existi`      | map 互转、键存在判断                          |
+| `Map2Struct(input, output)`                 | `mapstructure` 弱类型转换（含 duration hook） |
+| `MapGet(input, field) interface{}`          | 点号嵌套取值（`a.b.c`）                       |
+| `Struct2StringMap(obj)` / `AnyToMap(obj)`   | 结构体转 `map[string]string`                  |
+| `Struct2Map(obj)` / `Struct2MapString(obj)` | 结构体转 map（递归）                          |
+| `Clone(src, dst)` / `CopyStruct(src, dst)`  | JSON 深拷贝 / 反射逐字段拷贝                  |
+| `DeepCopy[D any](src any) D`                | 泛型深拷贝                                    |
+| `GetStructFields / GetStructJsonTags(obj)`  | 反射取字段名 / json tag                       |
+| `SortMapByValue / SortMapByValueDesc(src)`  | 按值排序（值需为 float64）                    |
 
 ### 16.6 集合与切片（Slice / Set）
-| 函数 | 说明 |
-| --- | --- |
-| `StringArrayContains / IntArrayContains / Float64ArrayContains` | 包含判定 |
-| `StringArrayDelete / IntArrayDelete / ...` | 按索引删除 |
-| `SliceContains / SliceContainsInt / SliceContainsInt64 / SliceContainsString` | 泛型包含 |
-| `SliceMerge(Int/Int64/String)`、`SliceUnique(Int/Int64/String)` | 合并 / 去重 |
-| `SliceSumInt / SliceSumInt64 / SliceSumFloat64` | 求和 |
-| `ArrayStr2Int / ArrayInt2Str`、`UnSplitString(src, sep)` | 类型互转 / 拼接 |
-| `UnionStringSlice / IntersectStringSlice / DifferenceStringSlice` | 并集 / 交集 / 差集 |
-| `StringUnique / Int64Unique`、`TrimSpaceStrInArray` | 去重 / 去空格判定 |
-| `NewHashSet() *HashSet`（`Add / Exists / Remove / Members`） | 字符串集合 |
+
+| 函数                                                                          | 说明               |
+| ----------------------------------------------------------------------------- | ------------------ |
+| `StringArrayContains / IntArrayContains / Float64ArrayContains`               | 包含判定           |
+| `StringArrayDelete / IntArrayDelete / ...`                                    | 按索引删除         |
+| `SliceContains / SliceContainsInt / SliceContainsInt64 / SliceContainsString` | 泛型包含           |
+| `SliceMerge(Int/Int64/String)`、`SliceUnique(Int/Int64/String)`               | 合并 / 去重        |
+| `SliceSumInt / SliceSumInt64 / SliceSumFloat64`                               | 求和               |
+| `ArrayStr2Int / ArrayInt2Str`、`UnSplitString(src, sep)`                      | 类型互转 / 拼接    |
+| `UnionStringSlice / IntersectStringSlice / DifferenceStringSlice`             | 并集 / 交集 / 差集 |
+| `StringUnique / Int64Unique`、`TrimSpaceStrInArray`                           | 去重 / 去空格判定  |
+| `NewHashSet() *HashSet`（`Add / Exists / Remove / Members`）                  | 字符串集合         |
 
 ### 16.7 网络与 IP（Net / IP）
-| 函数 | 说明 |
-| --- | --- |
-| `GetLocalIpAddress() string` | 首个非回环、非 `169.254.x` 的 IPv4，否则 `127.0.0.1` |
-| `LocalIPv4s() ([]string, error)`、`GetIPv4ByInterface(name)` | 全部 / 指定网卡 IPv4 |
-| `IsIntranetIP(ip) bool` | 内网判定（`10.*` / `192.168.*` / `172.16-31.*`） |
-| `IsPortUse(port int) bool` | **Deprecated**：端口占用判定（`netstat` 输出非空时返回 `true`）；依赖外部命令、存在误报且不支持 darwin，请改用 `IsPortAvailable` |
-| `IsPortAvailable(port int) bool` | 端口是否可用（空闲返回 `true`，被占用或端口号非法返回 `false`）；通过尝试监听判定，跨平台、不依赖外部命令 |
-| `UrlEncode(raw) string` / `UrlDecode(encoded) (string, error)` | RFC3986 风格编解码 |
+
+| 函数                                                           | 说明                                                                                                                             |
+| -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `GetLocalIpAddress() string`                                   | 首个非回环、非 `169.254.x` 的 IPv4，否则 `127.0.0.1`                                                                             |
+| `LocalIPv4s() ([]string, error)`、`GetIPv4ByInterface(name)`   | 全部 / 指定网卡 IPv4                                                                                                             |
+| `IsIntranetIP(ip) bool`                                        | 内网判定（`10.*` / `192.168.*` / `172.16-31.*`）                                                                                 |
+| `IsPortUse(port int) bool`                                     | **Deprecated**：端口占用判定（`netstat` 输出非空时返回 `true`）；依赖外部命令、存在误报且不支持 darwin，请改用 `IsPortAvailable` |
+| `IsPortAvailable(port int) bool`                               | 端口是否可用（空闲返回 `true`，被占用或端口号非法返回 `false`）；通过尝试监听判定，跨平台、不依赖外部命令                        |
+| `UrlEncode(raw) string` / `UrlDecode(encoded) (string, error)` | RFC3986 风格编解码                                                                                                               |
 
 ### 16.8 文件与压缩（File / Zip）
-| 函数 | 说明 |
-| --- | --- |
-| `SelfPath() / SelfDir()`、`Basename / Dir / Ext(file)` | 路径解析 |
-| `InsureDir(path)`、`IsFile / IsDir / IsExist(path)` | 目录确保 / 存在判定 |
-| `ReadFileToBytes / ReadFileToString`、`WriteBytesToFile / WriteStringToFile` | 读写（写时自动建目录） |
-| `FileSize / FileMTime`、`DirsUnder / FilesUnder(dir)` | 文件信息 / 列举 |
-| `SearchFile(filename, paths...)`、`RealPath(file)` | 查找 / 真实路径 |
-| `DownloadFile(fileUrl, localPath) (string, error)` | HTTP 下载（`grequests`） |
-| `SftpConnect / SftpUploadFile / SftpClose` | SFTP 上传（密码认证）；**注意 `SftpConnect` 不校验主机密钥，存在中间人风险** |
-| `SftpConnectWithHostKey(user, password, host string, port int, hostKeyCallback ssh.HostKeyCallback)` | 可自定义主机密钥校验回调的 SFTP 连接；`hostKeyCallback` 为 `nil` 时回退为不校验 |
-| `SftpConnectWithKnownHosts(user, password, host string, port int, knownHostsPath string)` | 基于 known_hosts 文件校验主机密钥的 SFTP 连接；`knownHostsPath` 为空时默认 `~/.ssh/known_hosts` |
-| `ZipFiles(filename, files, srcpath, aliasnames)` | 多文件 ZIP |
-| `Compress / Decompress(data []byte)` | Gzip 压缩 / 解压 |
-| `Utf8ToGbk / GbkToUtf8`、`ClearUtf8BOM(str)` | 编码转换 / 去 BOM |
+
+| 函数                                                                                                 | 说明                                                                                            |
+| ---------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `SelfPath() / SelfDir()`、`Basename / Dir / Ext(file)`                                               | 路径解析                                                                                        |
+| `InsureDir(path)`、`IsFile / IsDir / IsExist(path)`                                                  | 目录确保 / 存在判定                                                                             |
+| `ReadFileToBytes / ReadFileToString`、`WriteBytesToFile / WriteStringToFile`                         | 读写（写时自动建目录）                                                                          |
+| `FileSize / FileMTime`、`DirsUnder / FilesUnder(dir)`                                                | 文件信息 / 列举                                                                                 |
+| `SearchFile(filename, paths...)`、`RealPath(file)`                                                   | 查找 / 真实路径                                                                                 |
+| `DownloadFile(fileUrl, localPath) (string, error)`                                                   | HTTP 下载（`grequests`）                                                                        |
+| `SftpConnect / SftpUploadFile / SftpClose`                                                           | SFTP 上传（密码认证）；**注意 `SftpConnect` 不校验主机密钥，存在中间人风险**                    |
+| `SftpConnectWithHostKey(user, password, host string, port int, hostKeyCallback ssh.HostKeyCallback)` | 可自定义主机密钥校验回调的 SFTP 连接；`hostKeyCallback` 为 `nil` 时回退为不校验                 |
+| `SftpConnectWithKnownHosts(user, password, host string, port int, knownHostsPath string)`            | 基于 known_hosts 文件校验主机密钥的 SFTP 连接；`knownHostsPath` 为空时默认 `~/.ssh/known_hosts` |
+| `ZipFiles(filename, files, srcpath, aliasnames)`                                                     | 多文件 ZIP                                                                                      |
+| `Compress / Decompress(data []byte)`                                                                 | Gzip 压缩 / 解压                                                                                |
+| `Utf8ToGbk / GbkToUtf8`、`ClearUtf8BOM(str)`                                                         | 编码转换 / 去 BOM                                                                               |
 
 ### 16.9 UUID 与随机（UUID / Rand）
-| 函数 | 说明 |
-| --- | --- |
-| `NewUUID() (UUID, error)` / `MustNewUUID() UUID` | 生成 v4 UUID |
-| `UUIDFromString(s)`、`IsValidUUIDString(s)` | 解析 / 校验（RFC4122） |
-| `UUID.String() / Simple()`、`NewUUIDString() / SimpleUUID()` | 标准 / 无分隔串 |
+
+| 函数                                                                                                | 说明                                             |
+| --------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| `NewUUID() (UUID, error)` / `MustNewUUID() UUID`                                                    | 生成 v4 UUID                                     |
+| `UUIDFromString(s)`、`IsValidUUIDString(s)`                                                         | 解析 / 校验（RFC4122）                           |
+| `UUID.String() / Simple()`、`NewUUIDString() / SimpleUUID()`                                        | 标准 / 无分隔串                                  |
 | `GetRandomString(l)` / `GetRandomCaseString(l)` / `GetRandomHexString(l)` / `GetRandomIntString(l)` | 随机串（数字 / 大小写+符号 / 十六进制 / 纯数字） |
-| `GenerateRandString(source, l)` | 自定义字符集随机串 |
-| `GetUUIDString()` | 基于 `gofrs/uuid` 的 v4 串 |
+| `GenerateRandString(source, l)`                                                                     | 自定义字符集随机串                               |
+| `GetUUIDString()`                                                                                   | 基于 `gofrs/uuid` 的 v4 串                       |
 
 ### 16.10 并发安全与数据结构（Concurrent / DS）
-| 函数 / 类型 | 说明 |
-| --- | --- |
-| `NewSafeGo(fn)`（`SetGoBeforeHandler / SetCallBeforeHandler / Run`） | panic 安全协程（recover 并打印彩色堆栈） |
-| `GetGoroutineID() uint64` | 当前 goroutine ID（调试用） |
-| `Map[T any]`（`Load / Store / Range / Delete / LoadAndStore / LoadAndDelete / Len / Clear`） | 泛型并发安全 map |
+
+| 函数 / 类型                                                                                       | 说明                                                                                  |
+| ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `NewSafeGo(fn)`（`SetGoBeforeHandler / SetCallBeforeHandler / Run`）                              | panic 安全协程（recover 并打印彩色堆栈）                                              |
+| `GetGoroutineID() uint64`                                                                         | 当前 goroutine ID（调试用）                                                           |
+| `Map[T any]`（`Load / Store / Range / Delete / LoadAndStore / LoadAndDelete / Len / Clear`）      | 泛型并发安全 map                                                                      |
 | `LinkList[T any]`（`Add / Push / Pop / Enqueue / Dequeue / Get / TryGet / GetAll / Walk / Size`） | 泛型双向链表；`Get` 越界返回零值（不再 panic），`TryGet` 额外返回 `bool` 用于区分越界 |
-| `RingBuffer[T any]`（`Write / Read / Latest / Oldest / Overwrite`） | 泛型环形缓冲（覆盖式） |
-| `HashSet`（`Add / Exists / Remove / Members`） | 字符串集合（见 16.6） |
-| `Values`（`Put / Get / GetAll / Merge / Clear`） | 并发键值容器 |
-| `ExpireCache`（`Store / Load / Delete`，`Timeout` 秒） | 带过期的内存缓存；`Store/Load/Delete` 与内部过期清理均由互斥锁串行化，可并发使用 |
-| `NewLimitQueue()` + `LimitFreqSingle(queue, count, window) bool` | 单机滑动窗口限流 |
+| `RingBuffer[T any]`（`Write / Read / Latest / Oldest / Overwrite`）                               | 泛型环形缓冲（覆盖式）                                                                |
+| `HashSet`（`Add / Exists / Remove / Members`）                                                    | 字符串集合（见 16.6）                                                                 |
+| `Values`（`Put / Get / GetAll / Merge / Clear`）                                                  | 并发键值容器                                                                          |
+| `ExpireCache`（`Store / Load / Delete`，`Timeout` 秒）                                            | 带过期的内存缓存；`Store/Load/Delete` 与内部过期清理均由互斥锁串行化，可并发使用      |
+| `NewLimitQueue()` + `LimitFreqSingle(queue, count, window) bool`                                  | 单机滑动窗口限流                                                                      |
 
 ### 16.11 校验与防护（Validate）
-| 函数 | 说明 |
-| --- | --- |
+
+| 函数                                                            | 说明                                                                          |
+| --------------------------------------------------------------- | ----------------------------------------------------------------------------- |
 | `IsChinaMobile / Mail / UserName / Nickname / ChineseName(...)` | 手机号 / 邮箱 / 用户名 / 昵称 / 中文名（含 `...String` 与 `[]byte` 两种入参） |
-| `IsChineseNameEx(s) (string, bool)` | 不规范间隔符自动规整为 `·` 并返回修正结果 |
-| `IsIdCard(cardNo string) bool` | 15 / 18 位身份证（末位可 X） |
-| `CheckSqlValidate(content string) (bool, string)` | SQL 注入关键字黑名单（命中返回疑似串）；**不得作为安全防护手段**，见下方警告 |
-| `AddPortsToFirewall(ports []int)` | linux `firewall-cmd` 放通端口（仅 linux） |
+| `IsChineseNameEx(s) (string, bool)`                             | 不规范间隔符自动规整为 `·` 并返回修正结果                                     |
+| `IsIdCard(cardNo string) bool`                                  | 15 / 18 位身份证（末位可 X）                                                  |
+| `CheckSqlValidate(content string) (bool, string)`               | SQL 注入关键字黑名单（命中返回疑似串）；**不得作为安全防护手段**，见下方警告  |
+| `AddPortsToFirewall(ports []int)`                               | linux `firewall-cmd` 放通端口（仅 linux）                                     |
 
 > ⚠️ **`CheckSqlValidate` 的能力边界（重要）**：
+>
 > 1. **黑名单式 SQL 注入检测本身不可靠**，既容易绕过也容易误报，只能用于粗筛提示，**不能作为安全防护手段**；正确的防护方式是使用参数化查询 / 预编译语句。
 > 2. **实际生效的只有关键字清单第一行中的 11 个关键字**。清单以跨行 raw string 书写，按 `|` 切分后第 2~5 行的关键字（如 `--`、`char`、`table`、`information_schema.columns`、`or 1 = 1` 等）会带上 `\n\t\t` 前缀，**永远无法命中**。
 > 3. 命中判定已包含关键字出现在字符串首位（下标 0）的情况。
 
 ### 16.12 其它（Misc）
-| 函数 | 说明 |
-| --- | --- |
-| `AppName() / AppDir()` | 可执行文件名 / 所在目录 |
-| `GinParamMap(c *gin.Context) map[string]string` | 聚合 GET Query 与 POST 表单参数 |
-| `GinHeaders(c *gin.Context) map[string]string` | 请求头转 map |
-| `CmdExec(name, arg...) (string, error)`、`CmdRunWithTimeout(cmd, timeout)` | 执行系统命令 |
-| `DisplaySize(raw float64) string` | 字节数 → 人类可读（`B/K/M/G/T/P/E`） |
-| `IfThen / IfThenElse / DefaultIfNil / FirstNonNil` | 条件 / 空值取值工具 |
+
+| 函数                                                                       | 说明                                 |
+| -------------------------------------------------------------------------- | ------------------------------------ |
+| `AppName() / AppDir()`                                                     | 可执行文件名 / 所在目录              |
+| `GinParamMap(c *gin.Context) map[string]string`                            | 聚合 GET Query 与 POST 表单参数      |
+| `GinHeaders(c *gin.Context) map[string]string`                             | 请求头转 map                         |
+| `CmdExec(name, arg...) (string, error)`、`CmdRunWithTimeout(cmd, timeout)` | 执行系统命令                         |
+| `DisplaySize(raw float64) string`                                          | 字节数 → 人类可读（`B/K/M/G/T/P/E`） |
+| `IfThen / IfThenElse / DefaultIfNil / FirstNonNil`                         | 条件 / 空值取值工具                  |
 
 > ✅ **已修复（原记录于本节的边界问题）**：`LinkList.Get` 越界不再 `panic`，改为返回零值，并新增 `TryGet(index int) (T, bool)` 用于区分「越界」与「元素值恰好是零值」，`Remove` 越界改为安全的空操作；`ExpireCache.checkExpire` 已改为按 key 删除过期项（原误用 value 作 key 导致过期项清不掉），且 `Store / Load / Delete / checkExpire` 全部由内部互斥锁串行化，并发安全；`sqlvalidate` 已修正关键字出现在首字符时被漏判的问题。
 >
 > ⚠️ **仍需留意（未变更 / 需调用方决策）**：`SftpConnect` 的 `HostKeyCallback` 恒返回 nil（等价 `ssh.InsecureIgnoreHostKey()`，**存在中间人攻击风险**），该行为为兼容存量业务而保留，新代码请改用 `SftpConnectWithHostKey` 或 `SftpConnectWithKnownHosts`；`IsPortUse` 命名与语义存在歧义且已标记 `Deprecated`，请改用 `IsPortAvailable`；`CheckSqlValidate` 仅为关键字黑名单、且存在永远无法命中的死关键字，**不得作为 SQL 注入的防护手段**（详见 16.11 节警告）。
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 ---
 
@@ -1591,8 +1494,6 @@ ok := utils.IsChinaMobileString("13800138000")    // true
 8. **多环境配置**：用 `go.config.env` + `<prefix>-<env>.yml` 分离环境，敏感信息走 Nacos/Polaris 等配置中心。
 9. **中间件顺序**：`jwt` / `casbin` 等鉴权中间件应放在 `postlog` 之后、业务路由之前；白名单路径（swagger/doc）已在 jwt/casbin 中预设。
 10. **XSS**：对外接收富文本/用户内容的接口建议挂载 `xss.RemoveXss()`，使用 `UGCPolicy`。
-
-
 
 ---
 
@@ -1616,8 +1517,6 @@ A：配置 `multidb:true` + `dbNames`；运行时 `GetConnection("test2")` 或 D
 **Q：Gin 模式怎么切生产？**
 A：设 `go.application.debug=false`（或删掉），框架自动用 `gin.ReleaseMode`。
 
-
-
 ---
 
 ## 19. 版本与升级说明
@@ -1639,10 +1538,7 @@ A：设 `go.application.debug=false`（或删掉），框架自动用 `gin.Relea
 - **v1.19.1**：`Result` 实现 any 与泛型 T 互转。
 - **v1.19.0**：支持 Go 1.19，`Result` 改用泛型；重构 `client.Call`，支持泛型返回 `CallT[T]`。
 
-
 > 本文档基于源码 `mgin.go / app.go / config / db / client / cache / middleware / i18n / errcode / logs / registry / models / utils` 编写，覆盖 MGin 的核心能力与常用 API。更多底层细节请直接阅读对应包源码。
-
-
 
 ---
 
@@ -1658,19 +1554,19 @@ A：设 `go.application.debug=false`（或删掉），框架自动用 `gin.Relea
 
 ### 20.2 与 master-1.25 的差异总览
 
-| 维度 | master-1.25 | jh 分支 |
-|---|---|---|
-| 内置 sys 模块 | ✅ 有 | ❌ 已移除 |
-| Swagger 文档 | ✅ `docs/` 内置 | ❌ 已移除 |
-| MySQL/SQLite/ClickHouse 二级缓存 | ❌ | ✅ `UseCache()` |
-| PostgreSQL 支持 | ❌ | ✅ `db.Pg` + `PostgresDao` |
-| ClickHouse 支持 | ❌ | ✅ `db.Clickhouse` + `ClickhouseDao` |
-| `NewApp` `-v` 版本参数 | ❌ | ✅ |
-| GIN 运行模式 | 硬编码 `debug` | 由 `go.application.debug` 控制 |
-| MongoDB 驱动 | `maczh/mgo` | 官方 `mongo-driver` |
-| etcd 注册 | 普通注册 | 带租约 + keepalive 续租 |
-| Nacos 注册 | 阿里云 SDK | 社区 `nacos-sdk-go` |
-| CORS | 固定头 | 支持外部配置 |
+| 维度                             | master-1.25     | jh 分支                              |
+| -------------------------------- | --------------- | ------------------------------------ |
+| 内置 sys 模块                    | ✅ 有           | ❌ 已移除                            |
+| Swagger 文档                     | ✅ `docs/` 内置 | ❌ 已移除                            |
+| MySQL/SQLite/ClickHouse 二级缓存 | ❌              | ✅ `UseCache()`                      |
+| PostgreSQL 支持                  | ❌              | ✅ `db.Pg` + `PostgresDao`           |
+| ClickHouse 支持                  | ❌              | ✅ `db.Clickhouse` + `ClickhouseDao` |
+| `NewApp` `-v` 版本参数           | ❌              | ✅                                   |
+| GIN 运行模式                     | 硬编码 `debug`  | 由 `go.application.debug` 控制       |
+| MongoDB 驱动                     | `maczh/mgo`     | 官方 `mongo-driver`                  |
+| etcd 注册                        | 普通注册        | 带租约 + keepalive 续租              |
+| Nacos 注册                       | 阿里云 SDK      | 社区 `nacos-sdk-go`                  |
+| CORS                             | 固定头          | 支持外部配置                         |
 
 ### 20.3 已移除的能力（重要）
 
@@ -1693,12 +1589,12 @@ A：设 `go.application.debug=false`（或删掉），框架自动用 `gin.Relea
 - 实现：新增 `db/mysql/redisCacher.go` 定义 `RedisCacher`（实现 `Get/Store/Invalidate`，底层用 Redis 存储）。
 - 开关与过期：各客户端提供 `UseCache() bool`，按配置决定是否挂载缓存插件：
 
-| 客户端 | 开关配置键 | 过期配置键 | 默认过期 | 无 Redis 时 |
-|---|---|---|---|---|
-| MySQL | `go.data.mysql_cache` | `go.data.mysql_cache_expired`（秒） | 300s(5min) | 进程内内存缓存 |
-| SQLite | 始终（若启用） | 固定 300s | 300s | 进程内内存缓存 |
+| 客户端     | 开关配置键                       | 过期配置键                             | 默认过期   | 无 Redis 时    |
+| ---------- | -------------------------------- | -------------------------------------- | ---------- | -------------- |
+| MySQL      | `go.data.mysql_cache`            | `go.data.mysql_cache_expired`（秒）    | 300s(5min) | 进程内内存缓存 |
+| SQLite     | 始终（若启用）                   | 固定 300s                              | 300s       | 进程内内存缓存 |
 | PostgreSQL | `go.data.postgres.cache.enabled` | `go.data.postgres.cache.expired`（秒） | 300s(5min) | 进程内内存缓存 |
-| ClickHouse | `go.data.clickhouse_cache` | — | 见 20.8 | 进程内内存缓存 |
+| ClickHouse | `go.data.clickhouse_cache`       | —                                      | 见 20.8    | 进程内内存缓存 |
 
 - 用法（建议 `mgin.Init` 之后、业务请求之前调用一次）：
 
@@ -1799,20 +1695,20 @@ go:
     # 规则列表，按声明顺序匹配，命中即生效
     rules:
       - name: "全局令牌桶"
-        algorithm: "token_bucket"     # token_bucket | sliding_window | concurrency
-        dimension: "global"           # global | ip | path | ip_path | header
-        rate: 100                     # 令牌桶：每秒补充令牌数；滑动窗口：窗口内允许次数
-        burst: 20                     # 令牌桶：突发容量（仅 token_bucket）
-        window: 1                     # 滑动窗口：窗口大小（秒，仅 sliding_window）
-        httpStatus: 429              # 触发限流时的 HTTP 状态码
-        code: 1011                    # 触发限流时的业务错误码
+        algorithm: "token_bucket" # token_bucket | sliding_window | concurrency
+        dimension: "global" # global | ip | path | ip_path | header
+        rate: 100 # 令牌桶：每秒补充令牌数；滑动窗口：窗口内允许次数
+        burst: 20 # 令牌桶：突发容量（仅 token_bucket）
+        window: 1 # 滑动窗口：窗口大小（秒，仅 sliding_window）
+        httpStatus: 429 # 触发限流时的 HTTP 状态码
+        code: 1011 # 触发限流时的业务错误码
         message: "请求过于频繁，请稍后再试"
       - name: "登录接口按 IP 限流"
-        path: "/api/login/*"          # 支持精确匹配、前缀"/*"、Gin 路由模板
+        path: "/api/login/*" # 支持精确匹配、前缀"/*"、Gin 路由模板
         methods: ["POST"]
         algorithm: "sliding_window"
         dimension: "ip"
-        rate: 5                       # 每个 IP 在 60 秒内最多 5 次
+        rate: 5 # 每个 IP 在 60 秒内最多 5 次
         window: 60
         httpStatus: 429
         code: 1011
@@ -1821,7 +1717,7 @@ go:
         path: "/api/upload"
         algorithm: "concurrency"
         dimension: "global"
-        maxConcurrent: 10             # 同时最多 10 个上传在进行
+        maxConcurrent: 10 # 同时最多 10 个上传在进行
 ```
 
 ### 21.3 使用方式
@@ -1909,15 +1805,15 @@ func init() {
 
 ### 22.3 调度类型与策略
 
-| 配置项 | 取值 | 说明 |
-|---|---|---|
-| scheduleType | `cron` | cron 表达式（支持 5 段、6 段、`@every 5m`、`@daily`） |
-| | `fixed_rate` | 间隔秒数，从上次**开始执行**起算 |
-| | `fixed_delay` | 间隔秒数，从上次**执行结束**起算 |
-| | `once` | 一次性，配置执行时间 `2006-01-02 15:04:05` |
-| blockStrategy | `serial` / `discard` / `concurrent` / `cover` | 上一次未结束时的处理方式 |
-| misfireStrategy | `do_nothing` / `fire_now` | 错过调度时刻是否立即补偿 |
-| timeout / retryCount / retryInterval | 秒 / 次数 / 秒 | 超时中断、失败重试 |
+| 配置项                               | 取值                                          | 说明                                                  |
+| ------------------------------------ | --------------------------------------------- | ----------------------------------------------------- |
+| scheduleType                         | `cron`                                        | cron 表达式（支持 5 段、6 段、`@every 5m`、`@daily`） |
+|                                      | `fixed_rate`                                  | 间隔秒数，从上次**开始执行**起算                      |
+|                                      | `fixed_delay`                                 | 间隔秒数，从上次**执行结束**起算                      |
+|                                      | `once`                                        | 一次性，配置执行时间 `2006-01-02 15:04:05`            |
+| blockStrategy                        | `serial` / `discard` / `concurrent` / `cover` | 上一次未结束时的处理方式                              |
+| misfireStrategy                      | `do_nothing` / `fire_now`                     | 错过调度时刻是否立即补偿                              |
+| timeout / retryCount / retryInterval | 秒 / 次数 / 秒                                | 超时中断、失败重试                                    |
 
 ### 22.4 管理接口（Gin 路由组）
 
@@ -1929,18 +1825,18 @@ job.GetManager()    // 确保管理器已初始化
 job.RouterGroup(app.Router.Group("/job"))
 ```
 
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| GET | `/job/list?group=&keyword=&status=&index=&size=` | 任务列表（分页） |
-| GET | `/job/:id` | 任务详情 |
-| POST | `/job` | 新增任务 |
-| PUT | `/job` | 更新任务 |
-| DELETE | `/job/:id` | 删除任务 |
-| POST | `/job/:id/start` | 启动任务 |
-| POST | `/job/:id/stop` | 停止任务 |
-| POST | `/job/:id/trigger` | 手动触发一次（`{"param":"可选覆盖参数"}`） |
-| GET | `/job/handlers` | 已注册执行器列表 |
-| GET | `/job/log?jobId=&jobName=&status=&index=&size=` | 执行日志列表（分页） |
+| 方法   | 路径                                             | 说明                                       |
+| ------ | ------------------------------------------------ | ------------------------------------------ |
+| GET    | `/job/list?group=&keyword=&status=&index=&size=` | 任务列表（分页）                           |
+| GET    | `/job/:id`                                       | 任务详情                                   |
+| POST   | `/job`                                           | 新增任务                                   |
+| PUT    | `/job`                                           | 更新任务                                   |
+| DELETE | `/job/:id`                                       | 删除任务                                   |
+| POST   | `/job/:id/start`                                 | 启动任务                                   |
+| POST   | `/job/:id/stop`                                  | 停止任务                                   |
+| POST   | `/job/:id/trigger`                               | 手动触发一次（`{"param":"可选覆盖参数"}`） |
+| GET    | `/job/handlers`                                  | 已注册执行器列表                           |
+| GET    | `/job/log?jobId=&jobName=&status=&index=&size=`  | 执行日志列表（分页）                       |
 
 所有接口统一返回 `models.Result`（成功 `status:1`）。
 
@@ -1971,21 +1867,21 @@ go:
     used: "...,s3"
   s3:
     enabled: true
-    endpoint: "https://s3.amazonaws.com"   # MinIO 示例: http://localhost:9000
+    endpoint: "https://s3.amazonaws.com" # MinIO 示例: http://localhost:9000
     region: "cn-north-1"
     accessKey: "AKIDEXAMPLE"
     secretKey: "SECRET"
     # sessionToken: ""                      # 临时凭证时填写
-    pathStyle: true                         # MinIO 等自建服务必须为 true
+    pathStyle: true # MinIO 等自建服务必须为 true
     ssl: true
     maxRetries: 3
-    uploadPartSize: 16777216                # 分片大小（字节），默认 16MB
+    uploadPartSize: 16777216 # 分片大小（字节），默认 16MB
     downloadPartSize: 16777216
     maxUploadParts: 10
     maxDownloadParts: 10
-    presignExpiry: 3600                     # 预签名 URL 有效期（秒）
-    singleBucket: "my-bucket"               # 单桶模式（不配置 buckets 时使用）
-    buckets:                                # 多桶模式
+    presignExpiry: 3600 # 预签名 URL 有效期（秒）
+    singleBucket: "my-bucket" # 单桶模式（不配置 buckets 时使用）
+    buckets: # 多桶模式
       - name: "public-assets"
         public: true
         defaultContentType: "image/png"
@@ -2031,14 +1927,14 @@ etag, _ := b.UploadMultipart(ctx, "big.iso", "", bytes.NewReader(huge), 16*1024*
 
 下表汇总 `jh` 分支在 `master-1.25` 之外的**新增能力**（含上文 21–23 章）：
 
-| 能力 | 包 / 入口 | 启用开关 | 说明 |
-|---|---|---|---|
-| GORM 二级缓存 | `db.Mysql.UseCache()` 等 | `go.data.*.cache.enabled` | 见 20.4 |
-| PostgreSQL 支持 | `db.Pg` / `PostgresDao` | `postgres` | 见 20.5 |
-| ClickHouse 支持 | `db.Clickhouse` / `ClickhouseDao` | `clickhouse` | 见 20.6 |
-| 单例限流中间件 | `middleware/ratelimit` | `ratelimit` | 多算法 + 多维度，见 21 |
-| 定时任务管理器 | `job` | `job` | 类 xxl-job，DB 持久化，见 22 |
-| S3 对象存储插件 | `storage/s3` | `s3` | aws-sdk-go-v2，兼容 MinIO，见 23 |
+| 能力            | 包 / 入口                         | 启用开关                  | 说明                             |
+| --------------- | --------------------------------- | ------------------------- | -------------------------------- |
+| GORM 二级缓存   | `db.Mysql.UseCache()` 等          | `go.data.*.cache.enabled` | 见 20.4                          |
+| PostgreSQL 支持 | `db.Pg` / `PostgresDao`           | `postgres`                | 见 20.5                          |
+| ClickHouse 支持 | `db.Clickhouse` / `ClickhouseDao` | `clickhouse`              | 见 20.6                          |
+| 单例限流中间件  | `middleware/ratelimit`            | `ratelimit`               | 多算法 + 多维度，见 21           |
+| 定时任务管理器  | `job`                             | `job`                     | 类 xxl-job，DB 持久化，见 22     |
+| S3 对象存储插件 | `storage/s3`                      | `s3`                      | aws-sdk-go-v2，兼容 MinIO，见 23 |
 
 上述新增能力均通过 `go.config.used` 中的开关按需启用，未启用时不会产生任何连接或副作用。
 
@@ -2068,12 +1964,12 @@ HTTP 请求 → postlog 中间件 → logsink.Emit(*models.PostLog)  ← 非阻�
 ```yaml
 go:
   log:
-    req: MyappRequestLog      # 非空且启用 mongodb 时自动注册内置 mongodb handler
-    dbName: Partner-Id        # 多库时从 header 取该参数作库名标签
+    req: MyappRequestLog # 非空且启用 mongodb 时自动注册内置 mongodb handler
+    dbName: Partner-Id # 多库时从 header 取该参数作库名标签
     sink:
-      queue: 100             # 每个 handler 的队列长度，默认/最大 100
-      workers: 1              # 固定单消费者，保证 FIFO
-      shutdown: 3000          # 退出时等待队列排空的毫秒数，默认 3000
+      queue: 100 # 每个 handler 的队列长度，默认/最大 100
+      workers: 1 # 固定单消费者，保证 FIFO
+      shutdown: 3000 # 退出时等待队列排空的毫秒数，默认 3000
 ```
 
 ### 25.3 在应用中挂接处理逻辑
@@ -2160,7 +2056,8 @@ go:
       - target: file
         file: ./logs/application
         format: json
-        fields: [time, level, app, goroutine_id, request_id, file, line, message]
+        fields:
+          [time, level, app, goroutine_id, request_id, file, line, message]
       - target: elasticsearch
         format: json
       - target: kafka

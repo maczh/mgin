@@ -132,7 +132,14 @@ func (n *NacosClient) Register(nacosConfigData []byte) {
 		n.accessToken = n.conf.String("go.nacos.accessToken")
 		n.accessKey = n.conf.String("go.nacos.accessKey")
 		n.secretKey = n.conf.String("go.nacos.secretKey")
-		if n.accessToken == "" && !n.isMSE() {
+		if n.isMSE() {
+			// MSE 使用 AK/SK 签名，不参与用户名密码登录，也不要携带 accessToken。
+			if n.accessKey == "" || n.secretKey == "" {
+				logger.Error("Nacos MSE 已开启，但未配置 accessKey/secretKey，无法生成签名，注册终止")
+				return
+			}
+			n.accessToken = ""
+		} else if n.accessToken == "" {
 			n.accessToken = n.login(ipstr, portstr)
 		}
 		if n.accessToken != "" {
@@ -173,6 +180,8 @@ func (n *NacosClient) Register(nacosConfigData []byte) {
 		} {
 			n.param[k] = v
 		}
+		// 注册请求同样需要凭据：MSE 模式下由 AK/SK 生成签名，普通 Nacos 附加 accessToken。
+		n.authorize(n.param)
 		resp, err := grequests.DoRegularRequest(http.MethodPost, n.nsurl, &grequests.RequestOptions{
 			Params: n.param, Headers: n.headers,
 		})
