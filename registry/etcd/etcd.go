@@ -348,6 +348,19 @@ func (c *EtcdClient) keepAliveLoop() {
 			return
 		default:
 		}
+		// KeepAlive 会在内部持续续约，但显式先续约一次，避免新租约或
+		// 重注册完成后等待客户端续约调度，确保租约立即进入续约状态。
+		if _, err := c.client.KeepAliveOnce(c.ctx, c.leaseID); err != nil {
+			logger.Warn("Etcd立即续约失败，尝试重新注册: " + err.Error())
+			if !c.reRegister() {
+				select {
+				case <-c.ctx.Done():
+					return
+				case <-time.After(time.Second):
+				}
+			}
+			continue
+		}
 		respKeepAlive, err := c.client.KeepAlive(c.ctx, c.leaseID)
 		if err != nil {
 			logger.Error("Etcd自动续约失败，尝试重新注册: " + err.Error())
