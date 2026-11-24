@@ -7,6 +7,12 @@ import (
 	"testing"
 )
 
+func TestLeaseTTLIsShortEnoughForKeepAlive(t *testing.T) {
+	if leaseTTLSeconds != 10 {
+		t.Fatalf("lease TTL = %d seconds, want 10 seconds", leaseTTLSeconds)
+	}
+}
+
 func TestEtcdClient_Register(t *testing.T) {
 	ymlData := `go:
   etcd:

@@ -275,7 +275,7 @@ plugin.Registry.Init
 | 后端 | 注册机制 | 健康判定 | 多实例发现 |
 |------|----------|----------|-----------|
 | Nacos | v1 HTTP OpenAPI，心跳失败 3 次重注册 | `/list` 的 Healthy/Enabled | ✅ 过滤不健康 |
-| etcd | 租约（10000s）+ keepAlive | 无 | ✅ prefix 扫描 |
+| etcd | 租约（10s）+ keepAlive | 无 | ✅ prefix 扫描 |
 | Consul | Agent 注册 + TTL 续活（30s） | `Health().Service(passingOnly)` | ✅ |
 | Polaris | 北向 REST（建服务 + 注册实例） | 无过滤 | ✅ 但**不自动注册** |
 

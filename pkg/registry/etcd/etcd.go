@@ -43,6 +43,8 @@ type EtcdClient struct {
 
 var logger = gologger.GetLogger()
 
+const leaseTTLSeconds int64 = 10
+
 func (c *EtcdClient) Register(etcdConfigData []byte) {
 	if c == nil {
 		return
@@ -80,18 +82,30 @@ func (c *EtcdClient) Register(etcdConfigData []byte) {
 		}
 		ips := strings.Split(ipstr, ",")
 		ports := strings.Split(portstr, ",")
+		// 多成员集群可只配一个端口，其余成员沿用第一个端口，避免漏配时丢成员导致无故障转移。
 		etcd_urls := make([]string, 0)
 		for i, ip := range ips {
-			if strings.TrimSpace(ip) == "" || i >= len(ports) || strings.TrimSpace(ports[i]) == "" {
-				continue
+			ip = strings.TrimSpace(ip)
+			port := ""
+			if i < len(ports) {
+				port = strings.TrimSpace(ports[i])
+			} else if len(ports) > 0 {
+				port = strings.TrimSpace(ports[0])
 			}
-			etcd_urls = append(etcd_urls, fmt.Sprintf("http://%s:%s", ip, ports[i]))
+			if ip != "" && port != "" {
+				etcd_urls = append(etcd_urls, fmt.Sprintf("http://%s:%s", ip, port))
+			}
 		}
 		if len(etcd_urls) == 0 {
 			logger.Error("Etcd 配置缺少有效 server/port")
 			return
 		}
-		serverConfig := clientv3.Config{Endpoints: etcd_urls, DialTimeout: 5 * time.Second}
+		serverConfig := clientv3.Config{
+			Endpoints: etcd_urls, DialTimeout: 5 * time.Second,
+			// 跨 NAT/防火墙的长连接常被中间设备静默丢弃，没有 gRPC 心跳时只能等下一次
+			// RPC 失败才发现，续约通道会因此反复关闭。
+			DialKeepAliveTime: 10 * time.Second, DialKeepAliveTimeout: 3 * time.Second,
+		}
 		logger.Debug("Etcd客户端配置: " + toJSON(serverConfig))
 		c.client, err = clientv3.New(serverConfig)
 		if err != nil {
@@ -135,7 +149,7 @@ func (c *EtcdClient) Register(etcdConfigData []byte) {
 				c.client.Delete(context.Background(), prefix+instanceId)
 			}
 		}
-		respGrant, err := c.client.Grant(context.Background(), 10000)
+		respGrant, err := c.client.Grant(context.Background(), leaseTTLSeconds)
 		if err != nil {
 			logger.Error("Etcd注册服务失败:" + err.Error())
 			return
@@ -232,10 +246,31 @@ func (c *EtcdClient) GetServices(servicename string, groupName ...string) ([]str
 //   - ctx 被取消（DeRegister）：立即退出。
 func (c *EtcdClient) keepAliveLoop(ctx context.Context) {
 	backoff := time.Second
+	// 通道关闭后已成功探活的场景直接重建通道，不再重复续约一次。
+	skipProbe := false
 	for {
 		if ctx.Err() != nil {
 			return
 		}
+		// 探活必须带超时：网络不可用时 unary 调用会长时间阻塞，期间既不重试也不重注册，
+		// 实例会在 etcd 中长时间消失（曾出现阻塞 2 分钟的情况）。
+		if !skipProbe {
+			if err := c.keepAliveOnce(ctx); err != nil {
+				logger.Warn("Etcd立即续约失败，尝试重新注册: " + err.Error())
+				if !c.reRegister(ctx) {
+					select {
+					case <-ctx.Done():
+						return
+					case <-time.After(backoff):
+						backoff = minDuration(backoff*2, 30*time.Second)
+					}
+				} else {
+					backoff = time.Second
+				}
+				continue
+			}
+		}
+		skipProbe = false
 		respKeepAlive, err := c.client.KeepAlive(ctx, c.leaseID)
 		if err != nil {
 			logger.Error("Etcd租约续约失败:" + err.Error())
@@ -259,12 +294,22 @@ func (c *EtcdClient) keepAliveLoop(ctx context.Context) {
 				return
 			case _, ok := <-respKeepAlive:
 				if !ok {
-					logger.Warn("Etcd租约续约通道关闭，准备重新注册实例")
-					if !c.reRegister(ctx) {
-						select {
-						case <-ctx.Done():
-							return
-						case <-time.After(backoff):
+					// 通道关闭不代表租约已失效：先探活一次，租约仍有效时只重建通道，
+					// 避免无谓的重注册（重注册会删/写 key，触发消费者的 delete 事件清空缓存）。
+					if err := c.keepAliveOnce(ctx); err == nil {
+						logger.Info("Etcd租约续约通道关闭，租约仍有效，重建续约通道")
+						skipProbe = true
+					} else {
+						logger.Warn("Etcd租约续约通道关闭且续约失败，准备重新注册实例: " + err.Error())
+						if !c.reRegister(ctx) {
+							select {
+							case <-ctx.Done():
+								return
+							case <-time.After(backoff):
+								backoff = minDuration(backoff*2, 30*time.Second)
+							}
+						} else {
+							backoff = time.Second
 						}
 					}
 					alive = false
@@ -281,23 +326,51 @@ func (c *EtcdClient) reRegister(ctx context.Context) bool {
 	if c.client == nil || c.apiUrl == "" {
 		return false
 	}
-	// 1) 申请新租约（与原注册保持一致：10 秒 TTL）
-	respGrant, err := c.client.Grant(ctx, 10000)
+	// 申请租约与写入分开限时，避免网络抖动时 unary 调用无限阻塞，拖住整个续约协程。
+	grantCtx, grantCancel := context.WithTimeout(ctx, 10*time.Second)
+	respGrant, err := c.client.Grant(grantCtx, leaseTTLSeconds)
+	grantCancel()
 	if err != nil {
 		logger.Error("Etcd重新注册失败,申请租约错误:" + err.Error())
 		return false
 	}
-	c.leaseID = respGrant.ID
-	// 2) 清理可能残留的旧 key（极端情况下旧租约已过期但 key 仍在）
-	c.client.Delete(ctx, c.registeredKey)
-	// 3) 重新写入本实例
-	_, err = c.client.Put(ctx, c.registeredKey, c.apiUrl, clientv3.WithLease(c.leaseID))
+	newLeaseID := respGrant.ID
+	// 直接覆盖写 registeredKey：不先 Delete，否则写入失败时旧注册已被删除，
+	// 实例会从发现列表彻底消失，消费者还会收到 delete 事件。
+	putCtx, putCancel := context.WithTimeout(ctx, 10*time.Second)
+	_, err = c.client.Put(putCtx, c.registeredKey, c.apiUrl, clientv3.WithLease(newLeaseID))
+	putCancel()
 	if err != nil {
 		logger.Error("Etcd重新注册失败,写入错误:" + err.Error())
+		revokeCtx, revokeCancel := context.WithTimeout(ctx, 5*time.Second)
+		_, _ = c.client.Revoke(revokeCtx, newLeaseID)
+		revokeCancel()
 		return false
+	}
+	oldLeaseID := c.leaseID
+	c.leaseID = newLeaseID
+	// 新注册已生效后再吊销旧租约；旧租约可能已过期，失败无需处理。
+	if oldLeaseID != clientv3.NoLease && oldLeaseID != newLeaseID {
+		revokeCtx, revokeCancel := context.WithTimeout(ctx, 5*time.Second)
+		_, _ = c.client.Revoke(revokeCtx, oldLeaseID)
+		revokeCancel()
 	}
 	logger.Info("Etcd服务实例重新注册成功:" + c.registeredKey)
 	return true
+}
+
+// keepAliveOnce 在有限超时内显式续约一次，超时取 TTL/3（不小于 3 秒）。
+// 直接传入续约协程的 ctx 时，etcd 客户端会在内部重试直到 ctx 结束，
+// 网络异常时可能阻塞很久，期间既不重试也不重注册。
+func (c *EtcdClient) keepAliveOnce(ctx context.Context) error {
+	timeout := time.Duration(leaseTTLSeconds/3) * time.Second
+	if timeout < 3*time.Second {
+		timeout = 3 * time.Second
+	}
+	onceCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	_, err := c.client.KeepAliveOnce(onceCtx, c.leaseID)
+	return err
 }
 
 func (c *EtcdClient) DeRegister() {
