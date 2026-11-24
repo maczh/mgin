@@ -23,6 +23,7 @@ import (
 type EtcdClient struct {
 	client        *clientv3.Client
 	leaseID       clientv3.LeaseID
+	leaseTTL      int64
 	cluster       string
 	namespace     string
 	group         string
@@ -44,8 +45,10 @@ type EtcdClient struct {
 
 var logger = gologger.GetLogger()
 
-// leaseTTL 是服务注册租约的有效期（秒），keepAlive 会按 TTL/3 自动续约。
-const leaseTTL int64 = 10
+// defaultLeaseTTL 是服务注册租约的默认有效期（秒），可通过 go.etcd.leaseTTL 覆盖。
+// keepAlive 按 TTL/3 自动续约，TTL 必须明显大于一次续约往返的耗时：
+// 跨网络访问 etcd 时 10s 这类过小的值会在抖动时直接过期，导致反复重注册。
+const defaultLeaseTTL int64 = 30
 
 func (c *EtcdClient) Register(etcdConfigData []byte) {
 	if etcdConfigData == nil || len(etcdConfigData) == 0 {
@@ -81,6 +84,7 @@ func (c *EtcdClient) Register(etcdConfigData []byte) {
 		if c.cluster == "" {
 			c.cluster = "DEFAULT"
 		}
+		c.leaseTTL = c.conf.Int64("go.etcd.leaseTTL")
 		ips := strings.Split(ipstr, ",")
 		ports := strings.Split(portstr, ",")
 		etcd_urls := make([]string, 0)
@@ -140,7 +144,7 @@ func (c *EtcdClient) Register(etcdConfigData []byte) {
 				c.client.Delete(context.Background(), prefix+instanceId)
 			}
 		}
-		respGrant, err := c.client.Grant(context.Background(), leaseTTL)
+		respGrant, err := c.client.Grant(context.Background(), c.ttl())
 		if err != nil {
 			logger.Error("Etcd注册服务失败:" + err.Error())
 			return
@@ -242,6 +246,14 @@ func (c *EtcdClient) DeRegister() {
 			logger.Error("Etcd关闭客户端失败:" + err.Error())
 		}
 	})
+}
+
+// ttl 返回本实例的租约有效期（秒），未配置时使用默认值。
+func (c *EtcdClient) ttl() int64 {
+	if c.leaseTTL > 0 {
+		return c.leaseTTL
+	}
+	return defaultLeaseTTL
 }
 
 func (c *EtcdClient) serviceKey(group, service, instance string) string {
@@ -403,11 +415,16 @@ func (c *EtcdClient) reRegister() bool {
 	if c.ctx == nil || c.ctx.Err() != nil {
 		return false
 	}
-	ctx := c.ctx
+	// 旧租约可能已过期，Revoke 失败无需处理；用短超时避免网络异常时阻塞几十秒，
+	// 拖慢重注册，也让 DeRegister 的退出能及时返回。
 	if c.leaseID != clientv3.NoLease {
-		_, _ = c.client.Revoke(ctx, c.leaseID)
+		revokeCtx, revokeCancel := context.WithTimeout(c.ctx, 5*time.Second)
+		_, _ = c.client.Revoke(revokeCtx, c.leaseID)
+		revokeCancel()
 	}
-	respGrant, err := c.client.Grant(ctx, leaseTTL)
+	ctx, cancel := context.WithTimeout(c.ctx, 5*time.Second)
+	defer cancel()
+	respGrant, err := c.client.Grant(ctx, c.ttl())
 	if err != nil {
 		logger.Error("Etcd重新申请租约失败: " + err.Error())
 		return false

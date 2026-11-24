@@ -183,7 +183,7 @@ logs.Info("target={}://{}", scheme, host)
 
 - `go.nacos.{server,port,apiversion,group,clusterName,username,password,lan,lanNet}`
 - `go.consul.{server,port,token,group,clusterName,lan,lanNet}`
-- `go.etcd.{server,port,prefix,keyTemplate,group,clusterName,username,password,lan,lanNet}`
+- `go.etcd.{server,port,prefix,keyTemplate,group,clusterName,username,password,lan,lanNet,leaseTTL}`（`leaseTTL` 为租约秒数，默认 30）
 - `go.polaris.{server,port,token,namespace,lan,lanNet}`（未接入 `initResources`，需手动 `Register`）
 
 ### 3.5 数据源（`go.data`）

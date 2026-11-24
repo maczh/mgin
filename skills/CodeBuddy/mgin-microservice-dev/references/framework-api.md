@@ -580,7 +580,7 @@ func NewCachedRegistry(delegate RegistryClient) *CachedRegistry
 | 注册中心 | 配置键 |
 |---|---|
 | nacos | `go.nacos.{server,port,apiversion,clusterName,group,username,password,lan,lanNet}` |
-| etcd | `go.etcd.{server,port,prefix,keyTemplate,group,clusterName,username,password,lan,lanNet}` |
+| etcd | `go.etcd.{server,port,prefix,keyTemplate,group,clusterName,username,password,lan,lanNet,leaseTTL}` |
 | consul | `go.consul.{server,port,token,group,clusterName,lan,lanNet}` |
 | polaris | `go.polaris.{server,port,namespace,token,lan,lanNet}` |
 

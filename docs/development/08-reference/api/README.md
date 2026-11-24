@@ -304,7 +304,7 @@ func NewRegistry() RegistryClient
 |------|--------|----------|
 | Nacos | `go.discovery.registry: nacos` | `go.nacos.{server,port,group,clusterName,lan,lanNet,apiversion}` |
 | Consul | `consul` | `go.consul.{server,port,group,clusterName,lan,lanNet}` |
-| etcd | `etcd` | `go.etcd.{server,port,prefix,group,clusterName,lan,lanNet}` |
+| etcd | `etcd` | `go.etcd.{server,port,prefix,group,clusterName,lan,lanNet,leaseTTL}` |
 | Polaris | `polaris` | `go.polaris.{server,port,token,namespace}`（**不会自动注册**，需手动 `Register`） |
 | 空/未知 | — | `noopRegistryClient`，不报错 |
 
