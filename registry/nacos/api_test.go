@@ -4,6 +4,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha1"
 	"encoding/base64"
+	stdjson "encoding/json"
 	"strings"
 	"testing"
 
@@ -11,6 +12,34 @@ import (
 	"github.com/knadh/koanf/parsers/yaml"
 	"github.com/knadh/koanf/providers/rawbytes"
 )
+
+func TestHeartbeatParamsAcrossVersions(t *testing.T) {
+	client := &NacosClient{
+		ver: "v1",
+		param: map[string]string{
+			"serviceName": "svc", "groupName": "DEFAULT_GROUP", "namespaceId": "public",
+			"ip": "127.0.0.1", "port": "8080", "clusterName": "DEFAULT",
+			"metadata": "{}",
+		},
+	}
+	params := heartbeatParams(client)
+	var beat map[string]any
+	if err := stdjson.Unmarshal([]byte(params["beat"]), &beat); err != nil {
+		t.Fatalf("decode v1 beat: %v", err)
+	}
+	if beat["ip"] != "127.0.0.1" || beat["port"] != "8080" {
+		t.Fatalf("v1 beat = %#v", beat)
+	}
+
+	client.ver = "v3"
+	params = heartbeatParams(client)
+	if params["heartBeat"] != "true" {
+		t.Fatalf("v3 heartbeat flag = %q", params["heartBeat"])
+	}
+	if params["serviceName"] != "svc" {
+		t.Fatalf("v3 serviceName = %q", params["serviceName"])
+	}
+}
 
 func TestNacosVersionPaths(t *testing.T) {
 	tests := map[string]string{

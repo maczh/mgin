@@ -68,15 +68,7 @@ func (w *nacosHeartbeatWorker) Start(nc *NacosClient) {
 		case <-w.quit:
 			return
 		case <-w.ticker.C:
-			params := heartbeatParams(nc)
-			nc.authorize(params)
-			method, endpoint := http.MethodPut, nc.nsurl+"/beat"
-			if nc.ver == "v3" {
-				method, endpoint = http.MethodPost, nc.nsurl
-				params["heartBeat"] = "true"
-			}
-			_, err := grequests.DoRegularRequest(method, endpoint, &grequests.RequestOptions{Params: params, Headers: nc.headers})
-			if err != nil {
+			if err := nc.heartbeat(); err != nil {
 				w.failCount++
 				logger.Error(fmt.Sprintf("Nacos心跳失败(%d/%d): %s", w.failCount, w.maxFails, err.Error()))
 				if w.failCount >= w.maxFails {
@@ -90,6 +82,38 @@ func (w *nacosHeartbeatWorker) Start(nc *NacosClient) {
 			w.failCount = 0
 		}
 	}
+}
+
+// heartbeat performs one health renewal. Nacos may return an HTTP error even
+// when the request itself was sent successfully, so both transport and status
+// errors must be treated as a failed heartbeat.
+func (n *NacosClient) heartbeat() error {
+	params := heartbeatParams(n)
+	n.authorize(params)
+	method, endpoint := http.MethodPut, n.nsurl+"/beat"
+	// MSE's AK/SK authentication is enforced on the instance API. Reuse the
+	// registration endpoint for renewal, as Nacos v3 does, instead of calling
+	// the legacy /beat compatibility endpoint which MSE may reject with
+	// "No identity info in request".
+	if n.ver == "v3" || n.isMSE() {
+		params = cloneParams(n.param)
+		n.authorize(params)
+		method, endpoint = http.MethodPost, n.nsurl
+		params["heartBeat"] = "true"
+	}
+	resp, err := grequests.DoRegularRequest(method, endpoint, &grequests.RequestOptions{
+		Params: params, Headers: n.headers,
+	})
+	if err != nil {
+		return err
+	}
+	if resp == nil {
+		return fmt.Errorf("empty response")
+	}
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return fmt.Errorf("unexpected status %d: %s", resp.StatusCode, resp.String())
+	}
+	return nil
 }
 
 func (n *NacosClient) Register(nacosConfigData []byte) {
@@ -474,12 +498,20 @@ func (n *NacosClient) isMSE() bool {
 }
 
 func (n *NacosClient) authorize(params map[string]string) {
+	// Keep the token captured during registration available to heartbeat and
+	// discovery requests. authorize removes stale request fields below; when a
+	// client was initialized from an already-populated registration map, the
+	// token may only still exist in n.param.
+	token := n.accessToken
+	if token == "" && n.param != nil {
+		token = n.param["accessToken"]
+	}
 	delete(params, "ak")
 	delete(params, "data")
 	delete(params, "signature")
 	delete(params, "accessToken")
 	if !n.isMSE() || n.accessKey == "" || n.secretKey == "" {
-		addAuth(params, n.accessToken)
+		addAuth(params, token)
 		return
 	}
 	service := params["serviceName"]
