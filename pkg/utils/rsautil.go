@@ -29,6 +29,9 @@ type RSASecurity struct {
 
 // 设置公钥
 func (rsas *RSASecurity) SetPublicKey(pubStr string) (err error) {
+	if rsas == nil {
+		return errors.New("RSA security is nil")
+	}
 	rsas.pubStr = pubStr
 	rsas.pubkey, err = rsas.GetPublickey()
 	return err
@@ -36,6 +39,9 @@ func (rsas *RSASecurity) SetPublicKey(pubStr string) (err error) {
 
 // 设置私钥
 func (rsas *RSASecurity) SetPrivateKey(priStr string) (err error) {
+	if rsas == nil {
+		return errors.New("RSA security is nil")
+	}
 	rsas.priStr = priStr
 	rsas.prikey, err = rsas.GetPrivatekey()
 	return err
@@ -43,17 +49,23 @@ func (rsas *RSASecurity) SetPrivateKey(priStr string) (err error) {
 
 // *rsa.PublicKey
 func (rsas *RSASecurity) GetPrivatekey() (*rsa.PrivateKey, error) {
+	if rsas == nil {
+		return nil, errors.New("RSA security is nil")
+	}
 	return getPriKey([]byte(rsas.priStr))
 }
 
 // *rsa.PrivateKey
 func (rsas *RSASecurity) GetPublickey() (*rsa.PublicKey, error) {
+	if rsas == nil {
+		return nil, errors.New("RSA security is nil")
+	}
 	return getPubKey([]byte(rsas.pubStr))
 }
 
 // 公钥加密
 func (rsas *RSASecurity) PubKeyENCTYPT(input []byte) ([]byte, error) {
-	if rsas.pubkey == nil {
+	if rsas == nil || rsas.pubkey == nil {
 		return []byte(""), errors.New(`Please set the public key in advance`)
 	}
 	output := bytes.NewBuffer(nil)
@@ -66,7 +78,7 @@ func (rsas *RSASecurity) PubKeyENCTYPT(input []byte) ([]byte, error) {
 
 // 公钥解密
 func (rsas *RSASecurity) PubKeyDECRYPT(input []byte) ([]byte, error) {
-	if rsas.pubkey == nil {
+	if rsas == nil || rsas.pubkey == nil {
 		return []byte(""), errors.New(`Please set the public key in advance`)
 	}
 	output := bytes.NewBuffer(nil)
@@ -79,7 +91,7 @@ func (rsas *RSASecurity) PubKeyDECRYPT(input []byte) ([]byte, error) {
 
 // 私钥加密
 func (rsas *RSASecurity) PriKeyENCTYPT(input []byte) ([]byte, error) {
-	if rsas.prikey == nil {
+	if rsas == nil || rsas.prikey == nil {
 		return []byte(""), errors.New(`Please set the private key in advance`)
 	}
 	output := bytes.NewBuffer(nil)
@@ -92,7 +104,7 @@ func (rsas *RSASecurity) PriKeyENCTYPT(input []byte) ([]byte, error) {
 
 // 私钥解密
 func (rsas *RSASecurity) PriKeyDECRYPT(input []byte) ([]byte, error) {
-	if rsas.prikey == nil {
+	if rsas == nil || rsas.prikey == nil {
 		return []byte(""), errors.New(`Please set the private key in advance`)
 	}
 	output := bytes.NewBuffer(nil)

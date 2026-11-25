@@ -8,6 +8,9 @@ type Values struct {
 }
 
 func (p *Values) Put(id string, val any) {
+	if p == nil {
+		return
+	}
 	p.lock.Lock()
 	defer p.lock.Unlock()
 
@@ -18,6 +21,9 @@ func (p *Values) Put(id string, val any) {
 }
 
 func (p *Values) Get(id string) any {
+	if p == nil {
+		return nil
+	}
 	p.lock.RLock()
 	defer p.lock.RUnlock()
 
@@ -39,6 +45,9 @@ func (p *Values) GetAll() any {
 }
 
 func (p *Values) Merge(props map[string]any) {
+	if p == nil {
+		return
+	}
 	p.lock.Lock()
 	defer p.lock.Unlock()
 

@@ -186,7 +186,7 @@ func (m *Mongodb) build(mongodbConfigData []byte) {
 			m.conns["0"] = connection{
 				conn: conn,
 				db:   m.conf.String("go.data.mongodb.db"),
-				url:  m.conf.String("go.data.mongodb.uri"),
+				url:  uri,
 			}
 		}
 	}
@@ -250,27 +250,83 @@ func (m *Mongodb) Check() error {
 		m.mu.RUnlock()
 		return ErrClosed
 	}
-	connections := make(map[string]*mgo.Session, len(m.conns))
-	for name, conn := range m.conns {
-		connections[name] = conn.conn
+	connections := make([]string, 0, len(m.conns))
+	for name := range m.conns {
+		connections = append(connections, name)
 	}
 	m.mu.RUnlock()
 	if len(connections) == 0 {
 		return errors.New("MongoDB connections are unavailable")
 	}
 	var firstErr error
-	for name, conn := range connections {
-		if conn == nil {
-			if firstErr == nil {
-				firstErr = errors.New("MongoDB connection not found")
-			}
-			continue
-		}
-		if err := conn.Ping(); err != nil && firstErr == nil {
+	for _, name := range connections {
+		if err := m.checkAndReconnect(name); err != nil && firstErr == nil {
 			firstErr = fmt.Errorf("%s: %w", name, err)
 		}
 	}
 	return firstErr
+}
+
+// checkAndReconnect keeps the historical Mongo health-check behavior while
+// keeping Ping and Dial outside the client state lock.
+func (m *Mongodb) checkAndReconnect(tag string) error {
+	return m.checkAndReconnectWith(tag,
+		func(session *mgo.Session) error { return session.Ping() },
+		mgo.DialWithTimeout,
+		func(session *mgo.Session) { session.Close() },
+	)
+}
+
+func (m *Mongodb) checkAndReconnectWith(
+	tag string,
+	ping func(*mgo.Session) error,
+	dial func(string, time.Duration, int) (*mgo.Session, error),
+	closeSession func(*mgo.Session),
+) error {
+	m.mu.RLock()
+	if m.closed {
+		m.mu.RUnlock()
+		return ErrClosed
+	}
+	current, ok := m.conns[tag]
+	max := m.max
+	m.mu.RUnlock()
+	if !ok || current.conn == nil {
+		return errors.New("MongoDB connection not found")
+	}
+	if err := ping(current.conn); err == nil {
+		return nil
+	} else {
+		logger.Error(tag + " MongoDB Ping failed, reconnecting: " + err.Error())
+	}
+
+	replacement, err := dial(current.url, 10*time.Second, max)
+	if err != nil {
+		return err
+	}
+	if replacement == nil {
+		return errors.New("MongoDB reconnect returned a nil session")
+	}
+
+	m.mu.Lock()
+	if m.closed {
+		m.mu.Unlock()
+		closeSession(replacement)
+		return ErrClosed
+	}
+	latest, exists := m.conns[tag]
+	if !exists || latest.conn != current.conn {
+		m.mu.Unlock()
+		closeSession(replacement)
+		if exists && latest.conn != nil {
+			return nil
+		}
+		return errors.New("MongoDB connection changed during reconnect")
+	}
+	m.conns[tag] = connection{conn: replacement, db: current.db, url: current.url}
+	m.mu.Unlock()
+	closeSession(current.conn)
+	return nil
 }
 
 func (m *Mongodb) GetConnection(dbName ...string) (*mgo.Database, error) {
@@ -289,44 +345,48 @@ func (m *Mongodb) GetConnection(dbName ...string) (*mgo.Database, error) {
 		m.Init(confData)
 	}
 	m.mu.RLock()
-	defer m.mu.RUnlock()
 	if m.closed {
+		m.mu.RUnlock()
 		return nil, ErrClosed
 	}
-	if m.multi {
+	multi := m.multi
+	tag := "0"
+	if multi {
 		if len(dbName) > 1 || len(dbName) == 0 {
+			m.mu.RUnlock()
 			return nil, errors.New("Multidb Mongodb get connection must be specified one dbName")
 		}
-		tag := dbName[0]
+		tag = dbName[0]
 		if tag == "" {
 			if len(m.tags) == 0 {
+				m.mu.RUnlock()
 				return nil, errors.New("MongoDB multidb has no available database")
 			}
 			tag = m.tags[0]
 		}
-		conn, ok := m.conns[tag]
-		if !ok || conn.conn == nil {
-			return nil, errors.New("MongoDB multidb db name invalid")
-		}
-		copy := conn.conn.Copy()
-		if copy == nil {
-			return nil, errors.New("MongoDB session copy failed")
-		}
-		return copy.DB(conn.db), nil
-	} else {
-		if len(m.conns) == 0 {
-			return nil, errors.New("Mongodb connection failed")
-		}
-		conn, ok := m.conns["0"]
-		if !ok || conn.conn == nil {
-			return nil, errors.New("Mongodb connection failed")
-		}
-		copy := conn.conn.Copy()
-		if copy == nil {
-			return nil, errors.New("MongoDB session copy failed")
-		}
-		return copy.DB(conn.db), nil
 	}
+	conn, ok := m.conns[tag]
+	m.mu.RUnlock()
+	if !ok || conn.conn == nil {
+		return nil, errors.New("MongoDB connection not found")
+	}
+	if err := m.checkAndReconnect(tag); err != nil {
+		return nil, err
+	}
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if m.closed {
+		return nil, ErrClosed
+	}
+	conn, ok = m.conns[tag]
+	if !ok || conn.conn == nil {
+		return nil, errors.New("MongoDB connection not found")
+	}
+	copy := conn.conn.Copy()
+	if copy == nil {
+		return nil, errors.New("MongoDB session copy failed")
+	}
+	return copy.DB(conn.db), nil
 }
 
 func (m *Mongodb) ReturnConnection(conn *mgo.Database) {

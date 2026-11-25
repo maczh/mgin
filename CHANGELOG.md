@@ -16,3 +16,6 @@
 - Logsink queue capacity is consistently documented as a default/maximum of 1024; oversized configuration falls back to that limit.
 - Job store initialization performs database I/O outside its coordination mutex while concurrent callers share one initialization result.
 - Consul API requests have a bounded timeout; deregistration cancels and waits for TTL renewal before removing the service, and stale concurrent registrations are cleaned up.
+- MongoDB `Check` and `GetConnection` restore the documented reconnect behavior; ping/dial run outside the client state lock, and failed reconnects preserve the current session.
+- Nil `Values` receivers now consistently return a zero value for reads and safely ignore writes.
+- Nil `RSASecurity` receivers return errors from key setup, lookup, encryption, decryption, signing, and verification methods instead of panicking.

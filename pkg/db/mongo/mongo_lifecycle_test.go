@@ -1,12 +1,14 @@
 package mongo
 
 import (
+	"errors"
 	"net"
 	"reflect"
 	"testing"
 	"time"
 
 	"github.com/maczh/mgin/v2/pkg/utils"
+	"github.com/maczh/mgo"
 )
 
 func TestCloseMakesClientTerminal(t *testing.T) {
@@ -31,6 +33,58 @@ func TestMongoURIRequiresDatabaseAndPreservesExistingPath(t *testing.T) {
 	got, err = mongoURIWithDatabase("mongodb://localhost:27017/existing", "configured")
 	if err != nil || got != "mongodb://localhost:27017/existing" {
 		t.Fatalf("existing database path changed: got %q, err=%v", got, err)
+	}
+}
+
+func TestMongoCheckReconnectsAndPublishesReplacement(t *testing.T) {
+	oldSession := &mgo.Session{}
+	newSession := &mgo.Session{}
+	client := &Mongodb{
+		max: 12,
+		conns: map[string]connection{
+			"0": {conn: oldSession, db: "app", url: "mongodb://localhost/app"},
+		},
+	}
+	closed := make([]*mgo.Session, 0, 2)
+	err := client.checkAndReconnectWith("0",
+		func(session *mgo.Session) error {
+			if session != oldSession {
+				t.Fatalf("Ping session=%p, want old session %p", session, oldSession)
+			}
+			return errors.New("connection lost")
+		},
+		func(uri string, timeout time.Duration, max int) (*mgo.Session, error) {
+			if uri != "mongodb://localhost/app" || timeout != 10*time.Second || max != 12 {
+				t.Fatalf("Dial args=(%q, %v, %d)", uri, timeout, max)
+			}
+			return newSession, nil
+		},
+		func(session *mgo.Session) { closed = append(closed, session) },
+	)
+	if err != nil {
+		t.Fatalf("checkAndReconnectWith: %v", err)
+	}
+	if got := client.conns["0"]; got.conn != newSession || got.db != "app" || got.url != "mongodb://localhost/app" {
+		t.Fatalf("published connection=%+v", got)
+	}
+	if !reflect.DeepEqual(closed, []*mgo.Session{oldSession}) {
+		t.Fatalf("closed sessions=%v, want only old session", closed)
+	}
+}
+
+func TestMongoReconnectFailureKeepsCurrentConnection(t *testing.T) {
+	oldSession := &mgo.Session{}
+	client := &Mongodb{conns: map[string]connection{"0": {conn: oldSession, url: "mongodb://localhost/app"}}}
+	dialErr := errors.New("database unavailable")
+	closed := false
+	err := client.checkAndReconnectWith("0", func(*mgo.Session) error { return errors.New("ping failed") },
+		func(string, time.Duration, int) (*mgo.Session, error) { return nil, dialErr },
+		func(*mgo.Session) { closed = true })
+	if !errors.Is(err, dialErr) {
+		t.Fatalf("reconnect error=%v, want %v", err, dialErr)
+	}
+	if client.conns["0"].conn != oldSession || closed {
+		t.Fatal("failed reconnect must preserve the current session")
 	}
 }
 

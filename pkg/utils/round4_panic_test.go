@@ -36,6 +36,40 @@ func TestRSASignAndVerifyWithoutKeysReturnErrors(t *testing.T) {
 	}
 }
 
+func TestNilRSASecurityReceiverReturnsErrors(t *testing.T) {
+	var security *RSASecurity
+	if err := security.SetPublicKey(""); err == nil {
+		t.Fatal("SetPublicKey on nil receiver should return an error")
+	}
+	if err := security.SetPrivateKey(""); err == nil {
+		t.Fatal("SetPrivateKey on nil receiver should return an error")
+	}
+	if _, err := security.GetPublickey(); err == nil {
+		t.Fatal("GetPublickey on nil receiver should return an error")
+	}
+	if _, err := security.GetPrivatekey(); err == nil {
+		t.Fatal("GetPrivatekey on nil receiver should return an error")
+	}
+	if _, err := security.PubKeyENCTYPT(nil); err == nil {
+		t.Fatal("PubKeyENCTYPT on nil receiver should return an error")
+	}
+	if _, err := security.PubKeyDECRYPT(nil); err == nil {
+		t.Fatal("PubKeyDECRYPT on nil receiver should return an error")
+	}
+	if _, err := security.PriKeyENCTYPT(nil); err == nil {
+		t.Fatal("PriKeyENCTYPT on nil receiver should return an error")
+	}
+	if _, err := security.PriKeyDECRYPT(nil); err == nil {
+		t.Fatal("PriKeyDECRYPT on nil receiver should return an error")
+	}
+	if _, err := security.SignSha1WithRsa(""); err == nil {
+		t.Fatal("SignSha1WithRsa on nil receiver should return an error")
+	}
+	if err := security.VerifySignSha256WithRsa("", ""); err == nil {
+		t.Fatal("VerifySignSha256WithRsa on nil receiver should return an error")
+	}
+}
+
 func TestStructUtilitiesReturnEmptyForNilInput(t *testing.T) {
 	var nilPointer *struct{ Name string }
 	if got := Struct2Map(nil); len(got) != 0 {

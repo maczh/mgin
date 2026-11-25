@@ -21,6 +21,19 @@ func TestValuesGetAllReturnsIndependentSnapshot(t *testing.T) {
 	}
 }
 
+func TestNilValuesReceiverIsSafe(t *testing.T) {
+	var values *utils.Values
+	if got := values.Get("missing"); got != nil {
+		t.Fatalf("nil Values.Get()=%v, want nil", got)
+	}
+	if got := values.GetAll(); got == nil {
+		t.Fatal("nil Values.GetAll() returned nil")
+	}
+	values.Put("key", "value")
+	values.Merge(map[string]any{"key": "value"})
+	values.Clear()
+}
+
 func TestValuesConcurrentAccess(t *testing.T) {
 	values := &utils.Values{}
 	var wg sync.WaitGroup
