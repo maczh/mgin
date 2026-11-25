@@ -37,11 +37,17 @@ type EtcdClient struct {
 	instanceId  string
 
 	// 注册稳定性增强字段
-	registeredKey string             // 本实例在 etcd 上的完整 key，用于注销与重注册
-	apiUrl        string             // 本实例注册值（如 http://ip:port）
-	ctx           context.Context    // 续约/重注册协程的取消上下文
-	cancel        context.CancelFunc // 注销时取消续约协程
-	keepAliveWG   sync.WaitGroup
+	registeredKey  string             // 本实例在 etcd 上的完整 key，用于注销与重注册
+	apiUrl         string             // 本实例注册值（如 http://ip:port）
+	ctx            context.Context    // 续约/重注册协程的取消上下文
+	cancel         context.CancelFunc // 注销时取消续约协程
+	keepAliveWG    sync.WaitGroup
+	lifecycleMu    sync.Mutex
+	registering    bool
+	closing        bool
+	registerCancel context.CancelFunc
+	registerWG     sync.WaitGroup
+	deregisterDone chan struct{}
 }
 
 var logger = gologger.GetLogger()
@@ -52,6 +58,41 @@ func (c *EtcdClient) Register(etcdConfigData []byte) {
 	if c == nil {
 		return
 	}
+	c.lifecycleMu.Lock()
+	if c.closing || c.registering || (c.client != nil && c.registeredKey != "") {
+		c.lifecycleMu.Unlock()
+		return
+	}
+	c.registering = true
+	registerCtx, registerCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	c.registerCancel = registerCancel
+	c.registerWG.Add(1)
+	c.lifecycleMu.Unlock()
+
+	registered := false
+	defer func() {
+		registerCancel()
+		var failedClient *clientv3.Client
+		c.lifecycleMu.Lock()
+		c.registering = false
+		c.registerCancel = nil
+		if !registered {
+			failedClient = c.client
+			c.client = nil
+			c.conf = nil
+			c.leaseID = clientv3.NoLease
+			c.instanceId = ""
+			c.registeredKey = ""
+			c.apiUrl = ""
+			c.ctx = nil
+			c.cancel = nil
+		}
+		c.lifecycleMu.Unlock()
+		if failedClient != nil {
+			_ = failedClient.Close()
+		}
+		c.registerWG.Done()
+	}()
 	if etcdConfigData != nil {
 		c.confData = etcdConfigData
 	}
@@ -131,7 +172,7 @@ func (c *EtcdClient) Register(etcdConfigData []byte) {
 		}
 		apiUrl := fmt.Sprintf("%s%s:%d", protocol, ip, port)
 		prefix := c.servicePrefix(c.group, config.Config.App.Name)
-		resp, err := c.client.Get(context.Background(), prefix, clientv3.WithPrefix())
+		resp, err := c.client.Get(registerCtx, prefix, clientv3.WithPrefix())
 		if err != nil {
 			logger.Error("Etcd获取服务失败:" + err.Error())
 			return
@@ -149,10 +190,12 @@ func (c *EtcdClient) Register(etcdConfigData []byte) {
 		}
 		if len(instanceIds) > 0 {
 			for _, instanceId := range instanceIds {
-				c.client.Delete(context.Background(), prefix+instanceId)
+				if _, deleteErr := c.client.Delete(registerCtx, prefix+instanceId); deleteErr != nil {
+					logger.Warn("Etcd清理旧实例失败:" + deleteErr.Error())
+				}
 			}
 		}
-		respGrant, err := c.client.Grant(context.Background(), leaseTTLSeconds)
+		respGrant, err := c.client.Grant(registerCtx, leaseTTLSeconds)
 		if err != nil {
 			logger.Error("Etcd注册服务失败:" + err.Error())
 			return
@@ -161,7 +204,7 @@ func (c *EtcdClient) Register(etcdConfigData []byte) {
 		c.instanceId = utils.NewUUIDString()
 		key := c.serviceKey(c.group, config.Config.App.Name, c.instanceId)
 		logger.Debug("etcd服务的key: " + key + "，值：" + apiUrl)
-		res, regerr := c.client.Put(context.Background(), key, apiUrl, clientv3.WithLease(c.leaseID))
+		res, regerr := c.client.Put(registerCtx, key, apiUrl, clientv3.WithLease(c.leaseID))
 		if regerr != nil {
 			logger.Error("Etcd注册服务失败:" + regerr.Error())
 			return
@@ -177,6 +220,7 @@ func (c *EtcdClient) Register(etcdConfigData []byte) {
 			defer c.keepAliveWG.Done()
 			c.keepAliveLoop(c.ctx)
 		})
+		registered = true
 	}
 }
 
@@ -415,33 +459,85 @@ func (c *EtcdClient) keepAliveOnce(ctx context.Context) error {
 }
 
 func (c *EtcdClient) DeRegister() {
-	if c == nil || c.client == nil {
+	if c == nil {
 		return
 	}
-	// 等待续约/重注册协程退出后再删除 key，避免在途重注册在注销之后复活实例。
-	c.stopKeepAlive()
-	// 2) 删除本实例在 etcd 上的 key
-	if c.registeredKey != "" {
-		resp, err := c.client.Delete(context.Background(), c.registeredKey)
-		if err != nil {
-			logger.Error("Etcd取消注册服务失败:" + err.Error())
-			return
+	c.lifecycleMu.Lock()
+	if c.closing {
+		done := c.deregisterDone
+		c.lifecycleMu.Unlock()
+		if done != nil {
+			<-done
 		}
-		logger.Debug("Etcd注销服务结果: " + toJSON(resp))
-	} else {
-		// 兜底：未记录 registeredKey（注册中途失败）时按拼接规则尝试删除
-		key := c.serviceKey(c.group, config.Config.App.Name, c.instanceId)
-		if _, err := c.client.Delete(context.Background(), key); err != nil {
-			logger.Error("Etcd取消注册服务失败:" + err.Error())
-			return
-		}
+		return
 	}
-	logger.Info("Etcd注销服务成功")
+	// Register publishes client state before clearing registering. Avoid reading
+	// c.client during that interval; its publication is synchronized by the
+	// lifecycle lock when registering becomes false.
+	if !c.registering && c.client == nil {
+		c.lifecycleMu.Unlock()
+		return
+	}
+	c.closing = true
+	c.deregisterDone = make(chan struct{})
+	done := c.deregisterDone
+	if c.registerCancel != nil {
+		c.registerCancel()
+	}
+	// While Register is in flight, c.cancel/c.ctx may still be initialized by
+	// that goroutine. The registration context is sufficient to interrupt it;
+	// stopKeepAlive will cancel the published worker after registerWG.Wait.
+	if !c.registering && c.cancel != nil {
+		c.cancel()
+	}
+	c.lifecycleMu.Unlock()
+
+	// 注册流程具有整体超时且响应生命周期取消；wait 完成后不再有续约 worker Add。
+	c.registerWG.Wait()
+	c.stopKeepAlive()
+	client := c.client
+	// 等待续约/重注册协程退出后再删除 key，避免在途重注册在注销之后复活实例。
+	if client != nil {
+		key := c.registeredKey
+		if key == "" && config.Config != nil {
+			key = c.serviceKey(c.group, config.Config.App.Name, c.instanceId)
+		}
+		if key != "" {
+			deleteCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			resp, err := client.Delete(deleteCtx, key)
+			cancel()
+			if err != nil {
+				logger.Error("Etcd取消注册服务失败:" + err.Error())
+			} else {
+				logger.Debug("Etcd注销服务结果: " + toJSON(resp))
+			}
+		}
+		_ = client.Close()
+	}
+	c.lifecycleMu.Lock()
+	c.client = nil
+	c.conf = nil
+	c.leaseID = clientv3.NoLease
+	c.instanceId = ""
+	c.registeredKey = ""
+	c.apiUrl = ""
+	c.ctx = nil
+	c.cancel = nil
+	c.closing = false
+	c.deregisterDone = nil
+	close(done)
+	c.lifecycleMu.Unlock()
+	if client != nil {
+		logger.Info("Etcd注销服务完成")
+	}
 }
 
 func (c *EtcdClient) stopKeepAlive() {
-	if c.cancel != nil {
-		c.cancel()
+	c.lifecycleMu.Lock()
+	cancel := c.cancel
+	c.lifecycleMu.Unlock()
+	if cancel != nil {
+		cancel()
 	}
 	c.keepAliveWG.Wait()
 }

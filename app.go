@@ -405,24 +405,42 @@ func (app *App) Run() {
 	// 优雅关闭超时时间：读取 go.application.shutdownTimeout（秒），
 	// 未配置或 <= 0 时回退为默认 5 秒（与升级前的硬编码值一致）。
 	shutdownTimeout := config.Config.GetShutdownTimeout()
-	// 逐个优雅关闭所有已启动的服务器（HTTP / HTTPS），错误分别记录日志。
-	// 每个服务器各自持有一个超时上下文，互不挤占；未启动的服务器不会被 Shutdown。
-	for _, s := range servers {
-		ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
-		if err := s.Shutdown(ctx); err != nil {
-			// 记录服务器关闭错误信息
-			logs.Error("Server[{}] Shutdown:{}", s.Addr, err.Error())
-		}
-		cancel()
-	}
-	if !waitForHealthChecks(app.checkExited, shutdownTimeout) {
+	// 任一 handler/检查在超时后仍可能使用 DB、缓存或插件；强制断开 socket 后，
+	// 若工作仍未排空则跳过 SafeExit，避免在活跃调用仍运行时关闭其依赖。
+	serversDrained := shutdownServers(servers, shutdownTimeout)
+	healthChecksStopped := waitForHealthChecks(app.checkExited, shutdownTimeout)
+	if !healthChecksStopped {
 		logs.Error("健康检查未能在关停期限内退出")
 	}
 	// HTTP 请求排空后再关闭数据库、缓存和其它插件，避免在途请求使用已关闭资源。
-	app.MGin.SafeExit()
+	if serversDrained && healthChecksStopped {
+		app.MGin.SafeExit()
+	} else {
+		logs.Error("应用未能完全排空，跳过依赖资源关闭以避免在途调用访问已关闭资源")
+	}
 	// 记录服务器退出信息
 	logs.Error("Server exiting")
 	return
+}
+
+func shutdownServers(servers []*http.Server, timeout time.Duration) bool {
+	drained := true
+	for _, server := range servers {
+		if server == nil {
+			continue
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		err := server.Shutdown(ctx)
+		cancel()
+		if err != nil {
+			drained = false
+			logs.Error("Server[{}] Shutdown:{}", server.Addr, err.Error())
+			if closeErr := server.Close(); closeErr != nil {
+				logs.Error("Server[{}] forced close:{}", server.Addr, closeErr.Error())
+			}
+		}
+	}
+	return drained
 }
 
 func waitForAppShutdown(signals <-chan os.Signal, serverErrors <-chan error) (os.Signal, error) {
