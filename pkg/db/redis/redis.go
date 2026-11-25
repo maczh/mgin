@@ -14,6 +14,7 @@ import (
 	"github.com/knadh/koanf/parsers/yaml"
 	"github.com/knadh/koanf/providers/rawbytes"
 	"github.com/maczh/mgin/v2/pkg/logs"
+	"github.com/maczh/mgin/v2/pkg/utils"
 	"github.com/sadlil/gologger"
 )
 
@@ -425,7 +426,7 @@ func (r *RedisClient) PSubscribeContext(ctx context.Context, dbName string, hand
 	r.subscriptions[id] = cancel
 	r.subMu.Unlock()
 	r.mu.RUnlock()
-	go func() {
+	utils.GoSafe(func() {
 		defer func() { cancel(); r.subMu.Lock(); delete(r.subscriptions, id); r.subMu.Unlock() }()
 		for {
 			select {
@@ -457,7 +458,15 @@ func (r *RedisClient) PSubscribeContext(ctx context.Context, dbName string, hand
 			}
 			pubsub := conn.PSubscribe(localChannels...)
 			received := make(chan error, 1)
-			go func() { _, receiveErr := pubsub.ReceiveTimeout(time.Second); received <- receiveErr }()
+			utils.NewSafeGo(func(...any) {
+				defer func() {
+					if recovered := recover(); recovered != nil {
+						received <- fmt.Errorf("Redis订阅握手 panic: %v", recovered)
+					}
+				}()
+				_, receiveErr := pubsub.ReceiveTimeout(time.Second)
+				received <- receiveErr
+			}).Run()
 			select {
 			case <-ctx.Done():
 				_ = pubsub.Close()
@@ -501,5 +510,5 @@ func (r *RedisClient) PSubscribeContext(ctx context.Context, dbName string, hand
 			logger.Error("Redis订阅异常退出")
 			_ = pubsub.Close()
 		}
-	}()
+	})
 }

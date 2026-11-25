@@ -17,9 +17,9 @@ func CmdExec(name string, arg ...string) (string, error) {
 
 func CmdRunWithTimeout(cmd *exec.Cmd, timeout time.Duration) (error, bool) {
 	done := make(chan error)
-	go func() {
+	GoSafe(func() {
 		done <- cmd.Wait()
-	}()
+	})
 
 	var err error
 	select {
@@ -28,9 +28,9 @@ func CmdRunWithTimeout(cmd *exec.Cmd, timeout time.Duration) (error, bool) {
 		if err = cmd.Process.Kill(); err != nil {
 			logs.Error("failed to kill: {}, error: {}", cmd.Path, err)
 		}
-		go func() {
+		GoSafe(func() {
 			<-done // allow goroutine to exit
-		}()
+		})
 		logs.Info("process:{} killed", cmd.Path)
 		return err, true
 	case err = <-done:

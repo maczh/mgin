@@ -15,6 +15,7 @@ import (
 	"github.com/knadh/koanf/parsers/yaml"
 	"github.com/knadh/koanf/providers/rawbytes"
 	"github.com/maczh/mgin/v2/pkg/config"
+	"github.com/maczh/mgin/v2/pkg/utils"
 	"github.com/sadlil/gologger"
 )
 
@@ -127,7 +128,7 @@ func (c *ConsulClient) Register(etcdConfigData []byte) {
 		c.instanceID = instanceID
 		var ctx context.Context
 		ctx, c.cancel = context.WithCancel(context.Background())
-		go c.passTTLLoop(ctx, c.instanceID)
+		utils.GoSafe(func() { c.passTTLLoop(ctx, c.instanceID) })
 	}
 }
 

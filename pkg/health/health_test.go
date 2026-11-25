@@ -7,6 +7,8 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/maczh/mgin/v2/pkg/utils"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -154,10 +156,10 @@ func TestHealthMain(t *testing.T) {
 		var wg sync.WaitGroup
 		for i := 0; i < 50; i++ {
 			wg.Add(1)
-			go func() {
+			utils.GoSafe(func() {
 				defer wg.Done()
 				MarkStarted()
-			}()
+			})
 		}
 		wg.Wait()
 		if !IsStarted() {

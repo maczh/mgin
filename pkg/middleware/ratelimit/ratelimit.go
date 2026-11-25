@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/maczh/mgin/v2/pkg/models"
+	"github.com/maczh/mgin/v2/pkg/utils"
 	"github.com/sadlil/gologger"
 )
 
@@ -55,8 +56,12 @@ func (m *Manager) Reload() {
 
 // ReloadWith 使用给定配置替换当前配置，并清空已有限流器
 func (m *Manager) ReloadWith(cfg *Config) {
-	if m == nil { return }
-	if cfg == nil { cfg = (&Config{}).normalize() }
+	if m == nil {
+		return
+	}
+	if cfg == nil {
+		cfg = (&Config{}).normalize()
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.cfg = cfg
@@ -66,7 +71,9 @@ func (m *Manager) ReloadWith(cfg *Config) {
 
 // Config 返回当前生效的限流配置
 func (m *Manager) Config() *Config {
-	if m == nil { return nil }
+	if m == nil {
+		return nil
+	}
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.cfg
@@ -74,7 +81,7 @@ func (m *Manager) Config() *Config {
 
 // startGC 启动空闲限流器回收协程
 func (m *Manager) startGC() {
-	go func() {
+	utils.GoSafe(func() {
 		ticker := time.NewTicker(defaultGCInterval)
 		defer ticker.Stop()
 		for {
@@ -85,12 +92,14 @@ func (m *Manager) startGC() {
 				return
 			}
 		}
-	}()
+	})
 }
 
 // gc 清理超过空闲时间未被访问的限流器
 func (m *Manager) gc() {
-	if m == nil { return }
+	if m == nil {
+		return
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if len(m.limiters) == 0 {

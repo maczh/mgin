@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/maczh/mgin/v2/pkg/utils"
 	"gorm.io/gorm"
 )
 
@@ -75,8 +76,9 @@ func TestConcurrentConnectionAccessAndClose(t *testing.T) {
 	var wg sync.WaitGroup
 
 	for i := 0; i < 32; i++ {
+		worker := i
 		wg.Add(1)
-		go func(worker int) {
+		utils.GoSafe(func() {
 			defer wg.Done()
 			<-start
 			for j := 0; j < 100; j++ {
@@ -97,7 +99,7 @@ func TestConcurrentConnectionAccessAndClose(t *testing.T) {
 					return
 				}
 			}
-		}(i)
+		})
 	}
 
 	close(start)
@@ -238,9 +240,9 @@ func TestCloseDoesNotWaitForInitialization(t *testing.T) {
 	}
 
 	initDone := make(chan error, 1)
-	go func() {
+	utils.GoSafe(func() {
 		initDone <- client.InitWithError([]byte("go:\n  data:\n    mysql: replacement\n"))
-	}()
+	})
 	select {
 	case <-started:
 	case <-time.After(time.Second):
@@ -248,10 +250,10 @@ func TestCloseDoesNotWaitForInitialization(t *testing.T) {
 	}
 
 	closeDone := make(chan struct{})
-	go func() {
+	utils.GoSafe(func() {
 		client.Close()
 		close(closeDone)
-	}()
+	})
 	select {
 	case <-closeDone:
 	case <-time.After(time.Second):

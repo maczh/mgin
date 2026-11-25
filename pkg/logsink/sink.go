@@ -18,6 +18,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/maczh/mgin/v2/internal/safego"
 	"github.com/maczh/mgin/v2/pkg/models"
 )
 
@@ -302,7 +303,7 @@ func newSink[T any](h typedHandler[T], opt Options, name string) *sink[T] {
 func (s *sink[T]) start() {
 	for i := 0; i < s.workers; i++ {
 		s.wg.Add(1)
-		go s.loop()
+		safego.Run(s.loop)
 	}
 }
 
@@ -442,10 +443,10 @@ func waitTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
 		timeout = DefaultShutdownTimeout
 	}
 	done := make(chan struct{})
-	go func() {
+	safego.Run(func() {
 		wg.Wait()
 		close(done)
-	}()
+	})
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
 	select {

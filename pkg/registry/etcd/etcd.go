@@ -169,7 +169,7 @@ func (c *EtcdClient) Register(etcdConfigData []byte) {
 		// 启动带重注册的续约协程：etcd 连接抖动导致租约通道关闭时自动重新注册，
 		// 避免租约过期后本实例从发现列表消失（原实现在通道关闭后会静默退出，造成"假死"）。
 		c.ctx, c.cancel = context.WithCancel(context.Background())
-		go c.keepAliveLoop(c.ctx)
+		utils.GoSafe(func() { c.keepAliveLoop(c.ctx) })
 	}
 }
 

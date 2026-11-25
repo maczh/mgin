@@ -17,6 +17,7 @@ import (
 	jsoniter "github.com/json-iterator/go"
 	"github.com/levigross/grequests"
 	"github.com/maczh/mgin/v2/pkg/config"
+	"github.com/maczh/mgin/v2/pkg/utils"
 	"github.com/sadlil/gologger"
 
 	"github.com/knadh/koanf"
@@ -191,7 +192,7 @@ func (n *NacosClient) Register(nacosConfigData []byte) {
 			wg: &sync.WaitGroup{}, quit: make(chan struct{}), maxFails: 3,
 		}
 		n.worker.wg.Add(1)
-		go n.worker.Start(n)
+		utils.GoSafe(func() { n.worker.Start(n) })
 		logger.Info("Nacos注册服务成功:" + ip + ":" + strconv.Itoa(int(port)))
 	}
 

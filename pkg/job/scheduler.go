@@ -15,6 +15,7 @@ import (
 	goerr "github.com/go-errors/errors"
 	"github.com/maczh/mgin/v2/pkg/config"
 	"github.com/maczh/mgin/v2/pkg/logs"
+	"github.com/maczh/mgin/v2/pkg/utils"
 	"github.com/robfig/cron/v3"
 )
 
@@ -243,12 +244,12 @@ func (m *Manager) Start() error {
 	}
 
 	m.wg.Add(1)
-	go m.scheduleLoop()
+	utils.GoSafe(m.scheduleLoop)
 	m.wg.Add(1)
-	go m.refreshLoop()
+	utils.GoSafe(m.refreshLoop)
 	if cfg.LogRetainDays > 0 {
 		m.wg.Add(1)
-		go m.cleanLoop()
+		utils.GoSafe(m.cleanLoop)
 	}
 
 	logs.Info("[Job] 定时任务调度器已启动, 存储={}, 任务数={}, 已注册执行器={}",
@@ -675,7 +676,7 @@ func (m *Manager) fire(jr *jobRuntime, triggerType string, param map[string]inte
 	}
 
 	m.wg.Add(1)
-	go func() {
+	utils.GoSafe(func() {
 		defer m.wg.Done()
 		// serial 策略：排队等待上一次执行完成
 		if info.BlockStrategy == BlockSerial {
@@ -696,7 +697,7 @@ func (m *Manager) fire(jr *jobRuntime, triggerType string, param map[string]inte
 			return
 		}
 		m.execute(jr, handler, triggerType, param)
-	}()
+	})
 }
 
 // execute 执行任务并处理超时、重试与日志落库
@@ -795,7 +796,7 @@ func (m *Manager) runOnce(jr *jobRuntime, handler HandlerFunc, info JobInfo,
 
 	// 在独立协程中执行，以便超时后主流程能及时返回
 	done := make(chan error, 1)
-	go func() {
+	utils.NewSafeGo(func(...any) {
 		defer func() {
 			if r := recover(); r != nil {
 				wrapped := goerr.Wrap(r, 2)
@@ -803,7 +804,7 @@ func (m *Manager) runOnce(jr *jobRuntime, handler HandlerFunc, info JobInfo,
 			}
 		}()
 		done <- handler(jobCtx)
-	}()
+	}).Run()
 
 	var (
 		status  int
@@ -924,11 +925,11 @@ func (m *Manager) asyncUpdateFire(id int64, last, next time.Time) {
 		n := next
 		nextPtr = &n
 	}
-	go func() {
+	utils.GoSafe(func() {
 		if err := st.updateFireTime(id, lastPtr, nextPtr); err != nil {
 			logs.Debug("[Job] 调度时间更新失败: {}", err.Error())
 		}
-	}()
+	})
 }
 
 // asyncUpdateNext 异步仅更新下次调度时间
@@ -944,11 +945,11 @@ func (m *Manager) asyncUpdateNext(id int64, next time.Time) {
 		n := next
 		nextPtr = &n
 	}
-	go func() {
+	utils.GoSafe(func() {
 		if err := st.updateNextTime(id, nextPtr); err != nil {
 			logs.Debug("[Job] 下次调度时间更新失败: {}", err.Error())
 		}
-	}()
+	})
 }
 
 func fmtTime(t time.Time) string {

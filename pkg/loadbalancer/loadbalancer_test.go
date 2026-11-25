@@ -4,6 +4,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+
+	"github.com/maczh/mgin/v2/pkg/utils"
 )
 
 func TestRoundRobin(t *testing.T) {
@@ -126,7 +128,7 @@ func TestLeastConnectionsConcurrency(t *testing.T) {
 	// 100 个 goroutine 各 Inc 然后 Pick
 	for i := 0; i < 100; i++ {
 		wg.Add(1)
-		go func() {
+		utils.GoSafe(func() {
 			defer wg.Done()
 			dec, _ := lc.Inc("a")
 			defer dec()
@@ -134,7 +136,7 @@ func TestLeastConnectionsConcurrency(t *testing.T) {
 			if err == nil {
 				counters.Add(1)
 			}
-		}()
+		})
 	}
 	wg.Wait()
 	if counters.Load() != 100 {

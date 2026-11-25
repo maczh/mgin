@@ -21,6 +21,7 @@ import (
 	"github.com/maczh/mgin/v2/pkg/middleware/requestid"
 	"github.com/maczh/mgin/v2/pkg/middleware/trace"
 	"github.com/maczh/mgin/v2/pkg/middleware/xlang"
+	"github.com/maczh/mgin/v2/pkg/utils"
 	"github.com/scylladb/termtables"
 
 	"net/http"
@@ -119,7 +120,7 @@ func NewApp(configFile, appName, version string, xlang bool) *App {
 	app.checkWG.Add(1)
 	checkTicker := app.checkTicker
 	checkDone := app.checkDone
-	go func() {
+	utils.GoSafe(func() {
 		defer app.checkWG.Done()
 		for {
 			select {
@@ -129,7 +130,7 @@ func NewApp(configFile, appName, version string, xlang bool) *App {
 				return
 			}
 		}
-	}()
+	})
 
 	//GIN的模式，生产环境可以设置成release
 	// 设置 Gin 框架的运行模式为调试模式
@@ -341,19 +342,19 @@ func (app *App) Run() {
 	// 如果配置文件中设置的 HTTP 端口大于 0，则启动 HTTP 服务器
 	if config.Config.App.Port > 0 {
 		servers = append(servers, server)
-		go func() {
+		utils.GoSafe(func() {
 			// 启动 HTTP 服务器监听连接
 			if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 				// 记录 HTTP 服务器监听错误信息
 				logs.Error("HTTP server listen: " + err.Error())
 			}
-		}()
+		})
 	}
 
 	// 如果配置文件中设置了 SSL 证书路径，则启动 HTTPS 服务器
 	if config.Config.App.Cert != "" {
 		servers = append(servers, serverSsl)
-		go func() {
+		utils.GoSafe(func() {
 			var err error
 			// 启动 HTTPS 服务器监听连接
 			err = serverSsl.ListenAndServeTLS(path+"/"+config.Config.App.Cert, path+"/"+config.Config.App.Key)
@@ -361,7 +362,7 @@ func (app *App) Run() {
 				// 记录 HTTPS 服务器监听错误信息
 				logs.Error("HTTPS server listen: {}", err.Error())
 			}
-		}()
+		})
 	}
 
 	// 若配置了 go.health.autoStarted=true，则在监听启动之后自动标记启动完成，
@@ -403,10 +404,10 @@ func (app *App) Run() {
 		cancel()
 	}
 	checkerDone := make(chan struct{})
-	go func() {
+	utils.GoSafe(func() {
 		app.checkWG.Wait()
 		close(checkerDone)
-	}()
+	})
 	select {
 	case <-checkerDone:
 	case <-time.After(shutdownTimeout):

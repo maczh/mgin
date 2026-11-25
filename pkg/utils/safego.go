@@ -1,14 +1,22 @@
 package utils
 
 import (
-	"fmt"
-	"github.com/go-errors/errors"
+	"github.com/maczh/mgin/v2/internal/safego"
 )
 
 type safeGo struct {
 	argsF       func(args ...any)           // 动态参数函数
 	goBeforeF   func() map[string]any       // 协程前的处理函数
 	callBeforeF func(params map[string]any) // 调用前的处理函数
+}
+
+// GoSafe 在独立协程中执行 fn，并统一恢复 fn 内未处理的 panic。
+// 项目内需要启动普通后台任务时优先使用此入口，避免裸 go func。
+func GoSafe(fn func()) {
+	if fn == nil {
+		return
+	}
+	safego.Run(fn)
 }
 
 // NewSafeGo 创建一个安全的协程调用
@@ -54,18 +62,10 @@ func (receiver *safeGo) Run(args ...any) {
 	if receiver.goBeforeF != nil {
 		preRoutineId = receiver.goBeforeF()
 	}
-	go func() {
-		defer func() {
-			if err := recover(); err != nil {
-				goErr := errors.Wrap(err, 2)
-				reset := string([]byte{27, 91, 48, 109})
-				fmt.Printf("[SafeGo] panic recovered:\n\n%s%s\n\n%s",
-					goErr.Error(), goErr.Stack(), reset)
-			}
-		}()
+	safego.Run(func() {
 		if receiver.callBeforeF != nil {
 			receiver.callBeforeF(preRoutineId)
 		}
 		receiver.argsF(args...)
-	}()
+	})
 }

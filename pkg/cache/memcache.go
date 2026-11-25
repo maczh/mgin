@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/huandu/go-clone"
+	"github.com/maczh/mgin/v2/internal/safego"
 )
 
 type MemCache struct {
@@ -74,7 +75,7 @@ func New(cleaningInterval time.Duration) *MemCache {
 		close: make(chan struct{}),
 	}
 
-	go func() {
+	safego.Run(func() {
 		ticker := time.NewTicker(cleaningInterval)
 		defer ticker.Stop()
 
@@ -100,7 +101,7 @@ func New(cleaningInterval time.Duration) *MemCache {
 				return
 			}
 		}
-	}()
+	})
 
 	return cache
 }

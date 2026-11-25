@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/maczh/mgin/v2/internal/safego"
 	"github.com/maczh/mgin/v2/pkg/models"
 )
 
@@ -209,12 +210,12 @@ func TestConcurrentEmit(t *testing.T) {
 	var wg sync.WaitGroup
 	for i := 0; i < 50; i++ {
 		wg.Add(1)
-		go func() {
+		safego.Run(func() {
 			defer wg.Done()
 			for j := 0; j < 20; j++ {
 				Emit(newEntry("/c"))
 			}
-		}()
+		})
 	}
 	wg.Wait()
 	waitFor(t, func() bool { return h.len()+int(droppedOf(h.name)) == 1000 }, "全部日志被处理或丢弃")

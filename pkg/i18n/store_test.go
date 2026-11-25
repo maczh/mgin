@@ -13,6 +13,7 @@ import (
 	"github.com/maczh/mgin/v2/pkg/db"
 	mysqlclient "github.com/maczh/mgin/v2/pkg/db/mysql"
 	sqliteclient "github.com/maczh/mgin/v2/pkg/db/sqlite"
+	"github.com/maczh/mgin/v2/pkg/utils"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -126,7 +127,7 @@ func TestDictionaryConcurrentDuplicate(t *testing.T) {
 	successes := make(chan struct{}, 8)
 	for i := 0; i < 8; i++ {
 		wg.Add(1)
-		go func() {
+		utils.GoSafe(func() {
 			defer wg.Done()
 			err := s.Create(context.Background(), &Entry{MessageID: "one", Language: "en", Text: "One"})
 			if err == nil {
@@ -134,7 +135,7 @@ func TestDictionaryConcurrentDuplicate(t *testing.T) {
 			} else if !errors.Is(err, ErrConflict) {
 				t.Error(err)
 			}
-		}()
+		})
 	}
 	wg.Wait()
 	if len(successes) != 1 {

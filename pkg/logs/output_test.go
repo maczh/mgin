@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"context"
+	"github.com/maczh/mgin/v2/internal/safego"
 	"github.com/maczh/mgin/v2/pkg/config"
 	"github.com/maczh/mgin/v2/pkg/logsink"
 	"github.com/maczh/mgin/v2/pkg/middleware/trace"
@@ -72,7 +73,7 @@ func TestConfiguredOutputsAndConcurrentLogging(t *testing.T) {
 	var wg sync.WaitGroup
 	for i := 0; i < 20; i++ {
 		wg.Add(1)
-		go func() { defer wg.Done(); Info("hello {}", "world") }()
+		safego.Run(func() { defer wg.Done(); Info("hello {}", "world") })
 	}
 	wg.Wait()
 	logsink.Close(time.Second)

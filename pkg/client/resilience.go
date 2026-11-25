@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/maczh/mgin/v2/pkg/logs"
+	"github.com/maczh/mgin/v2/pkg/utils"
 )
 
 // 重试退避的默认值：在调用方未显式指定 BaseDelay / MaxDelay 时使用。
@@ -186,7 +187,7 @@ func callWithTimeoutCtx(ctx context.Context, service, uri string, op *Options, t
 		return CallCtx(ctx, service, uri, op)
 	}
 	ch := make(chan callResult, 1)
-	go func() {
+	utils.NewSafeGo(func(...any) {
 		defer func() {
 			if recovered := recover(); recovered != nil {
 				ch <- callResult{err: fmt.Errorf("client call panic: %v", recovered)}
@@ -194,7 +195,7 @@ func callWithTimeoutCtx(ctx context.Context, service, uri string, op *Options, t
 		}()
 		body, err := CallCtx(ctx, service, uri, op)
 		ch <- callResult{body: body, err: err}
-	}()
+	}).Run()
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
 	select {

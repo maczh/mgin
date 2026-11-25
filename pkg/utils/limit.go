@@ -35,7 +35,7 @@ func NewLimitQueue() {
 }
 func cleanLimitQueue() {
 	cleanerOnce.Do(func() {
-		go func() {
+		GoSafe(func() {
 			for {
 				log.Println("cleanLimitQueue start...")
 				LimitQueue.Lock()
@@ -58,7 +58,7 @@ func cleanLimitQueue() {
 					return
 				}
 			}
-		}()
+		})
 	})
 }
 
