@@ -2,6 +2,7 @@ package utils
 
 import (
 	"bytes"
+	"errors"
 	"github.com/maczh/mgin/v2/pkg/logs"
 	"os/exec"
 	"time"
@@ -16,7 +17,13 @@ func CmdExec(name string, arg ...string) (string, error) {
 }
 
 func CmdRunWithTimeout(cmd *exec.Cmd, timeout time.Duration) (error, bool) {
-	done := make(chan error)
+	if cmd == nil {
+		return errors.New("command is nil"), false
+	}
+	if cmd.Process == nil {
+		return errors.New("command has not been started"), false
+	}
+	done := make(chan error, 1)
 	GoSafe(func() {
 		done <- cmd.Wait()
 	})
@@ -28,9 +35,6 @@ func CmdRunWithTimeout(cmd *exec.Cmd, timeout time.Duration) (error, bool) {
 		if err = cmd.Process.Kill(); err != nil {
 			logs.Error("failed to kill: {}, error: {}", cmd.Path, err)
 		}
-		GoSafe(func() {
-			<-done // allow goroutine to exit
-		})
 		logs.Info("process:{} killed", cmd.Path)
 		return err, true
 	case err = <-done:

@@ -10,3 +10,6 @@
 - `Values.GetAll` returns a synchronized snapshot; linked-list callbacks run outside the list lock; limit acquisition observes request cancellation.
 - SQLite closes its underlying SQL connection even when the GORM handle carries an earlier operation error. OTel typed-nil providers use the no-op fallback.
 - App startup rejects repeated `Run` calls, and SafeGo reports panics from before-hooks through structured logging.
+- App shutdown no longer creates an orphan health-check waiter, and listener startup failures now enter the shutdown path instead of waiting indefinitely for a signal.
+- Etcd deregistration waits for its lease-renewal worker before deleting the instance key; Etcd/Nacos/Consul renewal panic paths are reported and supervised.
+- `CmdRunWithTimeout` rejects nil or unstarted commands safely and no longer needs a second waiter goroutine after timeout.

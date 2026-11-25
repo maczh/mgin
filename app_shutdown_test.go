@@ -1,7 +1,8 @@
 package mgin
 
 import (
-	"sync"
+	"errors"
+	"os"
 	"testing"
 	"time"
 
@@ -9,30 +10,27 @@ import (
 )
 
 func TestWaitForHealthChecksIsBounded(t *testing.T) {
-	var wg sync.WaitGroup
-	wg.Add(1)
+	done := make(chan struct{})
 	started := time.Now()
-	if waitForHealthChecks(&wg, 20*time.Millisecond) {
+	if waitForHealthChecks(done, 20*time.Millisecond) {
 		t.Fatal("expected blocked health check wait to time out")
 	}
 	if elapsed := time.Since(started); elapsed > time.Second {
 		t.Fatalf("shutdown wait exceeded bound: %s", elapsed)
 	}
-	wg.Done()
 }
 
 func TestWaitForHealthChecksReturnsWhenDone(t *testing.T) {
-	var wg sync.WaitGroup
+	done := make(chan struct{})
 	started, release := make(chan struct{}), make(chan struct{})
-	wg.Add(1)
 	utils.GoSafe(func() {
-		defer wg.Done()
+		defer close(done)
 		close(started)
 		<-release
 	})
 	<-started
 	result := make(chan bool, 1)
-	utils.GoSafe(func() { result <- waitForHealthChecks(&wg, time.Second) })
+	utils.GoSafe(func() { result <- waitForHealthChecks(done, time.Second) })
 	select {
 	case <-result:
 		t.Fatal("wait returned while health check was still active")
@@ -56,5 +54,15 @@ func TestAppRunCanOnlyStartOnce(t *testing.T) {
 	}
 	if app.beginRun() {
 		t.Fatal("second Run attempt should be rejected")
+	}
+}
+
+func TestWaitForAppShutdownReturnsListenerFailure(t *testing.T) {
+	serverErrors := make(chan error, 1)
+	want := errors.New("address already in use")
+	serverErrors <- want
+	sig, err := waitForAppShutdown(make(chan os.Signal), serverErrors)
+	if sig != nil || !errors.Is(err, want) {
+		t.Fatalf("got signal=%v, err=%v; want listener error %v", sig, err, want)
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"io"
 	"math/rand"
 	"net"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -211,11 +212,23 @@ func (c *ConsulClient) passTTLLoop(ctx context.Context, id string) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if err := c.client.Agent().UpdateTTL("mgin:"+id, "mgin health", api.HealthPassing); err != nil {
+			if err := safeUpdateTTL(func() error {
+				return c.client.Agent().UpdateTTL("mgin:"+id, "mgin health", api.HealthPassing)
+			}); err != nil {
 				logger.Error("Consul TTL 续活失败:" + err.Error())
 			}
 		}
 	}
+}
+
+func safeUpdateTTL(update func() error) (err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = fmt.Errorf("Consul TTL update panic: %v", recovered)
+			logger.Error(err.Error() + "\n" + string(debug.Stack()))
+		}
+	}()
+	return update()
 }
 
 // DeRegister 方法用于从 Consul 注销服务

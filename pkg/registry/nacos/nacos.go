@@ -9,6 +9,7 @@ import (
 	"math/rand"
 	"net"
 	"net/http"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
@@ -47,12 +48,14 @@ type NacosClient struct {
 var logger = gologger.GetLogger()
 
 type nacosHeartbeatWorker struct {
-	ticker    *time.Ticker
-	quit      chan struct{}
-	quitOnce  sync.Once
-	wg        *sync.WaitGroup
-	failCount int
-	maxFails  int
+	ticker       *time.Ticker
+	quit         chan struct{}
+	quitOnce     sync.Once
+	wg           *sync.WaitGroup
+	failCount    int
+	maxFails     int
+	heartbeatFn  func() error
+	reregisterFn func() error
 }
 
 func (w *nacosHeartbeatWorker) Start(nc *NacosClient) {
@@ -67,20 +70,42 @@ func (w *nacosHeartbeatWorker) Start(nc *NacosClient) {
 		case <-w.quit:
 			return
 		case <-w.ticker.C:
-			if err := nc.heartbeat(); err != nil {
-				w.failCount++
-				logger.Error(fmt.Sprintf("Nacos心跳失败(%d/%d): %s", w.failCount, w.maxFails, err.Error()))
-				if w.failCount >= w.maxFails {
-					w.failCount = 0
-					if err := nc.reRegister(); err != nil {
-						logger.Error("Nacos心跳连续失败且重新注册失败: " + err.Error())
-					}
-				}
-				continue
-			}
-			w.failCount = 0
+			w.runHeartbeatCycle(nc)
 		}
 	}
+}
+
+func (w *nacosHeartbeatWorker) runHeartbeatCycle(nc *NacosClient) {
+	heartbeat := nc.heartbeat
+	if w.heartbeatFn != nil {
+		heartbeat = w.heartbeatFn
+	}
+	if err := safeNacosOperation("heartbeat", heartbeat); err != nil {
+		w.failCount++
+		logger.Error(fmt.Sprintf("Nacos心跳失败(%d/%d): %s", w.failCount, w.maxFails, err.Error()))
+		if w.failCount >= w.maxFails {
+			w.failCount = 0
+			reregister := nc.reRegister
+			if w.reregisterFn != nil {
+				reregister = w.reregisterFn
+			}
+			if err := safeNacosOperation("re-register", reregister); err != nil {
+				logger.Error("Nacos心跳连续失败且重新注册失败: " + err.Error())
+			}
+		}
+		return
+	}
+	w.failCount = 0
+}
+
+func safeNacosOperation(name string, operation func() error) (err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = fmt.Errorf("Nacos %s panic: %v", name, recovered)
+			logger.Error(err.Error() + "\n" + string(debug.Stack()))
+		}
+	}()
+	return operation()
 }
 
 // heartbeat performs one health renewal. MSE uses the instance registration

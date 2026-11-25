@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
+	"runtime/debug"
 	"strings"
+	"sync"
 	"time"
 
 	jsoniter "github.com/json-iterator/go"
@@ -39,6 +41,7 @@ type EtcdClient struct {
 	apiUrl        string             // 本实例注册值（如 http://ip:port）
 	ctx           context.Context    // 续约/重注册协程的取消上下文
 	cancel        context.CancelFunc // 注销时取消续约协程
+	keepAliveWG   sync.WaitGroup
 }
 
 var logger = gologger.GetLogger()
@@ -169,7 +172,11 @@ func (c *EtcdClient) Register(etcdConfigData []byte) {
 		// 启动带重注册的续约协程：etcd 连接抖动导致租约通道关闭时自动重新注册，
 		// 避免租约过期后本实例从发现列表消失（原实现在通道关闭后会静默退出，造成"假死"）。
 		c.ctx, c.cancel = context.WithCancel(context.Background())
-		utils.GoSafe(func() { c.keepAliveLoop(c.ctx) })
+		c.keepAliveWG.Add(1)
+		utils.GoSafe(func() {
+			defer c.keepAliveWG.Done()
+			c.keepAliveLoop(c.ctx)
+		})
 	}
 }
 
@@ -245,6 +252,40 @@ func (c *EtcdClient) GetServices(servicename string, groupName ...string) ([]str
 //   - 续约通道被关闭（连接丢失 / 租约失效）：重新申请租约并重新 Put 本实例，再继续续约；
 //   - ctx 被取消（DeRegister）：立即退出。
 func (c *EtcdClient) keepAliveLoop(ctx context.Context) {
+	superviseEtcdKeepAlive(ctx, time.Second, c.runKeepAliveSession)
+}
+
+func superviseEtcdKeepAlive(ctx context.Context, retryDelay time.Duration, run func(context.Context)) {
+	for ctx.Err() == nil {
+		panicked := false
+		func() {
+			defer func() {
+				if recovered := recover(); recovered != nil {
+					panicked = true
+					logger.Error(fmt.Sprintf("Etcd续约循环 panic，将重启: %v\n%s", recovered, debug.Stack()))
+				}
+			}()
+			run(ctx)
+		}()
+		if ctx.Err() != nil || !panicked {
+			return
+		}
+		timer := time.NewTimer(retryDelay)
+		select {
+		case <-ctx.Done():
+			if !timer.Stop() {
+				select {
+				case <-timer.C:
+				default:
+				}
+			}
+			return
+		case <-timer.C:
+		}
+	}
+}
+
+func (c *EtcdClient) runKeepAliveSession(ctx context.Context) {
 	backoff := time.Second
 	// 通道关闭后已成功探活的场景直接重建通道，不再重复续约一次。
 	skipProbe := false
@@ -377,10 +418,8 @@ func (c *EtcdClient) DeRegister() {
 	if c == nil || c.client == nil {
 		return
 	}
-	// 1) 先取消续约协程，避免注销后又被心跳重新写入
-	if c.cancel != nil {
-		c.cancel()
-	}
+	// 等待续约/重注册协程退出后再删除 key，避免在途重注册在注销之后复活实例。
+	c.stopKeepAlive()
 	// 2) 删除本实例在 etcd 上的 key
 	if c.registeredKey != "" {
 		resp, err := c.client.Delete(context.Background(), c.registeredKey)
@@ -398,6 +437,13 @@ func (c *EtcdClient) DeRegister() {
 		}
 	}
 	logger.Info("Etcd注销服务成功")
+}
+
+func (c *EtcdClient) stopKeepAlive() {
+	if c.cancel != nil {
+		c.cancel()
+	}
+	c.keepAliveWG.Wait()
 }
 
 func (c *EtcdClient) serviceKey(group, service, instance string) string {

@@ -55,7 +55,7 @@ type App struct {
 	metricsMounted bool
 	checkTicker    *time.Ticker
 	checkDone      chan struct{}
-	checkWG        sync.WaitGroup
+	checkExited    chan struct{}
 	runMu          sync.Mutex
 	runStarted     bool
 }
@@ -119,11 +119,12 @@ func NewApp(configFile, appName, version string, xlang bool) *App {
 	//设置定时任务自动检查
 	app.checkTicker = time.NewTicker(time.Minute * 5)
 	app.checkDone = make(chan struct{})
-	app.checkWG.Add(1)
+	app.checkExited = make(chan struct{})
 	checkTicker := app.checkTicker
 	checkDone := app.checkDone
+	checkExited := app.checkExited
 	utils.GoSafe(func() {
-		defer app.checkWG.Done()
+		defer close(checkExited)
 		for {
 			select {
 			case <-checkTicker.C:
@@ -344,6 +345,7 @@ func (app *App) Run() {
 	// 注意：此前 serverSsl 从未被 Shutdown，收到退出信号后 HTTPS 的监听 goroutine 会泄漏、
 	// 端口也会延迟释放，这里统一纳入管理。
 	servers := make([]*http.Server, 0, 2)
+	serverErrors := make(chan error, 2)
 
 	// 如果配置文件中设置的 HTTP 端口大于 0，则启动 HTTP 服务器
 	if config.Config.App.Port > 0 {
@@ -352,7 +354,7 @@ func (app *App) Run() {
 			// 启动 HTTP 服务器监听连接
 			if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 				// 记录 HTTP 服务器监听错误信息
-				logs.Error("HTTP server listen: " + err.Error())
+				serverErrors <- fmt.Errorf("HTTP server listen: %w", err)
 			}
 		})
 	}
@@ -366,7 +368,7 @@ func (app *App) Run() {
 			err = serverSsl.ListenAndServeTLS(path+"/"+config.Config.App.Cert, path+"/"+config.Config.App.Key)
 			if err != nil && err != http.ErrServerClosed {
 				// 记录 HTTPS 服务器监听错误信息
-				logs.Error("HTTPS server listen: {}", err.Error())
+				serverErrors <- fmt.Errorf("HTTPS server listen: %w", err)
 			}
 		})
 	}
@@ -383,10 +385,14 @@ func (app *App) Run() {
 	signalChan := make(chan os.Signal, 1)
 	// 监听指定的系统信号
 	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGHUP, syscall.SIGTERM, syscall.SIGQUIT)
-	// 阻塞等待系统信号
-	sig := <-signalChan
-	// 记录接收到的系统信号
-	logs.Error("Get Signal:" + sig.String())
+	defer signal.Stop(signalChan)
+	// 信号或监听失败都进入相同的有界清理流程；否则端口占用时进程会一直等信号。
+	sig, listenErr := waitForAppShutdown(signalChan, serverErrors)
+	if listenErr != nil {
+		logs.Error("应用监听失败，开始关闭: " + listenErr.Error())
+	} else if sig != nil {
+		logs.Error("Get Signal:" + sig.String())
+	}
 	// 记录服务器开始关闭的信息
 	logs.Error("Shutdown Server ...")
 	// 安全退出应用
@@ -409,7 +415,7 @@ func (app *App) Run() {
 		}
 		cancel()
 	}
-	if !waitForHealthChecks(&app.checkWG, shutdownTimeout) {
+	if !waitForHealthChecks(app.checkExited, shutdownTimeout) {
 		logs.Error("健康检查未能在关停期限内退出")
 	}
 	// HTTP 请求排空后再关闭数据库、缓存和其它插件，避免在途请求使用已关闭资源。
@@ -417,6 +423,15 @@ func (app *App) Run() {
 	// 记录服务器退出信息
 	logs.Error("Server exiting")
 	return
+}
+
+func waitForAppShutdown(signals <-chan os.Signal, serverErrors <-chan error) (os.Signal, error) {
+	select {
+	case sig := <-signals:
+		return sig, nil
+	case err := <-serverErrors:
+		return nil, err
+	}
 }
 
 func (app *App) beginRun() bool {
@@ -433,15 +448,10 @@ func (app *App) beginRun() bool {
 }
 
 // waitForHealthChecks bounds shutdown latency when a health check blocks.
-func waitForHealthChecks(wg *sync.WaitGroup, timeout time.Duration) bool {
-	if wg == nil {
+func waitForHealthChecks(done <-chan struct{}, timeout time.Duration) bool {
+	if done == nil {
 		return true
 	}
-	done := make(chan struct{})
-	utils.GoSafe(func() {
-		wg.Wait()
-		close(done)
-	})
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
 	select {
