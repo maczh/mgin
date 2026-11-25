@@ -188,12 +188,12 @@ func (r *RedisClient) Close() {
 	defer r.mu.Unlock()
 	if r.multi {
 		for dbName, rc := range r.clients {
-			rc.Close()
+			if rc != nil { _ = rc.Close() }
 			delete(r.clients, dbName)
 		}
 	} else {
 		if client, ok := r.clients["0"]; ok {
-			client.Close()
+			if client != nil { _ = client.Close() }
 			delete(r.clients, "0")
 		}
 	}
@@ -219,6 +219,12 @@ func (r *RedisClient) Check() error {
 	if r == nil { return errors.New("Redis is nil") }
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	var firstErr error
+	for name, client := range r.clients {
+		if client == nil { if firstErr == nil { firstErr = fmt.Errorf("%s Redis client is nil", name) }; continue }
+		if err := client.Ping().Err(); err != nil && firstErr == nil { firstErr = err }
+	}
+	return firstErr
 	//var err error
 	//if r.client == nil && len(r.clients) == 0 {
 	//	r.Init("")
@@ -319,7 +325,10 @@ func (r *RedisClient) PSubscribe(dbName string, handler func(msg *redis.Message,
 			ch := pubsub.Channel()
 			for msg := range ch {
 				logs.Debug("收到Redis消息:{}", msg.Payload)
-				handler(msg, dbName)
+				func() {
+					defer func() { if recovered := recover(); recovered != nil { logs.Error("Redis订阅回调异常:{}", recovered) } }()
+					handler(msg, dbName)
+				}()
 			}
 			logger.Error("Redis订阅异常退出")
 			pubsub.Close()

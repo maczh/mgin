@@ -57,7 +57,13 @@ func (m *Sqlite) Close() {
 }
 
 func (m *Sqlite) Check() error {
-	return nil
+	if m == nil { return errors.New("SQLite is nil") }
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if m.sqlite == nil { return errors.New("SQLite not opened") }
+	db, err := m.sqlite.DB()
+	if err != nil || db == nil { return errors.New("SQLite connection unavailable") }
+	return db.Ping()
 }
 
 func (m *Sqlite) GetConnection() (*gorm.DB, error) {
