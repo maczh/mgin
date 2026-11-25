@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/maczh/mgin/v2/pkg/config"
 	"github.com/maczh/mgin/v2/pkg/logs"
@@ -13,6 +14,7 @@ import (
 )
 
 type Sqlite struct {
+	mu     sync.RWMutex
 	sqlite *gorm.DB
 	dbFile string
 }
@@ -20,6 +22,11 @@ type Sqlite struct {
 var logger = logs.GetLogger()
 
 func (m *Sqlite) Init(dbFileName string) {
+	if m == nil || config.Config == nil {
+		return
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	path, _ := filepath.Abs(filepath.Dir(os.Args[0]))
 	if dbFileName == "" {
 		dbFileName = fmt.Sprintf("%s/%s.db", path, config.Config.App.Name)
@@ -31,15 +38,20 @@ func (m *Sqlite) Init(dbFileName string) {
 		var err error
 		m.sqlite, err = gorm.Open(sqlite.Open(m.dbFile), &gorm.Config{Logger: logs.NewGORMLogger()})
 		if err != nil {
+			m.sqlite = nil
 			logger.Error("SQLite打开失败: " + err.Error())
 		}
 	}
 }
 
 func (m *Sqlite) Close() {
+	if m == nil { return }
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if m.sqlite != nil {
-		db, _ := m.sqlite.DB()
-		db.Close()
+		if db, err := m.sqlite.DB(); err == nil && db != nil {
+			_ = db.Close()
+		}
 		m.sqlite = nil
 	}
 }
@@ -49,6 +61,9 @@ func (m *Sqlite) Check() error {
 }
 
 func (m *Sqlite) GetConnection() (*gorm.DB, error) {
+	if m == nil { return nil, errors.New("SQLite is nil") }
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	if m.sqlite == nil {
 		return nil, errors.New("SQLite not opened")
 	}

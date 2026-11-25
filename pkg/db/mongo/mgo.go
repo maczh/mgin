@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/knadh/koanf"
@@ -14,6 +15,8 @@ import (
 )
 
 type Mongodb struct {
+	mu       sync.RWMutex
+	initMu   sync.Mutex
 	multi    bool
 	conns    map[string]connection
 	tags     []string
@@ -32,6 +35,11 @@ type connection struct {
 var logger = gologger.GetLogger()
 
 func (m *Mongodb) Init(mongodbConfigData []byte) {
+	if m == nil { return }
+	m.initMu.Lock()
+	defer m.initMu.Unlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if mongodbConfigData != nil {
 		m.confData = mongodbConfigData
 	}
@@ -118,9 +126,12 @@ func (m *Mongodb) Init(mongodbConfigData []byte) {
 }
 
 func (m *Mongodb) Close() {
-	if m == nil || m.conns == nil {
+	if m == nil {
 		return
 	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.conns == nil { return }
 	if m.multi {
 		for k, conn := range m.conns {
 			if conn.conn != nil {
@@ -139,9 +150,6 @@ func (m *Mongodb) Close() {
 func (m *Mongodb) mgoCheck(tag string) error {
 	if m == nil {
 		return errors.New("Mongodb is nil")
-	}
-	if len(m.conns) == 0 {
-		m.Init(m.confData)
 	}
 	conn, ok := m.conns[tag]
 	if !ok || conn.conn == nil {
@@ -170,8 +178,12 @@ func (m *Mongodb) Check() error {
 		return errors.New("Mongodb is nil")
 	}
 	var err error
-	if len(m.conns) == 0 {
-		m.Init(m.confData)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if len(m.conns) == 0 && len(m.confData) > 0 {
+		// Init is intentionally not called while holding mu; callers should
+		// initialize the client before health checks.
+		return errors.New("MongoDB connection is not initialized")
 	}
 	if m.multi {
 		for dbName := range m.conns {
@@ -191,6 +203,8 @@ func (m *Mongodb) GetConnection(dbName ...string) (*mgo.Database, error) {
 	if m == nil {
 		return nil, errors.New("Mongodb is nil")
 	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if m.multi {
 		if len(dbName) > 1 || len(dbName) == 0 {
 			return nil, errors.New("Multidb Mongodb get connection must be specified one dbName")
@@ -208,9 +222,13 @@ func (m *Mongodb) GetConnection(dbName ...string) (*mgo.Database, error) {
 		if err != nil {
 			return nil, err
 		}
-		return m.conns[dbName[0]].conn.Copy().DB(m.conns[dbName[0]].db), nil
+		copy := m.conns[dbName[0]].conn.Copy()
+		if copy == nil { return nil, errors.New("MongoDB session copy failed") }
+		return copy.DB(m.conns[dbName[0]].db), nil
 	} else {
-		m.Check()
+		if err := m.mgoCheck("0"); err != nil {
+			return nil, err
+		}
 		if len(m.conns) == 0 {
 			return nil, errors.New("Mongodb connection failed")
 		}
@@ -218,7 +236,9 @@ func (m *Mongodb) GetConnection(dbName ...string) (*mgo.Database, error) {
 		if !ok || conn.conn == nil {
 			return nil, errors.New("Mongodb connection failed")
 		}
-		return conn.conn.Copy().DB(conn.db), nil
+		copy := conn.conn.Copy()
+		if copy == nil { return nil, errors.New("MongoDB session copy failed") }
+		return copy.DB(conn.db), nil
 	}
 }
 
@@ -230,9 +250,13 @@ func (m *Mongodb) ReturnConnection(conn *mgo.Database) {
 }
 
 func (m *Mongodb) IsMultiDB() bool {
+	if m == nil { return false }
+	m.mu.RLock(); defer m.mu.RUnlock()
 	return m.multi
 }
 
 func (m *Mongodb) ListConnNames() []string {
-	return m.tags
+	if m == nil { return nil }
+	m.mu.RLock(); defer m.mu.RUnlock()
+	return append([]string(nil), m.tags...)
 }

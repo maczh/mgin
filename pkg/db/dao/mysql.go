@@ -44,6 +44,7 @@ type CacheConfig struct {
 var logger = gologger.GetLogger()
 
 func (m *MySQLDao[E]) Debug() *MySQLDao[E] {
+	if m == nil { return nil }
 	return &MySQLDao[E]{
 		debug: true,
 		Tag:   m.Tag,
@@ -65,12 +66,12 @@ func (m *MySQLDao[E]) connection() (*gorm.DB, error) {
 		return nil, errors.New("DAO为空")
 	}
 	conn := m.tx
+	tag := m.Tag
+	ctx := m.ctx
 	var err error
 	if conn == nil {
-		if m.Tag == nil {
-			m.Tag = notag
-		}
-		conn, err = db.Mysql.GetConnection(m.Tag())
+		if tag == nil { tag = notag }
+		conn, err = db.Mysql.GetConnection(tag())
 		if err != nil {
 			return nil, err
 		}
@@ -81,27 +82,31 @@ func (m *MySQLDao[E]) connection() (*gorm.DB, error) {
 	if m.debug {
 		conn = conn.Debug()
 	}
-	if m.ctx != nil && *m.ctx != nil {
-		conn = conn.WithContext(*m.ctx)
+	if ctx != nil && *ctx != nil {
+		conn = conn.WithContext(*ctx)
 	}
 	return conn, nil
 }
 
 func (m *MySQLDao[E]) WithContext(ctx *context.Context) *MySQLDao[E] {
-	m.ctx = ctx
-	return m
+	if m == nil { return nil }
+	clone := *m
+	clone.ctx = ctx
+	return &clone
 }
 
 // WithCache enables configurable result caching for this DAO.
 func (m *MySQLDao[E]) WithCache(config CacheConfig) *MySQLDao[E] {
+	if m == nil { return nil }
 	if config.Prefix == "" {
 		config.Prefix = "mgin:mysql:"
 	}
 	if config.TTL < 0 {
 		config.TTL = 0
 	}
-	m.cache = &config
-	return m
+	clone := *m
+	clone.cache = &config
+	return &clone
 }
 
 func (m *MySQLDao[E]) cacheEnabled() bool {

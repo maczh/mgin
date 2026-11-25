@@ -7,6 +7,9 @@ package plugin
 
 import (
 	"context"
+	"fmt"
+	"reflect"
+	"runtime/debug"
 	"sort"
 	"sync"
 
@@ -40,7 +43,7 @@ var (
 // Register 注册一个插件。按 Name 去重：同名插件后注册者覆盖先注册者，
 // 但注册顺序（order 切片）仅在首次出现时记录。
 func Register(p Plugin) {
-	if p == nil {
+	if isNilPlugin(p) {
 		return
 	}
 	name := p.Name()
@@ -50,6 +53,19 @@ func Register(p Plugin) {
 		order = append(order, name)
 	}
 	plugins[name] = p
+}
+
+func isNilPlugin(p Plugin) bool {
+	if p == nil {
+		return true
+	}
+	v := reflect.ValueOf(p)
+	switch v.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return v.IsNil()
+	default:
+		return false
+	}
 }
 
 // Unregister 按名称注销插件。
@@ -101,17 +117,24 @@ func sortedByOrder() []Plugin {
 func InitAll(ctx context.Context) error {
 	var firstErr error
 	for _, p := range sortedByOrder() {
-		if !p.Enabled() {
+		enabled, err := safeEnabled(p)
+		if err != nil {
+			logs.Error("检查插件{}启用状态失败:{}", p.Name(), err)
+			if firstErr == nil { firstErr = err }
+			continue
+		}
+		if !enabled {
 			continue
 		}
 		logs.Info("正在初始化{}", p.Name())
-		if err := p.Init(ctx); err != nil {
+		if err := safeInit(p, ctx); err != nil {
 			if firstErr == nil {
 				firstErr = err
 			}
 			logs.Error("初始化插件{}失败:{}", p.Name(), err)
+		} else {
+			logs.Info("插件{}初始化成功", p.Name())
 		}
-		logs.Info("插件{}初始化成功", p.Name())
 	}
 	return firstErr
 }
@@ -125,18 +148,24 @@ func CloseAll(ctx context.Context) error {
 	var firstErr error
 	for i := len(ps) - 1; i >= 0; i-- {
 		p := ps[i]
-		if !p.Enabled() {
+		enabled, err := safeEnabled(p)
+		if err != nil {
+			if firstErr == nil { firstErr = err }
+			continue
+		}
+		if !enabled {
 			continue
 		}
 		logs.Info("正在关闭{}", p.Name())
 		func() {
 			defer func() {
 				if r := recover(); r != nil {
-					// 单个插件关闭 panic 不应阻断其它插件的关闭
-					_ = r
+					err := fmt.Errorf("plugin %s close panic: %v", p.Name(), r)
+					logs.Error("{}", string(debug.Stack()))
+					if firstErr == nil { firstErr = err }
 				}
 			}()
-			if err := p.Close(ctx); err != nil {
+			if err := safeClose(p, ctx); err != nil {
 				if firstErr == nil {
 					firstErr = err
 				}
@@ -150,10 +179,35 @@ func CloseAll(ctx context.Context) error {
 func HealthAll() map[string]error {
 	m := make(map[string]error)
 	for _, p := range sortedByOrder() {
-		if !p.Enabled() {
+		enabled, err := safeEnabled(p)
+		if err != nil {
+			m[p.Name()] = err
 			continue
 		}
-		m[p.Name()] = p.Health()
+		if !enabled {
+			continue
+		}
+		m[p.Name()] = safeHealth(p)
 	}
 	return m
+}
+
+func safeEnabled(p Plugin) (enabled bool, err error) {
+	defer func() { if r := recover(); r != nil { err = fmt.Errorf("plugin enabled panic: %v", r) } }()
+	return p.Enabled(), nil
+}
+
+func safeInit(p Plugin, ctx context.Context) (err error) {
+	defer func() { if r := recover(); r != nil { err = fmt.Errorf("plugin %s init panic: %v", p.Name(), r) } }()
+	return p.Init(ctx)
+}
+
+func safeClose(p Plugin, ctx context.Context) (err error) {
+	defer func() { if r := recover(); r != nil { err = fmt.Errorf("plugin %s close panic: %v", p.Name(), r) } }()
+	return p.Close(ctx)
+}
+
+func safeHealth(p Plugin) (err error) {
+	defer func() { if r := recover(); r != nil { err = fmt.Errorf("plugin %s health panic: %v", p.Name(), r) } }()
+	return p.Health()
 }

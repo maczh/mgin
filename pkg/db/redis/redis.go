@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	redis "github.com/go-redis/redis/v7"
@@ -15,6 +16,8 @@ import (
 )
 
 type RedisClient struct {
+	mu       sync.RWMutex
+	initMu   sync.Mutex
 	multi    bool
 	master   string
 	clients  map[string]redis.UniversalClient
@@ -30,6 +33,11 @@ var Redis = &RedisClient{}
 var logger = gologger.GetLogger()
 
 func (r *RedisClient) Init(redisConfigData []byte) {
+	if r == nil { return }
+	r.initMu.Lock()
+	defer r.initMu.Unlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if redisConfigData != nil {
 		r.confData = redisConfigData
 	}
@@ -175,6 +183,9 @@ func (r *RedisClient) Init(redisConfigData []byte) {
 }
 
 func (r *RedisClient) Close() {
+	if r == nil { return }
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if r.multi {
 		for dbName, rc := range r.clients {
 			rc.Close()
@@ -205,6 +216,9 @@ func (r *RedisClient) redisCheck(dbName string) error {
 }
 
 func (r *RedisClient) Check() error {
+	if r == nil { return errors.New("Redis is nil") }
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	//var err error
 	//if r.client == nil && len(r.clients) == 0 {
 	//	r.Init("")
@@ -232,6 +246,9 @@ func (r *RedisClient) Check() error {
 }
 
 func (r *RedisClient) GetConnection(dbName ...string) (redis.UniversalClient, error) {
+	if r == nil { return nil, errors.New("Redis is nil") }
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	if r.multi {
 		if len(dbName) == 0 || len(dbName) > 1 {
 			return nil, errors.New("Multidb Get RedisClient connection must specify one database name")
@@ -262,15 +279,21 @@ func (r *RedisClient) GetConnection(dbName ...string) (redis.UniversalClient, er
 }
 
 func (r *RedisClient) IsMultiDB() bool {
+	if r == nil { return false }
+	r.mu.RLock(); defer r.mu.RUnlock()
 	return r.multi
 }
 
 func (r *RedisClient) ListConnNames() []string {
-	return r.conns
+	if r == nil { return nil }
+	r.mu.RLock(); defer r.mu.RUnlock()
+	return append([]string(nil), r.conns...)
 }
 
 // PSubscribe 订阅消息并自动重连
 func (r *RedisClient) PSubscribe(dbName string, handler func(msg *redis.Message, dbName string), channels ...string) {
+	if r == nil || handler == nil { return }
+	localChannels := append([]string(nil), channels...)
 	go func() {
 		for {
 			conn, err := r.GetConnection(dbName)
@@ -283,13 +306,14 @@ func (r *RedisClient) PSubscribe(dbName string, handler func(msg *redis.Message,
 			if cli, ok := conn.(*redis.Client); ok {
 				dbNum = cli.Options().DB
 			}
-			for i, _ := range channels {
-				channels[i] = strings.ReplaceAll(channels[i], "{db}", fmt.Sprintf("%d", dbNum))
+			for i := range localChannels {
+				localChannels[i] = strings.ReplaceAll(localChannels[i], "{db}", fmt.Sprintf("%d", dbNum))
 			}
-			pubsub := conn.PSubscribe(channels...)
+			pubsub := conn.PSubscribe(localChannels...)
 			_, err = pubsub.Receive()
 			if err != nil {
 				logs.Error("订阅错误:" + err.Error())
+				_ = pubsub.Close()
 				continue
 			}
 			ch := pubsub.Channel()
