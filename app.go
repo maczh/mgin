@@ -403,14 +403,7 @@ func (app *App) Run() {
 		}
 		cancel()
 	}
-	checkerDone := make(chan struct{})
-	utils.GoSafe(func() {
-		app.checkWG.Wait()
-		close(checkerDone)
-	})
-	select {
-	case <-checkerDone:
-	case <-time.After(shutdownTimeout):
+	if !waitForHealthChecks(&app.checkWG, shutdownTimeout) {
 		logs.Error("健康检查未能在关停期限内退出")
 	}
 	// HTTP 请求排空后再关闭数据库、缓存和其它插件，避免在途请求使用已关闭资源。
@@ -418,6 +411,26 @@ func (app *App) Run() {
 	// 记录服务器退出信息
 	logs.Error("Server exiting")
 	return
+}
+
+// waitForHealthChecks bounds shutdown latency when a health check blocks.
+func waitForHealthChecks(wg *sync.WaitGroup, timeout time.Duration) bool {
+	if wg == nil {
+		return true
+	}
+	done := make(chan struct{})
+	utils.GoSafe(func() {
+		wg.Wait()
+		close(done)
+	})
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	select {
+	case <-done:
+		return true
+	case <-timer.C:
+		return false
+	}
 }
 
 func flagValueBool(name string) bool {

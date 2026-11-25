@@ -20,3 +20,18 @@ func TestFormatSupportsNumericTypes(t *testing.T) {
 		})
 	}
 }
+
+func TestFormatSupportsOtherCommonAndFallbackTypes(t *testing.T) {
+	for _, value := range []any{true, "text", []byte("bytes"), nil, struct{ Name string }{Name: "item"}} {
+		t.Run(fmt.Sprintf("%T", value), func(t *testing.T) {
+			defer func() {
+				if recovered := recover(); recovered != nil {
+					t.Fatalf("Format panicked for %T: %v", value, recovered)
+				}
+			}()
+			if got := Format("{}", value); got == "{}" {
+				t.Fatalf("value was not formatted: %T", value)
+			}
+		})
+	}
+}

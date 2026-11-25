@@ -70,6 +70,10 @@ func (r *RedisClient) InitWithError(redisConfigData []byte) error {
 	if builder.initErr != nil && len(builder.clients) == 0 {
 		closeRedisClients(builder.clients)
 		r.mu.Lock()
+		if r.closed {
+			r.mu.Unlock()
+			return ErrClosed
+		}
 		r.initErr = builder.initErr
 		r.mu.Unlock()
 		return builder.initErr
@@ -264,7 +268,6 @@ func (r *RedisClient) Close() {
 	for _, cancel := range r.subscriptions {
 		cancel()
 	}
-	r.subscriptions = nil
 	r.subMu.Unlock()
 	closeRedisClients(clients)
 }
@@ -448,67 +451,69 @@ func (r *RedisClient) PSubscribeContext(ctx context.Context, dbName string, hand
 				}
 				continue
 			}
-			dbNum := 0
-			if cli, ok := conn.(*redis.Client); ok {
-				dbNum = cli.Options().DB
-			}
-			localChannels := make([]string, len(channels))
-			for i, channel := range channels {
-				localChannels[i] = strings.ReplaceAll(channel, "{db}", fmt.Sprintf("%d", dbNum))
-			}
-			pubsub := conn.PSubscribe(localChannels...)
-			received := make(chan error, 1)
-			utils.NewSafeGo(func(...any) {
-				defer func() {
-					if recovered := recover(); recovered != nil {
-						received <- fmt.Errorf("Redis订阅握手 panic: %v", recovered)
-					}
-				}()
-				_, receiveErr := pubsub.ReceiveTimeout(time.Second)
-				received <- receiveErr
-			}).Run()
-			select {
-			case <-ctx.Done():
-				_ = pubsub.Close()
+			if r.consumePubSub(ctx, conn, dbName, handler, channels) {
 				return
-			case err = <-received:
-			}
-			if err != nil {
-				logs.Error("订阅错误:" + err.Error())
-				_ = pubsub.Close()
-				if ctx.Err() != nil {
-					return
-				}
-				continue
-			}
-			ch := pubsub.Channel()
-		subscribeLoop:
-			for {
-				select {
-				case <-ctx.Done():
-					_ = pubsub.Close()
-					return
-				case msg, ok := <-ch:
-					if !ok {
-						break subscribeLoop
-					}
-					logs.Debug("收到Redis消息:{}", msg.Payload)
-					func() {
-						defer func() {
-							if recovered := recover(); recovered != nil {
-								logs.Error("Redis订阅回调异常:{}", recovered)
-							}
-						}()
-						handler(msg, dbName)
-					}()
-				}
-				if ctx.Err() != nil {
-					_ = pubsub.Close()
-					return
-				}
 			}
 			logger.Error("Redis订阅异常退出")
-			_ = pubsub.Close()
 		}
 	})
+}
+
+// consumePubSub runs one subscription attempt. Its deferred Close covers every
+// return path without accumulating deferred closes across reconnect attempts.
+func (r *RedisClient) consumePubSub(ctx context.Context, conn redis.UniversalClient, dbName string, handler func(*redis.Message, string), channels []string) bool {
+	dbNum := 0
+	if cli, ok := conn.(*redis.Client); ok {
+		dbNum = cli.Options().DB
+	}
+	localChannels := make([]string, len(channels))
+	for i, channel := range channels {
+		localChannels[i] = strings.ReplaceAll(channel, "{db}", fmt.Sprintf("%d", dbNum))
+	}
+	pubsub := conn.PSubscribe(localChannels...)
+	defer pubsub.Close()
+
+	received := make(chan error, 1)
+	utils.NewSafeGo(func(...any) {
+		defer func() {
+			if recovered := recover(); recovered != nil {
+				received <- fmt.Errorf("Redis订阅握手 panic: %v", recovered)
+			}
+		}()
+		_, receiveErr := pubsub.ReceiveTimeout(time.Second)
+		received <- receiveErr
+	}).Run()
+	select {
+	case <-ctx.Done():
+		return true
+	case err := <-received:
+		if err != nil {
+			logs.Error("订阅错误:" + err.Error())
+			return ctx.Err() != nil
+		}
+	}
+
+	ch := pubsub.Channel()
+	for {
+		select {
+		case <-ctx.Done():
+			return true
+		case msg, ok := <-ch:
+			if !ok {
+				return false
+			}
+			if msg == nil {
+				continue
+			}
+			logs.Debug("收到Redis消息:{}", msg.Payload)
+			func() {
+				defer func() {
+					if recovered := recover(); recovered != nil {
+						logs.Error("Redis订阅回调异常:{}", recovered)
+					}
+				}()
+				handler(msg, dbName)
+			}()
+		}
+	}
 }

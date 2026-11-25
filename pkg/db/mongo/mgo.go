@@ -67,6 +67,10 @@ func (m *Mongodb) InitWithError(mongodbConfigData []byte) error {
 	if builder.initErr != nil && len(builder.conns) == 0 {
 		closeMongoConnections(builder.conns)
 		m.mu.Lock()
+		if m.closed {
+			m.mu.Unlock()
+			return ErrClosed
+		}
 		m.initErr = builder.initErr
 		m.mu.Unlock()
 		return builder.initErr

@@ -25,6 +25,22 @@ func TestEmptySwaggerURIDoesNotBypassAuthentication(t *testing.T) {
 	}
 }
 
+func TestDocumentationPathBypassesAuthentication(t *testing.T) {
+	old := *config.Config
+	t.Cleanup(func() { *config.Config = old })
+	config.Config.Casbin.Enabled = true
+	config.Config.Sys.Swagger.Uri = ""
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Use(CasbinHandler())
+	router.GET("/docs/index.html", func(c *gin.Context) { c.Status(http.StatusOK) })
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/docs/index.html", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("documentation path status=%d, want %d", w.Code, http.StatusOK)
+	}
+}
+
 func TestClaimIDRejectsUnexpectedTypes(t *testing.T) {
 	if _, ok := claimID("7"); ok {
 		t.Fatal("string claim must be rejected")

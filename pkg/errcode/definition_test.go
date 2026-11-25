@@ -1,6 +1,11 @@
 package errcode
 
-import "testing"
+import (
+	"sync"
+	"testing"
+
+	"github.com/maczh/mgin/v2/pkg/utils"
+)
 
 func TestNew_ValidatesHTTPStatus(t *testing.T) {
 	// 0 视为 500（服务端错误）
@@ -54,4 +59,22 @@ func TestRegister_Override(t *testing.T) {
 	}
 	// 测试结束恢复原值，避免污染其他测试
 	definitions[URI_NOT_FOUND] = New(ModuleCommon, URI_NOT_FOUND, 404, "errcode.uri_not_found")
+}
+
+func TestDefinitionsConcurrentAccess(t *testing.T) {
+	var wg sync.WaitGroup
+	for i := 0; i < 8; i++ {
+		worker := i
+		wg.Add(1)
+		utils.GoSafe(func() {
+			defer wg.Done()
+			for j := 0; j < 100; j++ {
+				code := 900000 + worker*100 + j
+				RegisterDef(New(ModuleCommon, code, 500, "test.concurrent"))
+				_ = LookupDef(code)
+				_ = AllDefs()
+			}
+		})
+	}
+	wg.Wait()
 }
