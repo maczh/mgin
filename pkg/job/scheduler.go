@@ -140,17 +140,18 @@ func (jr *jobRuntime) snapshot() JobInfo {
 //   - 支持超时中断、失败重试、阻塞策略、调度过期补偿
 //   - 纯单机调度：调度器只在本进程内工作，不做多实例协调
 type Manager struct {
-	mu           sync.RWMutex
-	storeMu      sync.Mutex
-	startMu      sync.Mutex
-	cfg          *Config
-	st           *store
-	storeFactory func(string) (*store, error)
-	parser       cron.Parser
-	loc          *time.Location
-	jobs         map[int64]*jobRuntime
-	sem          chan struct{}
-	hostname     string
+	mu            sync.RWMutex
+	storeMu       sync.Mutex
+	storeInitDone chan struct{}
+	startMu       sync.Mutex
+	cfg           *Config
+	st            *store
+	storeFactory  func(string) (*store, error)
+	parser        cron.Parser
+	loc           *time.Location
+	jobs          map[int64]*jobRuntime
+	sem           chan struct{}
+	hostname      string
 
 	running    bool
 	starting   bool
@@ -241,16 +242,19 @@ func (m *Manager) Start() error {
 	}
 
 	// 按 MySQL → PostgreSQL → SQLite 优先级选择存储
-	m.storeMu.Lock()
-	defer m.storeMu.Unlock()
-	st, err := newStore(cfg.DbName)
+	st, created, err := m.initializeStore(cfg, newStore)
 	if err != nil {
 		logs.Error("[Job] {}", err.Error())
 		return err
 	}
 	published := false
 	defer func() {
-		if !published {
+		if !published && created {
+			m.mu.Lock()
+			if m.st == st {
+				m.st = nil
+			}
+			m.mu.Unlock()
 			closeStore(st)
 		}
 	}()
@@ -450,32 +454,94 @@ func (m *Manager) StoreWithError() (*store, error) {
 	if m == nil {
 		return nil, errors.New("定时任务管理器为空")
 	}
-	m.storeMu.Lock()
-	defer m.storeMu.Unlock()
-	m.mu.RLock()
-	st, cfg, factory := m.st, m.cfg, m.storeFactory
-	m.mu.RUnlock()
-	if st != nil {
+	for {
+		m.mu.RLock()
+		st, cfg, factory := m.st, m.cfg, m.storeFactory
+		starting, startDone := m.starting, m.startDone
+		m.mu.RUnlock()
+		if st != nil {
+			return st, nil
+		}
+		if starting {
+			if startDone != nil {
+				<-startDone
+			}
+			continue
+		}
+		if cfg == nil {
+			return nil, errors.New("定时任务配置未初始化")
+		}
+		if factory == nil {
+			factory = newStore
+		}
+		st, _, err := m.initializeStore(cfg, factory)
+		if err != nil {
+			return nil, err
+		}
+		// Start may have begun while the store factory was doing I/O. Do not
+		// expose the candidate until Start has completed migration/publication.
+		m.mu.RLock()
+		starting, startDone = m.starting, m.startDone
+		m.mu.RUnlock()
+		if starting {
+			if startDone != nil {
+				<-startDone
+			}
+			continue
+		}
 		return st, nil
 	}
+}
+
+// initializeStore serializes creation without holding storeMu during database
+// I/O. Waiters share the published store, while manager state remains readable.
+func (m *Manager) initializeStore(cfg *Config, factory func(string) (*store, error)) (*store, bool, error) {
 	if cfg == nil {
-		return nil, errors.New("定时任务配置未初始化")
+		return nil, false, errors.New("定时任务配置未初始化")
 	}
 	if factory == nil {
 		factory = newStore
 	}
-	st, err := factory(cfg.DbName)
-	if err != nil {
-		return nil, err
+	for {
+		m.storeMu.Lock()
+		m.mu.RLock()
+		st := m.st
+		m.mu.RUnlock()
+		if st != nil {
+			m.storeMu.Unlock()
+			return st, false, nil
+		}
+		if done := m.storeInitDone; done != nil {
+			m.storeMu.Unlock()
+			<-done
+			continue
+		}
+		done := make(chan struct{})
+		m.storeInitDone = done
+		m.storeMu.Unlock()
+
+		candidate, err := factory(cfg.DbName)
+		var discard *store
+		if err == nil && candidate != nil {
+			m.mu.Lock()
+			if m.st == nil {
+				m.st = candidate
+			} else {
+				discard = candidate
+				candidate = m.st
+			}
+			m.mu.Unlock()
+		}
+
+		m.storeMu.Lock()
+		m.storeInitDone = nil
+		close(done)
+		m.storeMu.Unlock()
+		if discard != nil {
+			closeStore(discard)
+		}
+		return candidate, err == nil && candidate != nil && discard == nil, err
 	}
-	m.mu.Lock()
-	if m.st == nil {
-		m.st = st
-	} else {
-		st = m.st
-	}
-	m.mu.Unlock()
-	return st, nil
 }
 
 // Trigger 手动触发一次任务执行（等价于管理界面「执行一次」）。

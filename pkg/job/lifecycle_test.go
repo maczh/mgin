@@ -3,6 +3,7 @@ package job
 import (
 	"context"
 	"errors"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -57,9 +58,15 @@ func TestStopWithContextTimeoutLeavesManagerStoppingUntilWorkExits(t *testing.T)
 func TestStoreInitializationDoesNotHoldManagerStateLock(t *testing.T) {
 	started := make(chan struct{})
 	release := make(chan struct{})
-	manager := &Manager{
+	var manager *Manager
+	manager = &Manager{
 		cfg: &Config{},
 		storeFactory: func(string) (*store, error) {
+			if !manager.storeMu.TryLock() {
+				t.Error("store initialization mutex must not be held during database I/O")
+			} else {
+				manager.storeMu.Unlock()
+			}
 			close(started)
 			<-release
 			return &store{}, nil
@@ -94,6 +101,50 @@ func TestStoreInitializationDoesNotHoldManagerStateLock(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("StoreWithError did not finish")
+	}
+}
+
+func TestConcurrentStoreInitializationUsesSingleFactory(t *testing.T) {
+	started := make(chan struct{})
+	release := make(chan struct{})
+	var calls atomic.Int32
+	manager := &Manager{
+		cfg: &Config{},
+		storeFactory: func(string) (*store, error) {
+			calls.Add(1)
+			close(started)
+			<-release
+			return &store{}, nil
+		},
+	}
+	type result struct {
+		st  *store
+		err error
+	}
+	results := make(chan result, 2)
+	for i := 0; i < 2; i++ {
+		utils.GoSafe(func() {
+			st, err := manager.StoreWithError()
+			results <- result{st: st, err: err}
+		})
+		if i == 0 {
+			select {
+			case <-started:
+			case <-time.After(time.Second):
+				t.Fatal("store factory did not start")
+			}
+		}
+	}
+	close(release)
+	first, second := <-results, <-results
+	if first.err != nil || second.err != nil {
+		t.Fatalf("StoreWithError errors=(%v,%v)", first.err, second.err)
+	}
+	if first.st == nil || first.st != second.st {
+		t.Fatalf("concurrent calls returned different stores: %p, %p", first.st, second.st)
+	}
+	if got := calls.Load(); got != 1 {
+		t.Fatalf("store factory calls=%d, want 1", got)
 	}
 }
 
