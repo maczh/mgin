@@ -172,6 +172,7 @@ func CloseAll(ctx context.Context) error {
 				}
 			}()
 			if err := safeClose(p, ctx); err != nil {
+				logs.Error("关闭插件{}失败:{}", p.Name(), err)
 				if firstErr == nil {
 					firstErr = err
 				}

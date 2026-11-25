@@ -3,6 +3,7 @@ package plugin
 import (
 	"context"
 	"errors"
+	"reflect"
 	"strings"
 
 	"github.com/maczh/mgin/v2/pkg/config"
@@ -150,7 +151,7 @@ func Registry() Plugin {
 			if config.Config == nil {
 				return errors.New("config is nil")
 			}
-			if registry.Registry == nil {
+			if isNilRegistry(registry.Registry) {
 				return errors.New("registry is nil")
 			}
 			if registrar, ok := registry.Registry.(registry.ConfiguredRegistrar); ok {
@@ -170,12 +171,25 @@ func Registry() Plugin {
 			return nil
 		},
 		closeFn: func(ctx context.Context) error {
-			if registry.Registry != nil {
+			if !isNilRegistry(registry.Registry) {
 				registry.Registry.DeRegister()
 			}
 			return nil
 		},
 		healthFn: func() error { return nil },
+	}
+}
+
+func isNilRegistry(value registry.RegistryClient) bool {
+	if value == nil {
+		return true
+	}
+	v := reflect.ValueOf(value)
+	switch v.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return v.IsNil()
+	default:
+		return false
 	}
 }
 
