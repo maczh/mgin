@@ -54,7 +54,7 @@ func enabled(name string) bool {
 	if config.Config == nil {
 		return false
 	}
-	return strings.Contains(config.Config.Config.Used, name)
+	return configured(config.Config.Config.Used, name)
 }
 
 // getCfg 取某前缀对应的配置字节（nil 表示未配置）。
@@ -144,9 +144,7 @@ func Registry() Plugin {
 				return true
 			}
 			used := config.Config.Config.Used
-			return strings.Contains(used, "nacos") ||
-				strings.Contains(used, "etcd") ||
-				strings.Contains(used, "consul")
+			return configured(used, "nacos") || configured(used, "etcd") || configured(used, "consul")
 		},
 		initFn: func(ctx context.Context) error {
 			if config.Config == nil {
@@ -160,13 +158,13 @@ func Registry() Plugin {
 				return nil
 			}
 			used := config.Config.Config.Used
-			if strings.Contains(used, "nacos") {
+			if configured(used, "nacos") {
 				registry.Registry.Register(getCfg(config.Config.Config.Prefix.Nacos))
 			}
-			if strings.Contains(used, "etcd") {
+			if configured(used, "etcd") {
 				registry.Registry.Register(getCfg(config.Config.Config.Prefix.Etcd))
 			}
-			if strings.Contains(used, "consul") {
+			if configured(used, "consul") {
 				registry.Registry.Register(getCfg(config.Config.Config.Prefix.Consul))
 			}
 			return nil
@@ -179,6 +177,15 @@ func Registry() Plugin {
 		},
 		healthFn: func() error { return nil },
 	}
+}
+
+func configured(used, name string) bool {
+	for _, item := range strings.Split(used, ",") {
+		if strings.EqualFold(strings.TrimSpace(item), name) {
+			return true
+		}
+	}
+	return false
 }
 
 // ---- 定时任务 适配 ----
