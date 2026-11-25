@@ -13,3 +13,5 @@
 - App shutdown no longer creates an orphan health-check waiter, and listener startup failures now enter the shutdown path instead of waiting indefinitely for a signal.
 - Etcd deregistration waits for its lease-renewal worker before deleting the instance key; Etcd/Nacos/Consul renewal panic paths are reported and supervised.
 - `CmdRunWithTimeout` rejects nil or unstarted commands safely and no longer needs a second waiter goroutine after timeout.
+- Logsink queue capacity is consistently documented as a default/maximum of 1024; oversized configuration falls back to that limit.
+- Job store initialization performs database I/O outside its coordination mutex while concurrent callers share one initialization result.
