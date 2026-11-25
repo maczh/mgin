@@ -342,9 +342,6 @@ func (m *MySQLDao[E]) WhereExists(query interface{}, args ...interface{}) bool {
 
 // Create mysql动态插入数据
 func (receiver *MySQLDao[E]) Create(entity *E) error {
-	if receiver.Tag == nil {
-		receiver.Tag = notag
-	}
 	conn, err := receiver.connection()
 	if err != nil {
 		logger.Error("数据库连接失败: " + err.Error())
@@ -367,9 +364,6 @@ func (receiver *MySQLDao[E]) Create(entity *E) error {
 
 // MultiCreate mysql动态插入多条数据
 func (receiver *MySQLDao[E]) MultiCreate(entities []*E) error {
-	if receiver.Tag == nil {
-		receiver.Tag = notag
-	}
 	conn, err := receiver.connection()
 	if err != nil {
 		logger.Error("数据库连接失败: " + err.Error())
@@ -392,9 +386,6 @@ func (receiver *MySQLDao[E]) MultiCreate(entities []*E) error {
 
 // Delete mysql动态删除数据
 func (receiver *MySQLDao[E]) Delete(entity E) error {
-	if receiver.Tag == nil {
-		receiver.Tag = notag
-	}
 	conn, err := receiver.connection()
 	if err != nil {
 		logger.Error("数据库连接失败: " + err.Error())
@@ -418,9 +409,6 @@ func (receiver *MySQLDao[E]) Delete(entity E) error {
 
 // Updates mysql动态更新数据
 func (receiver *MySQLDao[E]) Updates(entity *E) error {
-	if receiver.Tag == nil {
-		receiver.Tag = notag
-	}
 	conn, err := receiver.connection()
 	if err != nil {
 		logger.Error("数据库连接失败: " + err.Error())
@@ -443,9 +431,6 @@ func (receiver *MySQLDao[E]) Updates(entity *E) error {
 
 // Save mysql动态保存数据
 func (receiver *MySQLDao[E]) Save(entity *E) error {
-	if receiver.Tag == nil {
-		receiver.Tag = notag
-	}
 	conn, err := receiver.connection()
 	if err != nil {
 		logger.Error("数据库连接失败: " + err.Error())
@@ -468,9 +453,6 @@ func (receiver *MySQLDao[E]) Save(entity *E) error {
 
 // All mysql动态查询数据
 func (receiver *MySQLDao[E]) All(entity E, opts ...QueryOption) ([]E, error) {
-	if receiver.Tag == nil {
-		receiver.Tag = notag
-	}
 	conn, err := receiver.connection()
 	if err != nil {
 		logger.Error("数据库连接失败: " + err.Error())
@@ -516,9 +498,6 @@ func (receiver *MySQLDao[E]) All(entity E, opts ...QueryOption) ([]E, error) {
 
 // One mysql动态查询一条数据
 func (receiver *MySQLDao[E]) One(entity E) (*E, error) {
-	if receiver.Tag == nil {
-		receiver.Tag = notag
-	}
 	conn, err := receiver.connection()
 	if err != nil {
 		logger.Error("数据库连接失败: " + err.Error())
@@ -551,9 +530,6 @@ func (receiver *MySQLDao[E]) One(entity E) (*E, error) {
 
 // Exists mysql动态查询是否存在数据
 func (receiver *MySQLDao[E]) Exists(entity E) bool {
-	if receiver.Tag == nil {
-		receiver.Tag = notag
-	}
 	conn, err := receiver.connection()
 	if err != nil {
 		logger.Error("数据库连接失败: " + err.Error())
@@ -581,9 +557,6 @@ func (receiver *MySQLDao[E]) Exists(entity E) bool {
 
 // Count mysql统计记录数
 func (receiver *MySQLDao[E]) Count(entity E) (int64, error) {
-	if receiver.Tag == nil {
-		receiver.Tag = notag
-	}
 	conn, err := receiver.connection()
 	if err != nil {
 		logger.Error("数据库连接失败: " + err.Error())
@@ -661,9 +634,6 @@ func (receiver *MySQLDao[E]) Pager(conn *gorm.DB, page, size int) ([]E, *models.
 }
 
 func (receiver *MySQLDao[E]) Alias(alias string) *gorm.DB {
-	if receiver.Tag == nil {
-		receiver.Tag = notag
-	}
 	conn, err := receiver.connection()
 	if err != nil {
 		logger.Error("数据库连接失败: " + err.Error())
@@ -674,9 +644,6 @@ func (receiver *MySQLDao[E]) Alias(alias string) *gorm.DB {
 }
 
 func (receiver *MySQLDao[E]) DB() *gorm.DB {
-	if receiver.Tag == nil {
-		receiver.Tag = notag
-	}
 	conn, err := receiver.connection()
 	if err != nil {
 		logger.Error("数据库连接失败: " + err.Error())
