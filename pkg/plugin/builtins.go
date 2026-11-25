@@ -23,27 +23,49 @@ type funcPlugin struct {
 	enabledFn func() bool
 }
 
-func (p *funcPlugin) Name() string { return p.name }
-func (p *funcPlugin) Order() int   { return p.order }
+func (p *funcPlugin) Name() string {
+	if p == nil {
+		return ""
+	}
+	return p.name
+}
+func (p *funcPlugin) Order() int {
+	if p == nil {
+		return 0
+	}
+	return p.order
+}
 func (p *funcPlugin) Init(ctx context.Context) error {
+	if p == nil {
+		return errors.New("plugin is nil")
+	}
 	if p.initFn != nil {
 		return p.initFn(ctx)
 	}
 	return nil
 }
 func (p *funcPlugin) Close(ctx context.Context) error {
+	if p == nil {
+		return errors.New("plugin is nil")
+	}
 	if p.closeFn != nil {
 		return p.closeFn(ctx)
 	}
 	return nil
 }
 func (p *funcPlugin) Health() error {
+	if p == nil {
+		return errors.New("plugin is nil")
+	}
 	if p.healthFn != nil {
 		return p.healthFn()
 	}
 	return nil
 }
 func (p *funcPlugin) Enabled() bool {
+	if p == nil {
+		return false
+	}
 	if p.enabledFn != nil {
 		return p.enabledFn()
 	}
