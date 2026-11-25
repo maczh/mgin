@@ -51,13 +51,17 @@ func (p *funcPlugin) Enabled() bool {
 
 // enabled 判断某组件是否在 go.config.used 中被启用。
 func enabled(name string) bool {
-	if config.Config == nil { return false }
+	if config.Config == nil {
+		return false
+	}
 	return strings.Contains(config.Config.Config.Used, name)
 }
 
 // getCfg 取某前缀对应的配置字节（nil 表示未配置）。
 func getCfg(prefix string) []byte {
-	if config.Config == nil { return nil }
+	if config.Config == nil {
+		return nil
+	}
 	return config.Config.GetConfigData(prefix)
 }
 
@@ -68,7 +72,9 @@ func Mysql() Plugin {
 		name: "mysql", order: 10,
 		enabledFn: func() bool { return enabled("mysql") },
 		initFn: func(ctx context.Context) error {
-			if config.Config == nil { return errors.New("config is nil") }
+			if config.Config == nil {
+				return errors.New("config is nil")
+			}
 			return db.Mysql.InitWithError(getCfg(config.Config.Config.Prefix.Mysql))
 		},
 		closeFn:  func(ctx context.Context) error { db.Mysql.Close(); return nil },
@@ -82,7 +88,9 @@ func Sqlite() Plugin {
 		enabledFn: func() bool { return enabled("sqlite") },
 		// sqlite 的 Init 接收前缀字符串（而非配置字节），与旧 mgin.Init 行为一致
 		initFn: func(ctx context.Context) error {
-			if config.Config == nil { return errors.New("config is nil") }
+			if config.Config == nil {
+				return errors.New("config is nil")
+			}
 			db.Sqlite.Init(config.Config.Config.Prefix.Sqlite)
 			return nil
 		},
@@ -96,7 +104,9 @@ func Mongodb() Plugin {
 		name: "mongodb", order: 10,
 		enabledFn: func() bool { return enabled("mongodb") },
 		initFn: func(ctx context.Context) error {
-			if config.Config == nil { return errors.New("config is nil") }
+			if config.Config == nil {
+				return errors.New("config is nil")
+			}
 			db.Mongo.Init(getCfg(config.Config.Config.Prefix.Mongodb))
 			return nil
 		},
@@ -110,7 +120,9 @@ func Redis() Plugin {
 		name: "redis", order: 15, // 缓存先于业务 DB 之后、MQ 之前
 		enabledFn: func() bool { return enabled("redis") },
 		initFn: func(ctx context.Context) error {
-			if config.Config == nil { return errors.New("config is nil") }
+			if config.Config == nil {
+				return errors.New("config is nil")
+			}
 			db.Redis.Init(getCfg(config.Config.Config.Prefix.Redis))
 			return nil
 		},
@@ -125,7 +137,9 @@ func Registry() Plugin {
 	return &funcPlugin{
 		name: "registry", order: 30,
 		enabledFn: func() bool {
-			if config.Config == nil { return false }
+			if config.Config == nil {
+				return false
+			}
 			if len(config.Config.Discovery.Registries) > 0 {
 				return true
 			}
@@ -135,8 +149,12 @@ func Registry() Plugin {
 				strings.Contains(used, "consul")
 		},
 		initFn: func(ctx context.Context) error {
-			if config.Config == nil { return errors.New("config is nil") }
-			if registry.Registry == nil { return errors.New("registry is nil") }
+			if config.Config == nil {
+				return errors.New("config is nil")
+			}
+			if registry.Registry == nil {
+				return errors.New("registry is nil")
+			}
 			if registrar, ok := registry.Registry.(registry.ConfiguredRegistrar); ok {
 				registrar.RegisterConfigured()
 				return nil
@@ -153,8 +171,10 @@ func Registry() Plugin {
 			}
 			return nil
 		},
-		closeFn:  func(ctx context.Context) error {
-			if registry.Registry != nil { registry.Registry.DeRegister() }
+		closeFn: func(ctx context.Context) error {
+			if registry.Registry != nil {
+				registry.Registry.DeRegister()
+			}
 			return nil
 		},
 		healthFn: func() error { return nil },

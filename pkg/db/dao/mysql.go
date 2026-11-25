@@ -44,7 +44,9 @@ type CacheConfig struct {
 var logger = gologger.GetLogger()
 
 func (m *MySQLDao[E]) Debug() *MySQLDao[E] {
-	if m == nil { return nil }
+	if m == nil {
+		return nil
+	}
 	return &MySQLDao[E]{
 		debug: true,
 		Tag:   m.Tag,
@@ -70,7 +72,9 @@ func (m *MySQLDao[E]) connection() (*gorm.DB, error) {
 	ctx := m.ctx
 	var err error
 	if conn == nil {
-		if tag == nil { tag = notag }
+		if tag == nil {
+			tag = notag
+		}
 		conn, err = db.Mysql.GetConnection(tag())
 		if err != nil {
 			return nil, err
@@ -89,7 +93,9 @@ func (m *MySQLDao[E]) connection() (*gorm.DB, error) {
 }
 
 func (m *MySQLDao[E]) WithContext(ctx *context.Context) *MySQLDao[E] {
-	if m == nil { return nil }
+	if m == nil {
+		return nil
+	}
 	clone := *m
 	clone.ctx = ctx
 	return &clone
@@ -97,7 +103,9 @@ func (m *MySQLDao[E]) WithContext(ctx *context.Context) *MySQLDao[E] {
 
 // WithCache enables configurable result caching for this DAO.
 func (m *MySQLDao[E]) WithCache(config CacheConfig) *MySQLDao[E] {
-	if m == nil { return nil }
+	if m == nil {
+		return nil
+	}
 	if config.Prefix == "" {
 		config.Prefix = "mgin:mysql:"
 	}
@@ -245,39 +253,72 @@ func (m *MySQLDao[E]) whereCacheKey(op string, query interface{}, args ...interf
 	if m == nil || m.tx != nil {
 		return "", false
 	}
-	return m.cacheKey(op, struct { Query interface{}; Args []interface{} }{query, args})
+	return m.cacheKey(op, struct {
+		Query interface{}
+		Args  []interface{}
+	}{query, args})
 }
 
 // WhereAll, WhereOne and WhereCount are cached conditional queries.
 func (m *MySQLDao[E]) WhereAll(query interface{}, args ...interface{}) ([]E, error) {
 	var result []E
 	key, ok := m.whereCacheKey("where_all", query, args...)
-	if ok && m.loadCached(key, &result) { return result, nil }
-	conn := m.Where(query, args...); if conn == nil { return nil, errors.New("数据库连接失败") }
+	if ok && m.loadCached(key, &result) {
+		return result, nil
+	}
+	conn := m.Where(query, args...)
+	if conn == nil {
+		return nil, errors.New("数据库连接失败")
+	}
 	result = make([]E, 0)
-	if err := conn.Find(&result).Error; err != nil { return nil, errors.New("数据库查询失败") }
-	if ok { m.storeCached(key, result) }
+	if err := conn.Find(&result).Error; err != nil {
+		return nil, errors.New("数据库查询失败")
+	}
+	if ok {
+		m.storeCached(key, result)
+	}
 	return result, nil
 }
 
 func (m *MySQLDao[E]) WhereOne(query interface{}, args ...interface{}) (*E, error) {
 	var result E
 	key, ok := m.whereCacheKey("where_one", query, args...)
-	if ok && m.loadCached(key, &result) { return &result, nil }
-	conn := m.Where(query, args...); if conn == nil { return nil, errors.New("数据库连接失败") }
-	if err := conn.First(&result).Error; err != nil { if errors.Is(err, gorm.ErrRecordNotFound) { return nil, nil }; return nil, errors.New("数据库查询失败") }
-	if ok { m.storeCached(key, result) }
+	if ok && m.loadCached(key, &result) {
+		return &result, nil
+	}
+	conn := m.Where(query, args...)
+	if conn == nil {
+		return nil, errors.New("数据库连接失败")
+	}
+	if err := conn.First(&result).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, errors.New("数据库查询失败")
+	}
+	if ok {
+		m.storeCached(key, result)
+	}
 	return &result, nil
 }
 
 func (m *MySQLDao[E]) WhereCount(query interface{}, args ...interface{}) (int64, error) {
 	var count int64
 	key, ok := m.whereCacheKey("where_count", query, args...)
-	if ok && m.loadCached(key, &count) { return count, nil }
-	conn := m.Where(query, args...); if conn == nil { return 0, errors.New("数据库连接失败") }
+	if ok && m.loadCached(key, &count) {
+		return count, nil
+	}
+	conn := m.Where(query, args...)
+	if conn == nil {
+		return 0, errors.New("数据库连接失败")
+	}
 	var entity E
-	if err := conn.Model(&entity).Count(&count).Error; err != nil { return 0, errors.New("数据库查询失败") }
-	if ok { m.storeCached(key, count) }
+	if err := conn.Model(&entity).Count(&count).Error; err != nil {
+		return 0, errors.New("数据库查询失败")
+	}
+	if ok {
+		m.storeCached(key, count)
+	}
 	return count, nil
 }
 
@@ -285,10 +326,17 @@ func (m *MySQLDao[E]) WhereExists(query interface{}, args ...interface{}) bool {
 	var result E
 	key, ok := m.whereCacheKey("where_exists", query, args...)
 	var exists bool
-	if ok && m.loadCached(key, &exists) { return exists }
-	conn := m.Where(query, args...); if conn == nil { return false }
+	if ok && m.loadCached(key, &exists) {
+		return exists
+	}
+	conn := m.Where(query, args...)
+	if conn == nil {
+		return false
+	}
 	exists = conn.First(&result).Error == nil
-	if ok { m.storeCached(key, exists) }
+	if ok {
+		m.storeCached(key, exists)
+	}
 	return exists
 }
 

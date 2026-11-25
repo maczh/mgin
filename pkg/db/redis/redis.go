@@ -33,7 +33,9 @@ var Redis = &RedisClient{}
 var logger = gologger.GetLogger()
 
 func (r *RedisClient) Init(redisConfigData []byte) {
-	if r == nil { return }
+	if r == nil {
+		return
+	}
 	r.initMu.Lock()
 	defer r.initMu.Unlock()
 	r.mu.Lock()
@@ -183,17 +185,23 @@ func (r *RedisClient) Init(redisConfigData []byte) {
 }
 
 func (r *RedisClient) Close() {
-	if r == nil { return }
+	if r == nil {
+		return
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.multi {
 		for dbName, rc := range r.clients {
-			if rc != nil { _ = rc.Close() }
+			if rc != nil {
+				_ = rc.Close()
+			}
 			delete(r.clients, dbName)
 		}
 	} else {
 		if client, ok := r.clients["0"]; ok {
-			if client != nil { _ = client.Close() }
+			if client != nil {
+				_ = client.Close()
+			}
 			delete(r.clients, "0")
 		}
 	}
@@ -216,13 +224,22 @@ func (r *RedisClient) redisCheck(dbName string) error {
 }
 
 func (r *RedisClient) Check() error {
-	if r == nil { return errors.New("Redis is nil") }
+	if r == nil {
+		return errors.New("Redis is nil")
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	var firstErr error
 	for name, client := range r.clients {
-		if client == nil { if firstErr == nil { firstErr = fmt.Errorf("%s Redis client is nil", name) }; continue }
-		if err := client.Ping().Err(); err != nil && firstErr == nil { firstErr = err }
+		if client == nil {
+			if firstErr == nil {
+				firstErr = fmt.Errorf("%s Redis client is nil", name)
+			}
+			continue
+		}
+		if err := client.Ping().Err(); err != nil && firstErr == nil {
+			firstErr = err
+		}
 	}
 	return firstErr
 	//var err error
@@ -248,11 +265,12 @@ func (r *RedisClient) Check() error {
 	//		}
 	//	}
 	//}
-	return nil
 }
 
 func (r *RedisClient) GetConnection(dbName ...string) (redis.UniversalClient, error) {
-	if r == nil { return nil, errors.New("Redis is nil") }
+	if r == nil {
+		return nil, errors.New("Redis is nil")
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	if r.multi {
@@ -285,20 +303,28 @@ func (r *RedisClient) GetConnection(dbName ...string) (redis.UniversalClient, er
 }
 
 func (r *RedisClient) IsMultiDB() bool {
-	if r == nil { return false }
-	r.mu.RLock(); defer r.mu.RUnlock()
+	if r == nil {
+		return false
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	return r.multi
 }
 
 func (r *RedisClient) ListConnNames() []string {
-	if r == nil { return nil }
-	r.mu.RLock(); defer r.mu.RUnlock()
+	if r == nil {
+		return nil
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	return append([]string(nil), r.conns...)
 }
 
 // PSubscribe 订阅消息并自动重连
 func (r *RedisClient) PSubscribe(dbName string, handler func(msg *redis.Message, dbName string), channels ...string) {
-	if r == nil || handler == nil { return }
+	if r == nil || handler == nil {
+		return
+	}
 	localChannels := append([]string(nil), channels...)
 	go func() {
 		for {
@@ -326,7 +352,11 @@ func (r *RedisClient) PSubscribe(dbName string, handler func(msg *redis.Message,
 			for msg := range ch {
 				logs.Debug("收到Redis消息:{}", msg.Payload)
 				func() {
-					defer func() { if recovered := recover(); recovered != nil { logs.Error("Redis订阅回调异常:{}", recovered) } }()
+					defer func() {
+						if recovered := recover(); recovered != nil {
+							logs.Error("Redis订阅回调异常:{}", recovered)
+						}
+					}()
 					handler(msg, dbName)
 				}()
 			}

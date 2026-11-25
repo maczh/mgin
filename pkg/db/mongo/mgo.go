@@ -35,7 +35,9 @@ type connection struct {
 var logger = gologger.GetLogger()
 
 func (m *Mongodb) Init(mongodbConfigData []byte) {
-	if m == nil { return }
+	if m == nil {
+		return
+	}
 	m.initMu.Lock()
 	defer m.initMu.Unlock()
 	m.mu.Lock()
@@ -131,7 +133,9 @@ func (m *Mongodb) Close() {
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if m.conns == nil { return }
+	if m.conns == nil {
+		return
+	}
 	if m.multi {
 		for k, conn := range m.conns {
 			if conn.conn != nil {
@@ -223,7 +227,9 @@ func (m *Mongodb) GetConnection(dbName ...string) (*mgo.Database, error) {
 			return nil, err
 		}
 		copy := m.conns[dbName[0]].conn.Copy()
-		if copy == nil { return nil, errors.New("MongoDB session copy failed") }
+		if copy == nil {
+			return nil, errors.New("MongoDB session copy failed")
+		}
 		return copy.DB(m.conns[dbName[0]].db), nil
 	} else {
 		if err := m.mgoCheck("0"); err != nil {
@@ -237,7 +243,9 @@ func (m *Mongodb) GetConnection(dbName ...string) (*mgo.Database, error) {
 			return nil, errors.New("Mongodb connection failed")
 		}
 		copy := conn.conn.Copy()
-		if copy == nil { return nil, errors.New("MongoDB session copy failed") }
+		if copy == nil {
+			return nil, errors.New("MongoDB session copy failed")
+		}
 		return copy.DB(conn.db), nil
 	}
 }
@@ -250,13 +258,19 @@ func (m *Mongodb) ReturnConnection(conn *mgo.Database) {
 }
 
 func (m *Mongodb) IsMultiDB() bool {
-	if m == nil { return false }
-	m.mu.RLock(); defer m.mu.RUnlock()
+	if m == nil {
+		return false
+	}
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	return m.multi
 }
 
 func (m *Mongodb) ListConnNames() []string {
-	if m == nil { return nil }
-	m.mu.RLock(); defer m.mu.RUnlock()
+	if m == nil {
+		return nil
+	}
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	return append([]string(nil), m.tags...)
 }

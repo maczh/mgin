@@ -45,7 +45,9 @@ func (m *Sqlite) Init(dbFileName string) {
 }
 
 func (m *Sqlite) Close() {
-	if m == nil { return }
+	if m == nil {
+		return
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.sqlite != nil {
@@ -57,17 +59,25 @@ func (m *Sqlite) Close() {
 }
 
 func (m *Sqlite) Check() error {
-	if m == nil { return errors.New("SQLite is nil") }
+	if m == nil {
+		return errors.New("SQLite is nil")
+	}
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	if m.sqlite == nil { return errors.New("SQLite not opened") }
+	if m.sqlite == nil {
+		return errors.New("SQLite not opened")
+	}
 	db, err := m.sqlite.DB()
-	if err != nil || db == nil { return errors.New("SQLite connection unavailable") }
+	if err != nil || db == nil {
+		return errors.New("SQLite connection unavailable")
+	}
 	return db.Ping()
 }
 
 func (m *Sqlite) GetConnection() (*gorm.DB, error) {
-	if m == nil { return nil, errors.New("SQLite is nil") }
+	if m == nil {
+		return nil, errors.New("SQLite is nil")
+	}
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	if m.sqlite == nil {

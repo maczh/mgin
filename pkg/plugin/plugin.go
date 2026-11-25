@@ -120,7 +120,9 @@ func InitAll(ctx context.Context) error {
 		enabled, err := safeEnabled(p)
 		if err != nil {
 			logs.Error("检查插件{}启用状态失败:{}", p.Name(), err)
-			if firstErr == nil { firstErr = err }
+			if firstErr == nil {
+				firstErr = err
+			}
 			continue
 		}
 		if !enabled {
@@ -150,7 +152,9 @@ func CloseAll(ctx context.Context) error {
 		p := ps[i]
 		enabled, err := safeEnabled(p)
 		if err != nil {
-			if firstErr == nil { firstErr = err }
+			if firstErr == nil {
+				firstErr = err
+			}
 			continue
 		}
 		if !enabled {
@@ -162,7 +166,9 @@ func CloseAll(ctx context.Context) error {
 				if r := recover(); r != nil {
 					err := fmt.Errorf("plugin %s close panic: %v", p.Name(), r)
 					logs.Error("{}", string(debug.Stack()))
-					if firstErr == nil { firstErr = err }
+					if firstErr == nil {
+						firstErr = err
+					}
 				}
 			}()
 			if err := safeClose(p, ctx); err != nil {
@@ -193,21 +199,37 @@ func HealthAll() map[string]error {
 }
 
 func safeEnabled(p Plugin) (enabled bool, err error) {
-	defer func() { if r := recover(); r != nil { err = fmt.Errorf("plugin enabled panic: %v", r) } }()
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("plugin enabled panic: %v", r)
+		}
+	}()
 	return p.Enabled(), nil
 }
 
 func safeInit(p Plugin, ctx context.Context) (err error) {
-	defer func() { if r := recover(); r != nil { err = fmt.Errorf("plugin %s init panic: %v", p.Name(), r) } }()
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("plugin %s init panic: %v", p.Name(), r)
+		}
+	}()
 	return p.Init(ctx)
 }
 
 func safeClose(p Plugin, ctx context.Context) (err error) {
-	defer func() { if r := recover(); r != nil { err = fmt.Errorf("plugin %s close panic: %v", p.Name(), r) } }()
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("plugin %s close panic: %v", p.Name(), r)
+		}
+	}()
 	return p.Close(ctx)
 }
 
 func safeHealth(p Plugin) (err error) {
-	defer func() { if r := recover(); r != nil { err = fmt.Errorf("plugin %s health panic: %v", p.Name(), r) } }()
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("plugin %s health panic: %v", p.Name(), r)
+		}
+	}()
 	return p.Health()
 }
