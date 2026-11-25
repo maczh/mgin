@@ -366,7 +366,6 @@ func pubKeyIO(pub *rsa.PublicKey, in io.Reader, out io.Writer, isEncrytp bool) (
 			return err
 		}
 	}
-	return nil
 }
 
 // 私钥加密或解密Reader
@@ -403,7 +402,6 @@ func priKeyIO(pri *rsa.PrivateKey, r io.Reader, w io.Writer, isEncrytp bool) (er
 			return err
 		}
 	}
-	return nil
 }
 
 // 公钥解密
