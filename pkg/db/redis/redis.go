@@ -28,6 +28,7 @@ type RedisClient struct {
 	confData []byte
 	conns    []string
 	closed   bool
+	initErr  error
 }
 
 var Redis = &RedisClient{}
@@ -43,6 +44,7 @@ func (r *RedisClient) Init(redisConfigData []byte) {
 	defer r.initMu.Unlock()
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	r.initErr = nil
 	if r.closed {
 		return
 	}
@@ -74,6 +76,7 @@ func (r *RedisClient) Init(redisConfigData []byte) {
 			r.conf = koanf.New(".")
 			err = r.conf.Load(rawbytes.Provider(r.confData), yaml.Parser())
 			if err != nil {
+				r.initErr = err
 				logger.Error("Redis配置文件解析错误:" + err.Error())
 				r.conf = nil
 				return
@@ -135,6 +138,7 @@ func (r *RedisClient) Init(redisConfigData []byte) {
 					addrs = append(addrs, fmt.Sprintf("%s:%s", addr, ports[i]))
 				}
 				if len(addrs) == 0 {
+					r.initErr = errors.New("Redis address is empty")
 					return
 				}
 				uo.Addrs = addrs
@@ -181,6 +185,7 @@ func (r *RedisClient) Init(redisConfigData []byte) {
 			if err := rc.Ping().Err(); err != nil {
 				logger.Error(dbName + " Redis连接失败:" + err.Error())
 				if err.Error() != "ERR SELECT is not allowed in cluster mode" {
+					r.initErr = err
 					continue
 				}
 			}
@@ -188,6 +193,16 @@ func (r *RedisClient) Init(redisConfigData []byte) {
 			r.clients[dbName] = rc
 		}
 	}
+}
+
+func (r *RedisClient) InitWithError(redisConfigData []byte) error {
+	if r == nil {
+		return errors.New("Redis is nil")
+	}
+	r.Init(redisConfigData)
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.initErr
 }
 
 func (r *RedisClient) Close() {
@@ -239,6 +254,10 @@ func (r *RedisClient) Check() error {
 	if r.closed {
 		r.mu.RUnlock()
 		return ErrClosed
+	}
+	if len(r.clients) == 0 {
+		r.mu.RUnlock()
+		return errors.New("Redis clients are unavailable")
 	}
 	clients := make(map[string]redis.UniversalClient, len(r.clients))
 	for name, client := range r.clients {

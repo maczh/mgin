@@ -129,8 +129,7 @@ func Mongodb() Plugin {
 			if config.Config == nil {
 				return errors.New("config is nil")
 			}
-			db.Mongo.Init(getCfg(config.Config.Config.Prefix.Mongodb))
-			return nil
+			return db.Mongo.InitWithError(getCfg(config.Config.Config.Prefix.Mongodb))
 		},
 		closeFn:  func(ctx context.Context) error { db.Mongo.Close(); return nil },
 		healthFn: func() error { return db.Mongo.Check() },
@@ -145,8 +144,7 @@ func Redis() Plugin {
 			if config.Config == nil {
 				return errors.New("config is nil")
 			}
-			db.Redis.Init(getCfg(config.Config.Config.Prefix.Redis))
-			return nil
+			return db.Redis.InitWithError(getCfg(config.Config.Config.Prefix.Redis))
 		},
 		closeFn:  func(ctx context.Context) error { db.Redis.Close(); return nil },
 		healthFn: func() error { return db.Redis.Check() },

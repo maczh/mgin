@@ -25,6 +25,7 @@ type Mongodb struct {
 	confUrl  string
 	confData []byte
 	closed   bool
+	initErr  error
 }
 
 type connection struct {
@@ -44,6 +45,7 @@ func (m *Mongodb) Init(mongodbConfigData []byte) {
 	defer m.initMu.Unlock()
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	m.initErr = nil
 	if m.closed {
 		return
 	}
@@ -79,6 +81,7 @@ func (m *Mongodb) Init(mongodbConfigData []byte) {
 			m.conf = koanf.New(".")
 			err = m.conf.Load(rawbytes.Provider(m.confData), yaml.Parser())
 			if err != nil {
+				m.initErr = err
 				logger.Error("MongoDB配置解析错误:" + err.Error())
 				m.conf = nil
 				return
@@ -120,6 +123,7 @@ func (m *Mongodb) Init(mongodbConfigData []byte) {
 			}
 			conn, err := mgo.DialWithTimeout(m.conf.String("go.data.mongodb.uri"), 10*time.Second, m.max)
 			if err != nil {
+				m.initErr = err
 				logger.Error("MongoDB连接错误:" + err.Error())
 				return
 			}
@@ -130,6 +134,16 @@ func (m *Mongodb) Init(mongodbConfigData []byte) {
 			}
 		}
 	}
+}
+
+func (m *Mongodb) InitWithError(mongodbConfigData []byte) error {
+	if m == nil {
+		return errors.New("Mongodb is nil")
+	}
+	m.Init(mongodbConfigData)
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.initErr
 }
 
 func (m *Mongodb) Close() {
