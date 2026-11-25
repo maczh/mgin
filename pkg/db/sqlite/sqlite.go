@@ -33,12 +33,19 @@ func validateSqlite(conn *gorm.DB) error {
 }
 
 func (m *Sqlite) Init(dbFileName string) {
+	_ = m.InitWithError(dbFileName)
+}
+
+func (m *Sqlite) InitWithError(dbFileName string) error {
 	if m == nil || config.Config == nil {
-		return
+		return errors.New("SQLite configuration is unavailable")
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	path, _ := filepath.Abs(filepath.Dir(os.Args[0]))
+	path, err := filepath.Abs(filepath.Dir(os.Args[0]))
+	if err != nil {
+		return err
+	}
 	if dbFileName == "" {
 		dbFileName = fmt.Sprintf("%s/%s.db", path, config.Config.App.Name)
 	} else if !filepath.IsAbs(dbFileName) && !(len(dbFileName) >= 2 && dbFileName[1:2] == ":") {
@@ -46,13 +53,14 @@ func (m *Sqlite) Init(dbFileName string) {
 	}
 	m.dbFile = dbFileName
 	if m.sqlite == nil {
-		var err error
 		m.sqlite, err = gorm.Open(sqlite.Open(m.dbFile), &gorm.Config{Logger: logs.NewGORMLogger()})
 		if err != nil {
 			m.sqlite = nil
 			logger.Error("SQLite打开失败: " + err.Error())
+			return err
 		}
 	}
+	return nil
 }
 
 func (m *Sqlite) Close() {

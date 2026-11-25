@@ -114,8 +114,7 @@ func Sqlite() Plugin {
 			if config.Config == nil {
 				return errors.New("config is nil")
 			}
-			db.Sqlite.Init(config.Config.Config.Prefix.Sqlite)
-			return nil
+			return db.Sqlite.InitWithError(config.Config.Config.Prefix.Sqlite)
 		},
 		closeFn:  func(ctx context.Context) error { db.Sqlite.Close(); return nil },
 		healthFn: func() error { return db.Sqlite.Check() },
