@@ -1,6 +1,7 @@
 package redis
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -322,16 +323,37 @@ func (r *RedisClient) ListConnNames() []string {
 
 // PSubscribe 订阅消息并自动重连
 func (r *RedisClient) PSubscribe(dbName string, handler func(msg *redis.Message, dbName string), channels ...string) {
+	r.PSubscribeContext(context.Background(), dbName, handler, channels...)
+}
+
+// PSubscribeContext subscribes to channels and stops retrying when ctx is canceled.
+func (r *RedisClient) PSubscribeContext(ctx context.Context, dbName string, handler func(msg *redis.Message, dbName string), channels ...string) {
 	if r == nil || handler == nil {
 		return
+	}
+	if ctx == nil {
+		ctx = context.Background()
 	}
 	localChannels := append([]string(nil), channels...)
 	go func() {
 		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
 			conn, err := r.GetConnection(dbName)
 			if err != nil {
 				logger.Error("Redis connection failed: " + err.Error())
-				time.Sleep(time.Second)
+				timer := time.NewTimer(time.Second)
+				select {
+				case <-ctx.Done():
+					if !timer.Stop() {
+						<-timer.C
+					}
+					return
+				case <-timer.C:
+				}
 				continue
 			}
 			dbNum := 0
@@ -349,16 +371,29 @@ func (r *RedisClient) PSubscribe(dbName string, handler func(msg *redis.Message,
 				continue
 			}
 			ch := pubsub.Channel()
-			for msg := range ch {
-				logs.Debug("收到Redis消息:{}", msg.Payload)
-				func() {
-					defer func() {
-						if recovered := recover(); recovered != nil {
-							logs.Error("Redis订阅回调异常:{}", recovered)
-						}
+		subscribeLoop:
+			for {
+				select {
+				case <-ctx.Done():
+					_ = pubsub.Close()
+					return
+				case msg, ok := <-ch:
+					if !ok {
+						break subscribeLoop
+					}
+					logs.Debug("收到Redis消息:{}", msg.Payload)
+					func() {
+						defer func() {
+							if recovered := recover(); recovered != nil {
+								logs.Error("Redis订阅回调异常:{}", recovered)
+							}
+						}()
+						handler(msg, dbName)
 					}()
-					handler(msg, dbName)
-				}()
+				}
+				if ctx.Err() != nil {
+					return
+				}
 			}
 			logger.Error("Redis订阅异常退出")
 			pubsub.Close()
