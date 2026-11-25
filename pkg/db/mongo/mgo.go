@@ -54,11 +54,11 @@ func (m *Mongodb) Init(mongodbConfigData []byte) {
 	//	logger.Error("MongoDB配置Url为空")
 	//	return
 	//}
-	m.tags = make([]string, 0)
 	if m.conns == nil {
 		m.conns = make(map[string]connection)
 	}
 	if len(m.conns) == 0 {
+		m.tags = make([]string, 0)
 		if m.conf == nil {
 			//var confData []byte
 			var err error
@@ -199,24 +199,29 @@ func (m *Mongodb) Check() error {
 	if needsInit {
 		m.Init(confData)
 	}
-	var err error
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	m.mu.RLock()
 	if m.closed {
+		m.mu.RUnlock()
 		return ErrClosed
 	}
-	if m.multi {
-		for dbName := range m.conns {
-			err = m.mgoCheck(dbName)
-			if err != nil {
-				logger.Error(dbName + "连接检查失败:" + err.Error())
-				continue
-			}
-		}
-	} else {
-		err = m.mgoCheck("0")
+	connections := make(map[string]*mgo.Session, len(m.conns))
+	for name, conn := range m.conns {
+		connections[name] = conn.conn
 	}
-	return err
+	m.mu.RUnlock()
+	var firstErr error
+	for name, conn := range connections {
+		if conn == nil {
+			if firstErr == nil {
+				firstErr = errors.New("MongoDB connection not found")
+			}
+			continue
+		}
+		if err := conn.Ping(); err != nil && firstErr == nil {
+			firstErr = fmt.Errorf("%s: %w", name, err)
+		}
+	}
+	return firstErr
 }
 
 func (m *Mongodb) GetConnection(dbName ...string) (*mgo.Database, error) {
@@ -234,8 +239,8 @@ func (m *Mongodb) GetConnection(dbName ...string) (*mgo.Database, error) {
 	if needsInit {
 		m.Init(confData)
 	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	if m.closed {
 		return nil, ErrClosed
 	}
@@ -243,28 +248,23 @@ func (m *Mongodb) GetConnection(dbName ...string) (*mgo.Database, error) {
 		if len(dbName) > 1 || len(dbName) == 0 {
 			return nil, errors.New("Multidb Mongodb get connection must be specified one dbName")
 		}
-		if dbName[0] == "" {
+		tag := dbName[0]
+		if tag == "" {
 			if len(m.tags) == 0 {
 				return nil, errors.New("MongoDB multidb has no available database")
 			}
-			dbName[0] = m.tags[0]
+			tag = m.tags[0]
 		}
-		if _, ok := m.conns[dbName[0]]; !ok {
+		conn, ok := m.conns[tag]
+		if !ok || conn.conn == nil {
 			return nil, errors.New("MongoDB multidb db name invalid")
 		}
-		err := m.mgoCheck(dbName[0])
-		if err != nil {
-			return nil, err
-		}
-		copy := m.conns[dbName[0]].conn.Copy()
+		copy := conn.conn.Copy()
 		if copy == nil {
 			return nil, errors.New("MongoDB session copy failed")
 		}
-		return copy.DB(m.conns[dbName[0]].db), nil
+		return copy.DB(conn.db), nil
 	} else {
-		if err := m.mgoCheck("0"); err != nil {
-			return nil, err
-		}
 		if len(m.conns) == 0 {
 			return nil, errors.New("Mongodb connection failed")
 		}
