@@ -118,3 +118,26 @@ func TestInitAllIsIdempotentForInitializedPlugins(t *testing.T) {
 		t.Fatalf("Close calls=%d, want 1", p.closeCalls)
 	}
 }
+
+func TestInitAllClosesPreviouslyInitializedSameNamePluginBeforeReplacement(t *testing.T) {
+	oldPlugin := &repeatInitPlugin{}
+	newPlugin := &repeatInitPlugin{}
+	Register(oldPlugin)
+	defer Unregister("repeat-init-test")
+	if err := InitAll(context.Background()); err != nil {
+		t.Fatalf("initial InitAll: %v", err)
+	}
+	Register(newPlugin)
+	if err := InitAll(context.Background()); err != nil {
+		t.Fatalf("InitAll after replacement: %v", err)
+	}
+	if oldPlugin.closeCalls != 1 || newPlugin.initCalls != 1 {
+		t.Fatalf("old close=%d, replacement init=%d, want 1 each", oldPlugin.closeCalls, newPlugin.initCalls)
+	}
+	if err := CloseAll(context.Background()); err != nil {
+		t.Fatalf("CloseAll: %v", err)
+	}
+	if newPlugin.closeCalls != 1 {
+		t.Fatalf("replacement close=%d, want 1", newPlugin.closeCalls)
+	}
+}

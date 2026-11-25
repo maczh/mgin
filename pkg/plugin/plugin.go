@@ -35,18 +35,20 @@ type Plugin interface {
 }
 
 var (
-	mu          sync.RWMutex
-	lifecycleMu sync.Mutex
-	plugins     = make(map[string]Plugin)
-	meta        = make(map[string]pluginMeta)
-	initialized = make(map[string]pluginMeta)
-	order       = make([]string, 0) // 注册顺序，保证确定性
+	mu                     sync.RWMutex
+	lifecycleMu            sync.Mutex
+	plugins                = make(map[string]Plugin)
+	meta                   = make(map[string]pluginMeta)
+	initialized            = make(map[string]pluginMeta)
+	order                  = make([]string, 0) // 注册顺序，保证确定性
+	registrationGeneration uint64
 )
 
 type pluginMeta struct {
-	plugin Plugin
-	name   string
-	order  int
+	plugin     Plugin
+	name       string
+	order      int
+	generation uint64
 }
 
 // Register 注册一个插件。按 Name 去重：同名插件后注册者覆盖先注册者，
@@ -70,8 +72,9 @@ func Register(p Plugin) {
 	if _, ok := plugins[name]; !ok {
 		order = append(order, name)
 	}
+	registrationGeneration++
 	plugins[name] = p
-	meta[name] = pluginMeta{plugin: p, name: name, order: pluginOrder}
+	meta[name] = pluginMeta{plugin: p, name: name, order: pluginOrder, generation: registrationGeneration}
 }
 
 func isNilPlugin(p Plugin) bool {
@@ -147,10 +150,24 @@ func InitAll(ctx context.Context) error {
 	var firstErr error
 	for _, item := range sortedByOrder() {
 		mu.RLock()
-		_, alreadyInitialized := initialized[item.name]
+		initializedItem, alreadyInitialized := initialized[item.name]
 		mu.RUnlock()
 		if alreadyInitialized {
-			continue
+			if initializedItem.generation == item.generation {
+				continue
+			}
+			if err := safeClose(initializedItem.plugin, ctx, initializedItem.name); err != nil {
+				if firstErr == nil {
+					firstErr = err
+				}
+				logs.Error("替换插件{}前关闭旧实例失败:{}", item.name, err)
+				continue
+			}
+			mu.Lock()
+			if current, ok := initialized[item.name]; ok && current.generation == initializedItem.generation {
+				delete(initialized, item.name)
+			}
+			mu.Unlock()
 		}
 		p := item.plugin
 		enabled, err := safeEnabled(p)
