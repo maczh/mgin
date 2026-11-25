@@ -18,17 +18,31 @@ func NewRedisCache(client redis.UniversalClient) *RedisCache {
 }
 
 func (c *RedisCache) Add(key interface{}, value interface{}, lifeSpan time.Duration) {
+	if c == nil {
+		return
+	}
 	c.Set(key, value, lifeSpan)
 }
 
-func (c *RedisCache) Value(key interface{}) (interface{}, bool) { return c.Get(key) }
+func (c *RedisCache) Value(key interface{}) (interface{}, bool) {
+	if c == nil {
+		return nil, false
+	}
+	return c.Get(key)
+}
 
 func (c *RedisCache) IsExist(key interface{}) bool {
+	if c == nil {
+		return false
+	}
 	_, ok := c.Get(key)
 	return ok
 }
 
 func (c *RedisCache) Clear() bool {
+	if c == nil {
+		return false
+	}
 	if c.Client == nil {
 		return false
 	}
@@ -36,6 +50,9 @@ func (c *RedisCache) Clear() bool {
 }
 
 func (c *RedisCache) Get(key interface{}) (interface{}, bool) {
+	if c == nil {
+		return nil, false
+	}
 	if c.Client == nil {
 		return nil, false
 	}
@@ -47,6 +64,9 @@ func (c *RedisCache) Get(key interface{}) (interface{}, bool) {
 }
 
 func (c *RedisCache) Set(key interface{}, value interface{}, duration time.Duration) {
+	if c == nil {
+		return
+	}
 	if c.Client == nil {
 		return
 	}
@@ -57,7 +77,7 @@ func (c *RedisCache) Set(key interface{}, value interface{}, duration time.Durat
 }
 
 func (c *RedisCache) Range(f func(key, value interface{}) bool) {
-	if c.Client == nil {
+	if c == nil || c.Client == nil || f == nil {
 		return
 	}
 	var cursor uint64
@@ -80,7 +100,7 @@ func (c *RedisCache) Range(f func(key, value interface{}) bool) {
 }
 
 func (c *RedisCache) Delete(key interface{}) {
-	if c.Client != nil {
+	if c != nil && c.Client != nil {
 		_ = c.Client.Del(redisKey(key)).Err()
 	}
 }

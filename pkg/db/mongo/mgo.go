@@ -263,7 +263,9 @@ func (m *Mongodb) ReturnConnection(conn *mgo.Database) {
 	if conn == nil {
 		return
 	}
-	conn.Session().Close()
+	if session := conn.Session(); session != nil {
+		session.Close()
+	}
 }
 
 func (m *Mongodb) IsMultiDB() bool {

@@ -58,6 +58,9 @@ func (m *MySQLDao[E]) Debug() *MySQLDao[E] {
 
 // WithTx returns a DAO copy bound to the supplied transaction.
 func (m *MySQLDao[E]) WithTx(tx *gorm.DB) *MySQLDao[E] {
+	if m == nil {
+		return nil
+	}
 	clone := *m
 	clone.tx = tx
 	return &clone

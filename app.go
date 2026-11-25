@@ -17,8 +17,8 @@ import (
 	"github.com/maczh/mgin/v2/pkg/metrics"
 	"github.com/maczh/mgin/v2/pkg/middleware/cors"
 	"github.com/maczh/mgin/v2/pkg/middleware/postlog"
-	"github.com/maczh/mgin/v2/pkg/middleware/requestid"
 	"github.com/maczh/mgin/v2/pkg/middleware/ratelimit"
+	"github.com/maczh/mgin/v2/pkg/middleware/requestid"
 	"github.com/maczh/mgin/v2/pkg/middleware/trace"
 	"github.com/maczh/mgin/v2/pkg/middleware/xlang"
 	"github.com/scylladb/termtables"
@@ -384,7 +384,6 @@ func (app *App) Run() {
 		close(app.checkDone)
 		app.checkDone = nil
 	}
-	app.MGin.SafeExit()
 	// 优雅关闭超时时间：读取 go.application.shutdownTimeout（秒），
 	// 未配置或 <= 0 时回退为默认 5 秒（与升级前的硬编码值一致）。
 	shutdownTimeout := config.Config.GetShutdownTimeout()
@@ -398,6 +397,8 @@ func (app *App) Run() {
 		}
 		cancel()
 	}
+	// HTTP 请求排空后再关闭数据库、缓存和其它插件，避免在途请求使用已关闭资源。
+	app.MGin.SafeExit()
 	// 记录服务器退出信息
 	logs.Error("Server exiting")
 	return

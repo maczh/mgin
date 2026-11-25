@@ -21,6 +21,17 @@ type Sqlite struct {
 
 var logger = logs.GetLogger()
 
+func validateSqlite(conn *gorm.DB) error {
+	if conn == nil || conn.Config == nil || conn.Statement == nil || conn.Error != nil {
+		return errors.New("SQLite connection unavailable")
+	}
+	db, err := conn.DB()
+	if err != nil || db == nil {
+		return errors.New("SQLite connection unavailable")
+	}
+	return nil
+}
+
 func (m *Sqlite) Init(dbFileName string) {
 	if m == nil || config.Config == nil {
 		return
@@ -51,7 +62,8 @@ func (m *Sqlite) Close() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.sqlite != nil {
-		if db, err := m.sqlite.DB(); err == nil && db != nil {
+		if validateSqlite(m.sqlite) == nil {
+			db, _ := m.sqlite.DB()
 			_ = db.Close()
 		}
 		m.sqlite = nil
@@ -67,10 +79,10 @@ func (m *Sqlite) Check() error {
 	if m.sqlite == nil {
 		return errors.New("SQLite not opened")
 	}
-	db, err := m.sqlite.DB()
-	if err != nil || db == nil {
-		return errors.New("SQLite connection unavailable")
+	if err := validateSqlite(m.sqlite); err != nil {
+		return err
 	}
+	db, _ := m.sqlite.DB()
 	return db.Ping()
 }
 
@@ -82,6 +94,9 @@ func (m *Sqlite) GetConnection() (*gorm.DB, error) {
 	defer m.mu.RUnlock()
 	if m.sqlite == nil {
 		return nil, errors.New("SQLite not opened")
+	}
+	if err := validateSqlite(m.sqlite); err != nil {
+		return nil, err
 	}
 	return m.sqlite, nil
 }
