@@ -146,6 +146,12 @@ func InitAll(ctx context.Context) error {
 	defer lifecycleMu.Unlock()
 	var firstErr error
 	for _, item := range sortedByOrder() {
+		mu.RLock()
+		_, alreadyInitialized := initialized[item.name]
+		mu.RUnlock()
+		if alreadyInitialized {
+			continue
+		}
 		p := item.plugin
 		enabled, err := safeEnabled(p)
 		if err != nil {

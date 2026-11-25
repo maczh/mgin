@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"errors"
 	"fmt"
 	"github.com/maczh/mgin/v2/pkg/logs"
 	"reflect"
@@ -12,16 +11,26 @@ func Clone(src any, dst any) {
 	FromJSON(ToJSON(src), dst)
 }
 
+func structValue(obj any) (reflect.Type, reflect.Value, bool) {
+	v := reflect.ValueOf(obj)
+	for v.IsValid() && (v.Kind() == reflect.Pointer || v.Kind() == reflect.Interface) {
+		if v.IsNil() {
+			return nil, reflect.Value{}, false
+		}
+		v = v.Elem()
+	}
+	if !v.IsValid() || v.Kind() != reflect.Struct {
+		return nil, reflect.Value{}, false
+	}
+	return v.Type(), v, true
+}
+
 // Struct2Map return map
 func Struct2Map(obj any) map[string]any {
-	objT := reflect.TypeOf(obj)
-	if objT == nil || (objT.Kind() == reflect.Pointer && reflect.ValueOf(obj).IsNil()) {
+	objT, objV, ok := structValue(obj)
+	if !ok {
 		return map[string]any{}
 	}
-	if objT.Kind() != reflect.Struct {
-		panic(errors.New("argument is not of the expected type"))
-	}
-	objV := reflect.ValueOf(obj)
 	var data = make(map[string]any)
 	for i := 0; i < objT.NumField(); i++ {
 		switch objV.Field(i).Type().Kind() {
@@ -50,14 +59,10 @@ func Struct2Map(obj any) map[string]any {
 }
 
 func Struct2MapString(obj any) map[string]string {
-	objT := reflect.TypeOf(obj)
-	if objT == nil || (objT.Kind() == reflect.Pointer && reflect.ValueOf(obj).IsNil()) {
+	objT, objV, ok := structValue(obj)
+	if !ok {
 		return map[string]string{}
 	}
-	if objT.Kind() != reflect.Struct {
-		panic(errors.New("argument is not of the expected type"))
-	}
-	objV := reflect.ValueOf(obj)
 	var data = make(map[string]string)
 	for i := 0; i < objT.NumField(); i++ {
 		switch objV.Field(i).Type().Kind() {
@@ -77,9 +82,9 @@ func Struct2MapString(obj any) map[string]string {
 }
 
 func GetStructFields(obj any) []string {
-	t := reflect.TypeOf(obj)
 	fields := make([]string, 0)
-	if t == nil || (t.Kind() == reflect.Pointer && reflect.ValueOf(obj).IsNil()) {
+	t, _, ok := structValue(obj)
+	if !ok {
 		return fields
 	}
 	for i := 0; i < t.NumField(); i++ {
@@ -89,9 +94,9 @@ func GetStructFields(obj any) []string {
 }
 
 func GetStructJsonTags(obj any) []string {
-	t := reflect.TypeOf(obj)
 	fields := make([]string, 0)
-	if t == nil || (t.Kind() == reflect.Pointer && reflect.ValueOf(obj).IsNil()) {
+	t, _, ok := structValue(obj)
+	if !ok {
 		return fields
 	}
 	for i := 0; i < t.NumField(); i++ {

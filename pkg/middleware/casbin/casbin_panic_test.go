@@ -111,3 +111,25 @@ func TestNilEnforcerFailsClosed(t *testing.T) {
 		t.Fatalf("status=%d, want %d", w.Code, http.StatusServiceUnavailable)
 	}
 }
+
+func TestNilCasbinServiceFailsClosed(t *testing.T) {
+	oldConfig := *config.Config
+	oldCasbin := casbinService.Casbin
+	t.Cleanup(func() {
+		*config.Config = oldConfig
+		casbinService.Casbin = oldCasbin
+	})
+	config.Config.Casbin.Enabled = true
+	config.Config.Sys.Swagger.Uri = ""
+	casbinService.Casbin = nil
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Use(CasbinHandler())
+	router.GET("/private", func(c *gin.Context) { c.Status(http.StatusOK) })
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/private", nil))
+	if w.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status=%d, want %d", w.Code, http.StatusServiceUnavailable)
+	}
+}

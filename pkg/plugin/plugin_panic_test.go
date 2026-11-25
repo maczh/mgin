@@ -85,3 +85,36 @@ func TestLifecycleUsesCachedMetadataAndClosesWhenEnabledPanics(t *testing.T) {
 		t.Fatalf("metadata methods called after registration: Name=%d Order=%d", plugin.nameCalls, plugin.orderCalls)
 	}
 }
+
+type repeatInitPlugin struct {
+	initCalls  int
+	closeCalls int
+}
+
+func (*repeatInitPlugin) Name() string                  { return "repeat-init-test" }
+func (*repeatInitPlugin) Order() int                    { return 2 }
+func (p *repeatInitPlugin) Init(context.Context) error  { p.initCalls++; return nil }
+func (p *repeatInitPlugin) Close(context.Context) error { p.closeCalls++; return nil }
+func (*repeatInitPlugin) Health() error                 { return nil }
+func (*repeatInitPlugin) Enabled() bool                 { return true }
+
+func TestInitAllIsIdempotentForInitializedPlugins(t *testing.T) {
+	p := &repeatInitPlugin{}
+	Register(p)
+	defer Unregister("repeat-init-test")
+	if err := InitAll(context.Background()); err != nil {
+		t.Fatalf("first InitAll: %v", err)
+	}
+	if err := InitAll(context.Background()); err != nil {
+		t.Fatalf("second InitAll: %v", err)
+	}
+	if p.initCalls != 1 {
+		t.Fatalf("Init calls=%d, want 1", p.initCalls)
+	}
+	if err := CloseAll(context.Background()); err != nil {
+		t.Fatalf("CloseAll: %v", err)
+	}
+	if p.closeCalls != 1 {
+		t.Fatalf("Close calls=%d, want 1", p.closeCalls)
+	}
+}
