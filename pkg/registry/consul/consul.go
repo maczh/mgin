@@ -3,12 +3,14 @@ package consul
 import (
 	"context"
 	"crypto/md5"
+	"errors"
 	"fmt"
 	"io"
 	"math/rand"
 	"net"
 	"runtime/debug"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/hashicorp/consul/api"
@@ -32,11 +34,18 @@ type ConsulClient struct {
 	confData   []byte
 
 	// 注册稳定性增强字段
-	instanceID string             // 本实例注册 ID，注销时用它精确反注册（避免重新计算 IP 导致不匹配）
-	cancel     context.CancelFunc // 注销时取消 TTL 续活协程
+	instanceID          string             // 本实例注册 ID，注销时用它精确反注册（避免重新计算 IP 导致不匹配）
+	cancel              context.CancelFunc // 注销时取消 TTL 续活协程
+	lifecycleMu         sync.Mutex
+	lifecycleGeneration uint64
+	deregistering       bool
+	deregisterDone      chan struct{}
+	ttlWG               sync.WaitGroup
 }
 
 var logger = gologger.GetLogger()
+
+const consulRequestTimeout = 5 * time.Second
 
 // Register 方法用于向 Consul 注册服务
 // etcdConfigData 是包含 Consul 配置的字节切片
@@ -44,6 +53,13 @@ func (c *ConsulClient) Register(etcdConfigData []byte) {
 	if c == nil {
 		return
 	}
+	c.lifecycleMu.Lock()
+	if c.deregistering {
+		c.lifecycleMu.Unlock()
+		return
+	}
+	generation := c.lifecycleGeneration
+	c.lifecycleMu.Unlock()
 	if etcdConfigData != nil {
 		c.confData = etcdConfigData
 	}
@@ -85,11 +101,19 @@ func (c *ConsulClient) Register(etcdConfigData []byte) {
 		serverConfig.Address = consul_urls[0]
 		serverConfig.Token = c.conf.String("go.consul.token")
 		serverConfig.Namespace = c.namespace
-		c.client, err = api.NewClient(serverConfig)
+		client, clientErr := newConsulAPIClient(serverConfig)
+		err = clientErr
 		if err != nil {
 			logger.Error("Consul 服务连接失败:" + err.Error())
 			return
 		}
+		c.lifecycleMu.Lock()
+		if c.deregistering || c.lifecycleGeneration != generation {
+			c.lifecycleMu.Unlock()
+			return
+		}
+		c.client = client
+		c.lifecycleMu.Unlock()
 		localip, _ := localIPv4s(c.lan, c.lanNetwork)
 		ip := "127.0.0.1"
 		if len(localip) > 0 {
@@ -120,24 +144,58 @@ func (c *ConsulClient) Register(etcdConfigData []byte) {
 				DeregisterCriticalServiceAfter: "1m",
 			},
 		}
-		err = c.client.Agent().ServiceRegister(registration)
+		err = client.Agent().ServiceRegister(registration)
 		if err != nil {
 			logger.Error("Consul 注册服务失败:" + err.Error())
 			return
 		}
-		// 注册成功：记录实例 ID 并启动 TTL 续活协程
+		// A concurrent DeRegister invalidates registrations that started earlier.
+		c.lifecycleMu.Lock()
+		if c.deregistering || c.lifecycleGeneration != generation {
+			c.lifecycleMu.Unlock()
+			if deregisterErr := client.Agent().ServiceDeregister(instanceID); deregisterErr != nil {
+				logger.Error("Consul清理并发注销期间完成的注册失败:" + deregisterErr.Error())
+			}
+			return
+		}
+		ctx, cancel := context.WithCancel(context.Background())
 		c.instanceID = instanceID
-		var ctx context.Context
-		ctx, c.cancel = context.WithCancel(context.Background())
-		utils.GoSafe(func() { c.passTTLLoop(ctx, c.instanceID) })
+		c.cancel = cancel
+		c.ttlWG.Add(1)
+		c.lifecycleMu.Unlock()
+		utils.GoSafe(func() {
+			defer c.ttlWG.Done()
+			c.passTTLLoop(ctx, instanceID, client, 10*time.Second)
+		})
 	}
+}
+
+func newConsulAPIClient(config *api.Config) (*api.Client, error) {
+	if config == nil {
+		return nil, errors.New("Consul config is nil")
+	}
+	if config.HttpClient == nil {
+		httpClient, err := api.NewHttpClient(config.Transport, config.TLSConfig)
+		if err != nil {
+			return nil, err
+		}
+		config.HttpClient = httpClient
+	}
+	config.HttpClient.Timeout = consulRequestTimeout
+	return api.NewClient(config)
 }
 
 // GetServiceURL 方法用于从 Consul 查询服务地址
 // servicename 是要查询的服务名称
 // groupName 是可选的服务组名称
 func (c *ConsulClient) GetServiceURL(servicename string, groupName ...string) (string, string) {
-	if c == nil || c.client == nil {
+	if c == nil {
+		return "", ""
+	}
+	c.lifecycleMu.Lock()
+	client := c.client
+	c.lifecycleMu.Unlock()
+	if client == nil {
 		return "", ""
 	}
 	if len(groupName) == 0 {
@@ -147,7 +205,7 @@ func (c *ConsulClient) GetServiceURL(servicename string, groupName ...string) (s
 	}
 	currentGroup := groupName[0]
 	for _, group := range groupName {
-		services, _, err := c.client.Health().Service(servicename, group, true, &api.QueryOptions{})
+		services, _, err := client.Health().Service(servicename, group, true, &api.QueryOptions{})
 		if err != nil {
 			continue
 		}
@@ -172,14 +230,20 @@ func (c *ConsulClient) GetServiceURL(servicename string, groupName ...string) (s
 // GetServices v2 新增：返回该服务在 Consul 上的全部健康实例 URL 列表。
 // 与 GetServiceURL 走同一条 Health().Service 路径，只是不再随机选 1 个。
 func (c *ConsulClient) GetServices(servicename string, groupName ...string) ([]string, error) {
-	if c == nil || c.client == nil {
+	if c == nil {
+		return nil, fmt.Errorf("Consul client is nil")
+	}
+	c.lifecycleMu.Lock()
+	client := c.client
+	c.lifecycleMu.Unlock()
+	if client == nil {
 		return nil, fmt.Errorf("Consul client is nil")
 	}
 	if len(groupName) == 0 || groupName[0] == "" {
 		groupName = []string{c.group}
 	}
 	for _, group := range groupName {
-		services, _, err := c.client.Health().Service(servicename, group, true, &api.QueryOptions{})
+		services, _, err := client.Health().Service(servicename, group, true, &api.QueryOptions{})
 		if err != nil {
 			logger.Error("Consul 拉取" + servicename + "实例失败:" + err.Error())
 			continue
@@ -204,8 +268,11 @@ func (c *ConsulClient) GetServices(servicename string, groupName ...string) ([]s
 
 // passTTLLoop 周期性向 Consul 上报 TTL 检查为 passing，维持本实例健康。
 // ctx 被取消（DeRegister）时退出。
-func (c *ConsulClient) passTTLLoop(ctx context.Context, id string) {
-	ticker := time.NewTicker(10 * time.Second)
+func (c *ConsulClient) passTTLLoop(ctx context.Context, id string, client *api.Client, interval time.Duration) {
+	if interval <= 0 {
+		interval = 10 * time.Second
+	}
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
 		select {
@@ -213,7 +280,7 @@ func (c *ConsulClient) passTTLLoop(ctx context.Context, id string) {
 			return
 		case <-ticker.C:
 			if err := safeUpdateTTL(func() error {
-				return c.client.Agent().UpdateTTL("mgin:"+id, "mgin health", api.HealthPassing)
+				return client.Agent().UpdateTTL("mgin:"+id, "mgin health", api.HealthPassing)
 			}); err != nil {
 				logger.Error("Consul TTL 续活失败:" + err.Error())
 			}
@@ -233,20 +300,46 @@ func safeUpdateTTL(update func() error) (err error) {
 
 // DeRegister 方法用于从 Consul 注销服务
 func (c *ConsulClient) DeRegister() {
-	if c == nil || c.client == nil {
+	if c == nil {
 		return
 	}
-	// 1) 取消 TTL 续活协程，避免注销过程中仍上报健康
-	if c.cancel != nil {
-		c.cancel()
+	c.lifecycleMu.Lock()
+	if c.deregistering {
+		done := c.deregisterDone
+		c.lifecycleMu.Unlock()
+		if done != nil {
+			<-done
+		}
+		return
 	}
-	// 2) 用注册时记录的实例 ID 精确反注册（不再重新计算 IP，规避 IP 不一致导致反注册失败）
-	if c.instanceID != "" {
-		if err := c.client.Agent().ServiceDeregister(c.instanceID); err != nil {
-			logger.Error("Consul 取消注册服务失败:" + err.Error())
+	c.deregistering = true
+	c.lifecycleGeneration++
+	c.deregisterDone = make(chan struct{})
+	done := c.deregisterDone
+	client, instanceID, cancel := c.client, c.instanceID, c.cancel
+	c.cancel = nil
+	c.lifecycleMu.Unlock()
+
+	if cancel != nil {
+		cancel()
+	}
+	// UpdateTTL has no context parameter; the API client's request timeout bounds
+	// any in-flight call, and this wait ensures deregistration follows its exit.
+	c.ttlWG.Wait()
+	if client == nil {
+		c.finishDeregister(done)
+		return
+	}
+	var deregisterErr error
+	// 用注册时记录的实例 ID 精确反注册（避免重新计算 IP 导致不匹配）。
+	if instanceID != "" {
+		deregisterErr = client.Agent().ServiceDeregister(instanceID)
+	} else {
+		if config.Config == nil {
+			logger.Error("Consul注销失败:配置未初始化且没有记录的实例 ID")
+			c.finishDeregister(done)
 			return
 		}
-	} else {
 		// 兜底：未记录 ID 时回退到原"按 IP 计算"的方式
 		localip, _ := localIPv4s(c.lan, c.lanNetwork)
 		ip := "127.0.0.1"
@@ -260,12 +353,27 @@ func (c *ConsulClient) DeRegister() {
 		if port == 0 || config.Config.App.PortSSL != 0 {
 			port = uint64(config.Config.App.PortSSL)
 		}
-		if err := c.client.Agent().ServiceDeregister(getInstanceId(ip, port, config.Config.App.Name, c.namespace, c.group, c.cluster)); err != nil {
-			logger.Error("Consul 取消注册服务失败:" + err.Error())
-			return
-		}
+		deregisterErr = client.Agent().ServiceDeregister(getInstanceId(ip, port, config.Config.App.Name, c.namespace, c.group, c.cluster))
 	}
-	logger.Info("Consul注销服务成功")
+	if deregisterErr != nil {
+		logger.Error("Consul 取消注册服务失败:" + deregisterErr.Error())
+	} else {
+		logger.Info("Consul注销服务成功")
+		c.lifecycleMu.Lock()
+		if c.instanceID == instanceID {
+			c.instanceID = ""
+		}
+		c.lifecycleMu.Unlock()
+	}
+	c.finishDeregister(done)
+}
+
+func (c *ConsulClient) finishDeregister(done chan struct{}) {
+	c.lifecycleMu.Lock()
+	c.deregistering = false
+	c.deregisterDone = nil
+	close(done)
+	c.lifecycleMu.Unlock()
 }
 
 // localIPv4s 函数用于获取本地 IPv4 地址
