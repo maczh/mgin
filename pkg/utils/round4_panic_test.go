@@ -64,6 +64,26 @@ func TestStructUtilitiesReturnEmptyForNilInput(t *testing.T) {
 	}
 }
 
+func TestStructUtilitiesAcceptStructPointers(t *testing.T) {
+	type record struct {
+		Name string `json:"name"`
+		Age  int    `json:"age"`
+	}
+	input := &record{Name: "Ada", Age: 37}
+	if got := Struct2Map(input); got["name"] != "Ada" || got["age"] != 37 {
+		t.Fatalf("Struct2Map(pointer)=%v", got)
+	}
+	if got := Struct2MapString(input); got["name"] != "Ada" || got["age"] != "37" {
+		t.Fatalf("Struct2MapString(pointer)=%v", got)
+	}
+	if got := GetStructFields(input); len(got) != 2 || got[0] != "Name" || got[1] != "Age" {
+		t.Fatalf("GetStructFields(pointer)=%v", got)
+	}
+	if got := GetStructJsonTags(input); len(got) != 2 || got[0] != "name" || got[1] != "age" {
+		t.Fatalf("GetStructJsonTags(pointer)=%v", got)
+	}
+}
+
 func TestDeleteArrayInvalidIndexReturnsUnchangedData(t *testing.T) {
 	source := []any{"a", "b"}
 	for _, index := range []int{-1, len(source), len(source) + 1} {
