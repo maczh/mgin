@@ -220,7 +220,7 @@ mgin 是**单进程内运行**的 Go 微服务基础框架（framework + infrast
 - [ ] 本次改动文件 `gofmt -l` 无输出（历史文件不强制）
 - [ ] 本次改动包 `go vet` 无新增告警（全仓库基线 3 处）
 - [ ] 核心包测试通过：`pkg/{health,client,loadbalancer,metrics,otel,errcode,logs,cache,i18n,job,db/dao,registry,utils}`
-- [ ] `pkg/logsink` 的 `TestQueueKeepsNewestAndFIFO` 已知失败（断言上限 100，代码为 1024），修复前不计入门禁
+- [x] `pkg/logsink` 队列默认/上限统一为 1024；文档及最大 channel 容量测试已同步
 - [ ] 最小可运行示例：`NewApp` + `EnableHealth` + `EnableMetrics` + `Run`，三个探针与 `/metrics` 返回预期状态
 - [ ] 收到 SIGTERM 后进程在 `shutdownTimeout` 内退出，无 panic
 - [ ] 404 返回 HTTP 404，panic 返回 HTTP 500

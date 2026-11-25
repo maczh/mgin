@@ -159,7 +159,7 @@ type appLog struct {
 	} `json:"kafka" bson:"kafka"`
 	// Sink 接口日志异步总线的运行参数，作用于每一个日志 handler。
 	Sink struct {
-		Queue    int `json:"queue" bson:"queue"`       // 每个 handler 的队列长度，默认/最大 100
+		Queue    int `json:"queue" bson:"queue"`       // 每个 handler 的队列长度，默认/最大 1024
 		Workers  int `json:"workers" bson:"workers"`   // 每个 handler 的消费协程数，默认 1
 		Shutdown int `json:"shutdown" bson:"shutdown"` // 进程退出时等待队列排空的毫秒数，默认 3000
 	} `json:"sink" bson:"sink"`

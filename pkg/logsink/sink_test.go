@@ -290,4 +290,8 @@ func TestQueueSizeMaximumMatchesDefaultConstant(t *testing.T) {
 	if options.QueueSize != DefaultQueueSize {
 		t.Fatalf("queue size=%d, want maximum %d", options.QueueSize, DefaultQueueSize)
 	}
+	s := newSink[Entry](&memHandler{name: "max"}, options, "max")
+	if got := cap(s.ch); got != DefaultQueueSize {
+		t.Fatalf("sink channel capacity=%d, want maximum %d", got, DefaultQueueSize)
+	}
 }

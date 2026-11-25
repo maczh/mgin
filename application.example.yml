@@ -75,7 +75,7 @@ go:
   log:
     get: full
     sink:
-      queue: 100             # 最大 100；满时淘汰最早待写日志
+      queue: 100             # 默认/最大 1024；满时淘汰最早待写日志
       workers: 1             # 固定单消费者，保证 FIFO
       shutdown: 3000
     # 启用对应开关即可上报，无需应用注册 handler。

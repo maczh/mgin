@@ -264,7 +264,7 @@ go:
       use: false
       topic: order-log
     sink:
-      queue: 100             # 有效范围 1–100，超出按 100
+      queue: 100             # 有效范围 1–1024，超出按 1024
       workers: 1             # 恒为 1（保证 FIFO）
       shutdown: 3000         # 关闭排空超时（毫秒）
     victorialogs:

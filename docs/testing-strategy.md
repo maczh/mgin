@@ -130,7 +130,7 @@ kill %1
 
 | 包 | 现象 | 原因 | 处理 |
 |----|------|------|------|
-| `pkg/logsink` | `TestQueueKeepsNewestAndFIFO` 失败：断言 `QueueSize==100`，实际 `1000→1024` | 代码把队列上限改为 1024（默认 1024），测试未同步 | 修正/删除该断言；修复前不纳入门禁 |
+| `pkg/logsink` | 历史问题：队列上限实现为 1024，但部分说明曾写 100 | 代码契约统一为 `DefaultQueueSize=1024`，边界测试校验归一后的实际 channel 容量 | 已修正文档并补强边界测试；该历史问题不再作为当前测试失败项 |
 | `pkg/config` | 约 90s 后超时失败 | 测试尝试连接远程配置中心（etcd 等） | 提供本地服务；或给该包加 `t.Skip` 守卫后单独跑 |
 | `pkg/registry/consul` | 连接拒绝 | 无 Consul | docker 启动或跳过 |
 | `pkg/registry/etcd` | 连接超时 | 无 etcd | 同上 |

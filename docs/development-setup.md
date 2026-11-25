@@ -85,7 +85,7 @@ go tool cover -html=coverage.out
 | `pkg/registry/etcd` | etcd |
 | `pkg/registry/polaris` | Polaris |
 | `pkg/i18n/mysql_test.go` | MySQL（缺失时跳过/失败） |
-| `pkg/logsink` | **无需外部服务，但 `TestQueueKeepsNewestAndFIFO` 当前失败**：测试断言上限 100，代码已改为 1024 |
+| `pkg/logsink` | 无需外部服务；队列默认/上限为 1024，最大容量有回归测试覆盖 |
 | `pkg/job/job_test.go` | 使用纯 Go SQLite（`glebarez/sqlite`），无需外部服务 |
 
 ---

@@ -1169,7 +1169,7 @@ UnregisterRecord 注销并停止指定 Handler，等待其队列排空（受 tim
 func WithQueueSize(n int) Option
 ```
 
-WithQueueSize 设置缓冲队列长度，最大 100。
+WithQueueSize 设置缓冲队列长度，最大 `DefaultQueueSize`（1024）。
 
 #### `WithWorkers`
 

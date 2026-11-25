@@ -606,7 +606,7 @@ go:
 | `get` | GET 响应输出策略：`full` / `line` / `off` |
 | `api` | API 日志集合名 |
 | `kafka.use` / `kafka.topic` | Kafka 日志输出（topic 缺省 = 应用名） |
-| `sink.queue` | 每个 handler 队列长度，默认 100（上限 100） |
+| `sink.queue` | 每个 handler 队列长度，默认 1024（上限 1024） |
 | `sink.workers` | 恒为 1（配置其他值会被重置） |
 | `sink.shutdown` | 退出排空等待毫秒，默认 3000 |
 | `victorialogs.url` | VictoriaLogs 采集地址（必须 HTTPS 且应用名合法） |
@@ -802,7 +802,7 @@ go test ./... -count=1
 | `go build ./...` | ✅ 通过 |
 | `cd cmd && go build ./...` | ✅ 通过 |
 | 核心包测试 | ✅ `health` / `client` / `loadbalancer` / `metrics` / `otel` / `errcode` / `logs` / `cache` / `i18n` / `job` / `db/dao` / `registry` / `utils` 通过 |
-| `pkg/logsink` | ⚠️ `TestQueueKeepsNewestAndFIFO` 失败：测试断言队列上限 100，代码已改为 1024，用例未同步 |
+| `pkg/logsink` | ✅ 队列默认/上限统一为 1024；配置与 `WithQueueSize` 文档及边界测试已同步 |
 | `pkg/config` | ⚠️ 依赖远程配置中心，无服务时约 90s 超时失败 |
 | `go vet ./...` | ⚠️ 3 处历史告警：`pkg/middleware/xss/xss.go:513`、`pkg/utils/rsautil.go:369`、`pkg/utils/rsautil.go:406`（unreachable code） |
 | `gofmt -l .` | ⚠️ 14 个历史文件未格式化（如 `pkg/client/client.go`、`pkg/config/configure.go`） |

@@ -179,7 +179,7 @@
 | `dbName` | string | 空 | 多库时指定 |
 | `kafka.use` | bool | false | 是否投递 Kafka |
 | `kafka.topic` | string | app name | 主题 |
-| `sink.queue` | int | 100 | 每 handler 队列；有效 1–100 |
+| `sink.queue` | int | 1024 | 每 handler 队列；有效 1–1024，超出范围时使用默认值 |
 | `sink.workers` | int | 1 | 恒为 1 |
 | `sink.shutdown` | int（ms） | 3000 | 排空等待 |
 

@@ -108,7 +108,7 @@ go:
     db: mongodb
     dbName: ""
     sink:
-      queue: 100       # 1–100，超出按 100
+      queue: 100       # 1–1024，超出按 1024
       shutdown: 3000   # 关闭排空超时（ms）
 ```
 
@@ -153,7 +153,7 @@ logs.Info / postlog
 | `WithQueueSize(n)` | 1024 | 直接调用时的队列容量 |
 | `WithWorkers(n)` | 1 | **恒为 1**（保证顺序） |
 
-通过配置 `go.log.sink.queue` 时有效范围 1–100，超出按 100。
+通过配置 `go.log.sink.queue` 时有效范围 1–1024，超出按 1024；未配置或小于等于 0 时使用默认值 1024。
 
 ### 3.2 监控
 

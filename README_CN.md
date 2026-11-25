@@ -1972,7 +1972,7 @@ go:
     req: MyappRequestLog      # 非空且启用 mongodb 时自动注册内置 mongodb handler
     dbName: Partner-Id        # 多库时从 header 取该参数作库名标签
     sink:
-      queue: 100             # 每个 handler 的队列长度，默认/最大 100
+      queue: 100             # 每个 handler 的队列长度；默认/最大 1024
       workers: 1              # 固定单消费者，保证 FIFO
       shutdown: 3000          # 退出时等待队列排空的毫秒数，默认 3000
 ```
