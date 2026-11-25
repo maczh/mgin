@@ -89,14 +89,28 @@ func TestLifecycleUsesCachedMetadataAndClosesWhenEnabledPanics(t *testing.T) {
 type repeatInitPlugin struct {
 	initCalls  int
 	closeCalls int
+	label      string
+	events     *[]string
 }
 
-func (*repeatInitPlugin) Name() string                  { return "repeat-init-test" }
-func (*repeatInitPlugin) Order() int                    { return 2 }
-func (p *repeatInitPlugin) Init(context.Context) error  { p.initCalls++; return nil }
-func (p *repeatInitPlugin) Close(context.Context) error { p.closeCalls++; return nil }
-func (*repeatInitPlugin) Health() error                 { return nil }
-func (*repeatInitPlugin) Enabled() bool                 { return true }
+func (*repeatInitPlugin) Name() string { return "repeat-init-test" }
+func (*repeatInitPlugin) Order() int   { return 2 }
+func (p *repeatInitPlugin) Init(context.Context) error {
+	p.initCalls++
+	if p.events != nil {
+		*p.events = append(*p.events, p.label+" init")
+	}
+	return nil
+}
+func (p *repeatInitPlugin) Close(context.Context) error {
+	p.closeCalls++
+	if p.events != nil {
+		*p.events = append(*p.events, p.label+" close")
+	}
+	return nil
+}
+func (*repeatInitPlugin) Health() error { return nil }
+func (*repeatInitPlugin) Enabled() bool { return true }
 
 func TestInitAllIsIdempotentForInitializedPlugins(t *testing.T) {
 	p := &repeatInitPlugin{}
@@ -120,8 +134,9 @@ func TestInitAllIsIdempotentForInitializedPlugins(t *testing.T) {
 }
 
 func TestInitAllClosesPreviouslyInitializedSameNamePluginBeforeReplacement(t *testing.T) {
-	oldPlugin := &repeatInitPlugin{}
-	newPlugin := &repeatInitPlugin{}
+	events := make([]string, 0, 4)
+	oldPlugin := &repeatInitPlugin{label: "old", events: &events}
+	newPlugin := &repeatInitPlugin{label: "new", events: &events}
 	Register(oldPlugin)
 	defer Unregister("repeat-init-test")
 	if err := InitAll(context.Background()); err != nil {
@@ -139,5 +154,14 @@ func TestInitAllClosesPreviouslyInitializedSameNamePluginBeforeReplacement(t *te
 	}
 	if newPlugin.closeCalls != 1 {
 		t.Fatalf("replacement close=%d, want 1", newPlugin.closeCalls)
+	}
+	wantEvents := []string{"old init", "old close", "new init", "new close"}
+	if len(events) != len(wantEvents) {
+		t.Fatalf("lifecycle events=%v, want %v", events, wantEvents)
+	}
+	for i := range wantEvents {
+		if events[i] != wantEvents[i] {
+			t.Fatalf("lifecycle events=%v, want %v", events, wantEvents)
+		}
 	}
 }
