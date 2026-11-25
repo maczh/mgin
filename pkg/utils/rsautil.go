@@ -268,7 +268,11 @@ func getPubKey(publickey []byte) (*rsa.PublicKey, error) {
 		logs.Error("解析公钥错误:{}", err.Error())
 		return nil, err
 	}
-	return pub.(*rsa.PublicKey), err
+	rsaPub, ok := pub.(*rsa.PublicKey)
+	if !ok {
+		return nil, errors.New("public key is not RSA")
+	}
+	return rsaPub, nil
 }
 
 // 设置私钥
@@ -285,7 +289,11 @@ func getPriKey(privatekey []byte) (*rsa.PrivateKey, error) {
 	if err != nil {
 		return nil, err
 	}
-	return pri2.(*rsa.PrivateKey), nil
+	rsaPrivate, ok := pri2.(*rsa.PrivateKey)
+	if !ok {
+		return nil, errors.New("private key is not RSA")
+	}
+	return rsaPrivate, nil
 }
 
 // 公钥加密或解密byte

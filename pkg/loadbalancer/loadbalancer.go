@@ -13,6 +13,7 @@ package loadbalancer
 import (
 	"errors"
 	"hash/fnv"
+	"reflect"
 	"sync"
 	"sync/atomic"
 )
@@ -43,6 +44,16 @@ var (
 // Register 把一个策略注册到全局表。重复注册会覆盖。
 // 一般由各策略实现文件在 init() 中调用。
 func Register(name string, lb LoadBalancer) {
+	if name == "" || lb == nil {
+		return
+	}
+	v := reflect.ValueOf(lb)
+	switch v.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		if v.IsNil() {
+			return
+		}
+	}
 	mu.Lock()
 	defer mu.Unlock()
 	balancers[name] = lb

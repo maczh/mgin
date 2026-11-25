@@ -3,10 +3,10 @@ package registry
 import (
 	"fmt"
 	"math/rand"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
-
 )
 
 // 发现缓存参数。
@@ -22,8 +22,9 @@ type cacheEntry struct {
 	groups    []string
 	urls      []string
 	fetchedAt time.Time
-	err error
+	err       error
 }
+
 // inFlight 用于抑制并发冷命中的"惊群"：同一 key 只放行一个回源协程，其余等待其完成。
 type inFlight struct {
 	done chan struct{}
@@ -37,7 +38,7 @@ type inFlight struct {
 //
 // 本装饰器在内存中缓存 GetServices 结果：
 //   - 读取命中缓存（未过期）直接返回，零网络开销；
-	//   - 缓存过期后删除，仅在下一次请求到来时按需回源；
+//   - 缓存过期后删除，仅在下一次请求到来时按需回源；
 //   - 并发冷命中通过 inFlight 去重，只回源一次；
 //
 // 该层对调用方与注册中心后端完全透明，不改变 RegistryClient 接口语义。
@@ -73,11 +74,17 @@ func cacheKey(service string, groups []string) string {
 
 // Register / DeRegister 直接透传到内层客户端。
 func (c *CachedRegistry) Register(data []byte) {
+	if c == nil || isNilRegistryClient(c.inner) {
+		return
+	}
 	c.inner.Register(data)
 }
 
 // DeRegister 透传注销。
 func (c *CachedRegistry) DeRegister() {
+	if c == nil || isNilRegistryClient(c.inner) {
+		return
+	}
 	c.inner.DeRegister()
 }
 
@@ -98,6 +105,9 @@ func (c *CachedRegistry) GetServiceURL(servicename string, groupName ...string) 
 
 // GetServices v2 多实例入口：优先返回未过期的缓存；过期后删除并按需回源。
 func (c *CachedRegistry) GetServices(servicename string, groupName ...string) ([]string, error) {
+	if c == nil || isNilRegistryClient(c.inner) {
+		return nil, fmt.Errorf("registry client is nil")
+	}
 	key := cacheKey(servicename, groupName)
 
 	// 1) 快速路径：命中且未过期
@@ -122,7 +132,7 @@ func (c *CachedRegistry) GetServices(servicename string, groupName ...string) ([
 	c.inflight[key] = g
 	c.mu.Unlock()
 
-	urls, err := c.inner.GetServices(servicename, groupName...)
+	urls, err := safeRegistryFetch(c.inner, servicename, groupName)
 
 	c.mu.Lock()
 	if err != nil && len(urls) == 0 {
@@ -156,6 +166,12 @@ func (c *CachedRegistry) GetServices(servicename string, groupName ...string) ([
 func (c *CachedRegistry) readAfterRefresh(key string) ([]string, error) {
 	c.mu.Lock()
 	e, ok := c.entries[key]
+	if ok {
+		copy := *e
+		copy.urls = append([]string(nil), e.urls...)
+		copy.groups = append([]string(nil), e.groups...)
+		e = &copy
+	}
 	c.mu.Unlock()
 	if !ok {
 		return nil, fmt.Errorf("服务发现缓存缺失: %s", key)
@@ -164,4 +180,27 @@ func (c *CachedRegistry) readAfterRefresh(key string) ([]string, error) {
 		return nil, e.err
 	}
 	return append([]string(nil), e.urls...), nil
+}
+
+func safeRegistryFetch(inner RegistryClient, service string, groups []string) (urls []string, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			urls = nil
+			err = fmt.Errorf("registry fetch panic: %v", recovered)
+		}
+	}()
+	return inner.GetServices(service, groups...)
+}
+
+func isNilRegistryClient(client RegistryClient) bool {
+	if client == nil {
+		return true
+	}
+	v := reflect.ValueOf(client)
+	switch v.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return v.IsNil()
+	default:
+		return false
+	}
 }

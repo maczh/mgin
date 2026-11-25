@@ -232,11 +232,11 @@ func droppedOf(name string) uint64 {
 
 func TestQueueKeepsNewestAndFIFO(t *testing.T) {
 	h := &memHandler{name: "fifo"}
-	options := (&Options{QueueSize: 1000, Workers: 8}).normalize()
+	options := (&Options{QueueSize: 100, Workers: 8}).normalize()
 	if options.QueueSize != 100 || options.Workers != 1 {
 		t.Fatalf("options: %+v", options)
 	}
-	s := newSink[Entry](h, options)
+	s := newSink[Entry](h, options, h.name)
 	for i := 0; i < 105; i++ {
 		if !s.deliver(newEntry(fmt.Sprint(i))) {
 			t.Fatal("new log rejected")

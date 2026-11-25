@@ -13,6 +13,7 @@ package logsink
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -117,7 +118,11 @@ func SetErrorLogger(fn func(handler string, err error)) {
 // Register 注册一个日志处理器并立即启动其消费协程。
 // 同名 Handler 重复注册返回 ErrDuplicateHandler，原 Handler 保持不变。
 func Register(h Handler, opts ...Option) error {
-	if h == nil || h.Name() == "" {
+	if isNilHandler(h) {
+		return ErrInvalidHandler
+	}
+	name, nameErr := safeHandlerName(h.Name)
+	if nameErr != nil || name == "" {
 		return ErrInvalidHandler
 	}
 	var o Options
@@ -130,10 +135,10 @@ func Register(h Handler, opts ...Option) error {
 
 	mu.Lock()
 	defer mu.Unlock()
-	if _, exists := registry[h.Name()]; exists {
+	if _, exists := registry[name]; exists {
 		return ErrDuplicateHandler
 	}
-	s := newSink(h, o)
+	s := newSink(h, o, name)
 	registry[s.name] = s
 	order = append(order, s.name)
 	s.start()
@@ -284,9 +289,9 @@ type sink[T any] struct {
 	lastErrNotify  atomic.Int64
 }
 
-func newSink[T any](h typedHandler[T], opt Options) *sink[T] {
+func newSink[T any](h typedHandler[T], opt Options, name string) *sink[T] {
 	return &sink[T]{
-		name:    h.Name(),
+		name:    name,
 		h:       h,
 		workers: opt.Workers,
 		ch:      make(chan *T, opt.QueueSize),
@@ -376,7 +381,7 @@ func (s *sink[T]) stop(timeout time.Duration) {
 		s.notifyError(fmt.Errorf("关闭超时，丢弃队列中的日志"))
 	}
 	if c, ok := s.h.(Closer); ok {
-		if err := c.Close(); err != nil {
+		if err := safeClose(c); err != nil {
 			s.notifyError(err)
 		}
 	}
@@ -408,7 +413,7 @@ func (s *sink[T]) notifyDrop(total uint64) {
 	if !throttle(&s.lastDropNotify) {
 		return
 	}
-	(*fn)(s.name, total)
+	safeCallback(func() { (*fn)(s.name, total) })
 }
 
 func (s *sink[T]) notifyError(err error) {
@@ -419,7 +424,7 @@ func (s *sink[T]) notifyError(err error) {
 	if !throttle(&s.lastErrNotify) {
 		return
 	}
-	(*fn)(s.name, err)
+	safeCallback(func() { (*fn)(s.name, err) })
 }
 
 // throttle 保证同一 sink 的同类告警最小间隔。
@@ -450,3 +455,35 @@ func waitTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
 		return false
 	}
 }
+
+func isNilHandler(h any) bool {
+	if h == nil {
+		return true
+	}
+	v := reflect.ValueOf(h)
+	switch v.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return v.IsNil()
+	}
+	return false
+}
+
+func safeHandlerName(nameFn func() string) (name string, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = fmt.Errorf("handler Name panic: %v", recovered)
+		}
+	}()
+	return nameFn(), nil
+}
+
+func safeClose(closer Closer) (err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = fmt.Errorf("handler Close panic: %v", recovered)
+		}
+	}()
+	return closer.Close()
+}
+
+func safeCallback(fn func()) { defer func() { _ = recover() }(); fn() }

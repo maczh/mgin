@@ -117,13 +117,15 @@ func NewApp(configFile, appName, version string, xlang bool) *App {
 	app.checkTicker = time.NewTicker(time.Minute * 5)
 	app.checkDone = make(chan struct{})
 	app.checkWG.Add(1)
+	checkTicker := app.checkTicker
+	checkDone := app.checkDone
 	go func() {
 		defer app.checkWG.Done()
 		for {
 			select {
-			case <-app.checkTicker.C:
+			case <-checkTicker.C:
 				app.MGin.checkAll()
-			case <-app.checkDone:
+			case <-checkDone:
 				return
 			}
 		}
@@ -386,9 +388,7 @@ func (app *App) Run() {
 	}
 	if app.checkDone != nil {
 		close(app.checkDone)
-		app.checkDone = nil
 	}
-	app.checkWG.Wait()
 	// 优雅关闭超时时间：读取 go.application.shutdownTimeout（秒），
 	// 未配置或 <= 0 时回退为默认 5 秒（与升级前的硬编码值一致）。
 	shutdownTimeout := config.Config.GetShutdownTimeout()
@@ -401,6 +401,16 @@ func (app *App) Run() {
 			logs.Error("Server[{}] Shutdown:{}", s.Addr, err.Error())
 		}
 		cancel()
+	}
+	checkerDone := make(chan struct{})
+	go func() {
+		app.checkWG.Wait()
+		close(checkerDone)
+	}()
+	select {
+	case <-checkerDone:
+	case <-time.After(shutdownTimeout):
+		logs.Error("健康检查未能在关停期限内退出")
 	}
 	// HTTP 请求排空后再关闭数据库、缓存和其它插件，避免在途请求使用已关闭资源。
 	app.MGin.SafeExit()

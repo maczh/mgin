@@ -4,8 +4,11 @@ import (
 	"context"
 	"testing"
 
+	"go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/otel/trace/noop"
 )
+
+type customProvider struct{ trace.TracerProvider }
 
 // TestNoopDefault 验证未启用时 Tracer 返 noop，StartSpan 不会 panic。
 func TestNoopDefault(t *testing.T) {
@@ -34,4 +37,17 @@ func TestSetThenDisable(t *testing.T) {
 	}
 	// 关闭后再取 Tracer 不应 panic
 	_ = Tracer()
+}
+
+func TestProviderCanChangeConcreteType(t *testing.T) {
+	SetTracerProvider(customProvider{TracerProvider: noop.NewTracerProvider()})
+	if Tracer() == nil {
+		t.Fatal("Tracer returned nil")
+	}
+	Disable()
+	SetTracerProvider(noop.NewTracerProvider())
+	if Tracer() == nil {
+		t.Fatal("Tracer returned nil after provider change")
+	}
+	Disable()
 }

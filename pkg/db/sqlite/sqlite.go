@@ -17,7 +17,10 @@ type Sqlite struct {
 	mu     sync.RWMutex
 	sqlite *gorm.DB
 	dbFile string
+	closed bool
 }
+
+var ErrClosed = errors.New("SQLite client is closed")
 
 var logger = logs.GetLogger()
 
@@ -37,11 +40,17 @@ func (m *Sqlite) Init(dbFileName string) {
 }
 
 func (m *Sqlite) InitWithError(dbFileName string) error {
-	if m == nil || config.Config == nil {
+	if m == nil {
 		return errors.New("SQLite configuration is unavailable")
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if m.closed {
+		return ErrClosed
+	}
+	if config.Config == nil {
+		return errors.New("SQLite configuration is unavailable")
+	}
 	path, err := filepath.Abs(filepath.Dir(os.Args[0]))
 	if err != nil {
 		return err
@@ -69,6 +78,7 @@ func (m *Sqlite) Close() {
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	m.closed = true
 	if m.sqlite != nil {
 		if validateSqlite(m.sqlite) == nil {
 			db, _ := m.sqlite.DB()
@@ -84,6 +94,9 @@ func (m *Sqlite) Check() error {
 	}
 	m.mu.RLock()
 	defer m.mu.RUnlock()
+	if m.closed {
+		return ErrClosed
+	}
 	if m.sqlite == nil {
 		return errors.New("SQLite not opened")
 	}
@@ -100,6 +113,9 @@ func (m *Sqlite) GetConnection() (*gorm.DB, error) {
 	}
 	m.mu.RLock()
 	defer m.mu.RUnlock()
+	if m.closed {
+		return nil, ErrClosed
+	}
 	if m.sqlite == nil {
 		return nil, errors.New("SQLite not opened")
 	}

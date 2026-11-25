@@ -1,5 +1,7 @@
 package errcode
 
+import "sync"
+
 // Module 业务模块常量：用于错误码分组与文档归类。
 // v2 新增。v1 时代的错误码常量（URI_NOT_FOUND=1000 等）不重新分配模块，保持兼容。
 const (
@@ -65,9 +67,12 @@ var definitions = map[int]Definition{
 	JOB_ERROR:              New(ModuleJob, JOB_ERROR, 500, "errcode.job_error"),
 	STORAGE_ERROR:          New(ModuleStorage, STORAGE_ERROR, 500, "errcode.storage_error"),
 }
+var definitionsMu sync.RWMutex
 
 // LookupDef 按 v1 错误码常量查 v2 Definition。未注册则返 500 + SYSTEM_ERROR。
 func LookupDef(code int) Definition {
+	definitionsMu.RLock()
+	defer definitionsMu.RUnlock()
 	if d, ok := definitions[code]; ok {
 		return d
 	}
@@ -77,11 +82,15 @@ func LookupDef(code int) Definition {
 // RegisterDef 把自定义 Definition 注册到全局映射（业务侧可在 init() 中调用）。
 // 同 code 后注册会覆盖前者。
 func RegisterDef(d Definition) {
+	definitionsMu.Lock()
+	defer definitionsMu.Unlock()
 	definitions[d.Code] = d
 }
 
 // AllDefs 导出全部已注册 Definition，主要给 docs / OpenAPI 生成器使用。
 func AllDefs() map[int]Definition {
+	definitionsMu.RLock()
+	defer definitionsMu.RUnlock()
 	out := make(map[int]Definition, len(definitions))
 	for k, v := range definitions {
 		out[k] = v

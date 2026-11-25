@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	redis "github.com/go-redis/redis/v7"
@@ -17,18 +18,21 @@ import (
 )
 
 type RedisClient struct {
-	mu       sync.RWMutex
-	initMu   sync.Mutex
-	multi    bool
-	master   string
-	clients  map[string]redis.UniversalClient
-	cfgs     map[string]redis.UniversalOptions
-	conf     *koanf.Koanf
-	confUrl  string
-	confData []byte
-	conns    []string
-	closed   bool
-	initErr  error
+	mu            sync.RWMutex
+	initMu        sync.Mutex
+	multi         bool
+	master        string
+	clients       map[string]redis.UniversalClient
+	cfgs          map[string]redis.UniversalOptions
+	conf          *koanf.Koanf
+	confUrl       string
+	confData      []byte
+	conns         []string
+	closed        bool
+	initErr       error
+	subMu         sync.Mutex
+	subscriptions map[uint64]context.CancelFunc
+	nextSub       atomic.Uint64
 }
 
 var Redis = &RedisClient{}
@@ -37,17 +41,55 @@ var logger = gologger.GetLogger()
 var ErrClosed = errors.New("redis client is closed")
 
 func (r *RedisClient) Init(redisConfigData []byte) {
+	_ = r.InitWithError(redisConfigData)
+}
+
+func (r *RedisClient) InitWithError(redisConfigData []byte) error {
 	if r == nil {
-		return
+		return errors.New("Redis is nil")
 	}
 	r.initMu.Lock()
 	defer r.initMu.Unlock()
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.initErr = nil
+	r.mu.RLock()
 	if r.closed {
-		return
+		r.mu.RUnlock()
+		return ErrClosed
 	}
+	useExisting := redisConfigData == nil
+	if useExisting {
+		redisConfigData = append([]byte(nil), r.confData...)
+	}
+	ready := useExisting && len(r.clients) > 0
+	r.mu.RUnlock()
+	if ready {
+		return nil
+	}
+	builder := &RedisClient{}
+	builder.build(redisConfigData)
+	if builder.initErr != nil && len(builder.clients) == 0 {
+		closeRedisClients(builder.clients)
+		r.mu.Lock()
+		r.initErr = builder.initErr
+		r.mu.Unlock()
+		return builder.initErr
+	}
+	r.mu.Lock()
+	if r.closed {
+		r.mu.Unlock()
+		closeRedisClients(builder.clients)
+		return ErrClosed
+	}
+	old := r.clients
+	r.multi, r.master = builder.multi, builder.master
+	r.clients, r.cfgs, r.conns = builder.clients, builder.cfgs, builder.conns
+	r.conf, r.confData, r.initErr = builder.conf, append([]byte(nil), redisConfigData...), builder.initErr
+	r.mu.Unlock()
+	closeRedisClients(old)
+	return builder.initErr
+}
+
+func (r *RedisClient) build(redisConfigData []byte) {
+	r.initErr = nil
 	if redisConfigData != nil {
 		r.confData = redisConfigData
 	}
@@ -186,23 +228,25 @@ func (r *RedisClient) Init(redisConfigData []byte) {
 				logger.Error(dbName + " Redis连接失败:" + err.Error())
 				if err.Error() != "ERR SELECT is not allowed in cluster mode" {
 					r.initErr = err
+					_ = rc.Close()
 					continue
 				}
 			}
 			fmt.Printf("%s 连接成功\n", dbName)
 			r.clients[dbName] = rc
 		}
+		if len(r.clients) == 0 && r.initErr == nil {
+			r.initErr = errors.New("Redis has no available connections")
+		}
 	}
 }
 
-func (r *RedisClient) InitWithError(redisConfigData []byte) error {
-	if r == nil {
-		return errors.New("Redis is nil")
+func closeRedisClients(clients map[string]redis.UniversalClient) {
+	for _, client := range clients {
+		if client != nil {
+			_ = client.Close()
+		}
 	}
-	r.Init(redisConfigData)
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	return r.initErr
 }
 
 func (r *RedisClient) Close() {
@@ -210,24 +254,18 @@ func (r *RedisClient) Close() {
 		return
 	}
 	r.mu.Lock()
-	defer r.mu.Unlock()
 	r.closed = true
 	r.confData = nil
-	if r.multi {
-		for dbName, rc := range r.clients {
-			if rc != nil {
-				_ = rc.Close()
-			}
-			delete(r.clients, dbName)
-		}
-	} else {
-		if client, ok := r.clients["0"]; ok {
-			if client != nil {
-				_ = client.Close()
-			}
-			delete(r.clients, "0")
-		}
+	clients := r.clients
+	r.clients = nil
+	r.mu.Unlock()
+	r.subMu.Lock()
+	for _, cancel := range r.subscriptions {
+		cancel()
 	}
+	r.subscriptions = nil
+	r.subMu.Unlock()
+	closeRedisClients(clients)
 }
 
 func (r *RedisClient) redisCheck(dbName string) error {
@@ -372,8 +410,23 @@ func (r *RedisClient) PSubscribeContext(ctx context.Context, dbName string, hand
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	localChannels := append([]string(nil), channels...)
+	ctx, cancel := context.WithCancel(ctx)
+	id := r.nextSub.Add(1)
+	r.mu.RLock()
+	if r.closed {
+		r.mu.RUnlock()
+		cancel()
+		return
+	}
+	r.subMu.Lock()
+	if r.subscriptions == nil {
+		r.subscriptions = make(map[uint64]context.CancelFunc)
+	}
+	r.subscriptions[id] = cancel
+	r.subMu.Unlock()
+	r.mu.RUnlock()
 	go func() {
+		defer func() { cancel(); r.subMu.Lock(); delete(r.subscriptions, id); r.subMu.Unlock() }()
 		for {
 			select {
 			case <-ctx.Done():
@@ -398,14 +451,25 @@ func (r *RedisClient) PSubscribeContext(ctx context.Context, dbName string, hand
 			if cli, ok := conn.(*redis.Client); ok {
 				dbNum = cli.Options().DB
 			}
-			for i := range localChannels {
-				localChannels[i] = strings.ReplaceAll(localChannels[i], "{db}", fmt.Sprintf("%d", dbNum))
+			localChannels := make([]string, len(channels))
+			for i, channel := range channels {
+				localChannels[i] = strings.ReplaceAll(channel, "{db}", fmt.Sprintf("%d", dbNum))
 			}
 			pubsub := conn.PSubscribe(localChannels...)
-			_, err = pubsub.Receive()
+			received := make(chan error, 1)
+			go func() { _, receiveErr := pubsub.ReceiveTimeout(time.Second); received <- receiveErr }()
+			select {
+			case <-ctx.Done():
+				_ = pubsub.Close()
+				return
+			case err = <-received:
+			}
 			if err != nil {
 				logs.Error("订阅错误:" + err.Error())
 				_ = pubsub.Close()
+				if ctx.Err() != nil {
+					return
+				}
 				continue
 			}
 			ch := pubsub.Channel()
@@ -430,11 +494,12 @@ func (r *RedisClient) PSubscribeContext(ctx context.Context, dbName string, hand
 					}()
 				}
 				if ctx.Err() != nil {
+					_ = pubsub.Close()
 					return
 				}
 			}
 			logger.Error("Redis订阅异常退出")
-			pubsub.Close()
+			_ = pubsub.Close()
 		}
 	}()
 }

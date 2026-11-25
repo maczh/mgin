@@ -72,6 +72,21 @@ func TestRequestLoggerWithoutHandler(t *testing.T) {
 	}
 }
 
+func TestRequestLoggerHandlesInvalidGzipResponse(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(RequestLogger())
+	r.GET("/gzip", func(c *gin.Context) {
+		c.Header("Content-Encoding", "gzip")
+		c.String(http.StatusOK, "not-gzip")
+	})
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/gzip", nil))
+	if w.Code != http.StatusOK || w.Body.String() != "not-gzip" {
+		t.Fatalf("unexpected response: %d %q", w.Code, w.Body.String())
+	}
+}
+
 func traceIdStub() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Request.Header.Set("X-Request-ID", "test-request-id")

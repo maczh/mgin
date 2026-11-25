@@ -185,13 +185,15 @@ func RequestLogger() gin.HandlerFunc {
 			r, err := gzip.NewReader(bytes.NewBufferString(responseBody))
 			if err != nil {
 				logs.Error("gzip.NewReader error:", err.Error())
+			} else {
+				defer r.Close()
+				rBody, readErr := io.ReadAll(r)
+				if readErr != nil {
+					logs.Error("io.ReadAll error:", readErr.Error())
+				} else {
+					responseBody = string(rBody)
+				}
 			}
-			defer r.Close()
-			rBody, err := io.ReadAll(r)
-			if err != nil {
-				logs.Error("io.ReadAll error:", err.Error())
-			}
-			responseBody = string(rBody)
 		}
 		responseDatabaseBody := responseBody
 		responseLogBody := responseBody

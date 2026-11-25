@@ -211,6 +211,8 @@ func callInternal(ctx context.Context, service, uri string, op *Options) (result
 			Headers: headers,
 			Files:   op.Files,
 		}))
+	default:
+		return "", fmt.Errorf("unsupported request protocol %q", op.Protocol)
 	}
 	if err != nil {
 		logs.Error("微服务{}请求错误:{}", service, err.Error())
@@ -222,6 +224,9 @@ func callInternal(ctx context.Context, service, uri string, op *Options) (result
 			return "", errors.New("微服务获取" + service + "服务主机IP端口失败")
 		}
 		return "", err
+	}
+	if resp == nil {
+		return "", errors.New("empty response from request transport")
 	}
 	logs.Debug("微服务{}返回结果:{}", service, resp.String())
 	return resp.String(), nil

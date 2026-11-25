@@ -47,7 +47,13 @@ func (receiver *safeGo) SetCallBeforeHandler(callBeforeF func(params map[string]
 
 // Run 运行
 func (receiver *safeGo) Run(args ...any) {
-	preRoutineId := receiver.goBeforeF()
+	if receiver == nil || receiver.argsF == nil {
+		return
+	}
+	var preRoutineId map[string]any
+	if receiver.goBeforeF != nil {
+		preRoutineId = receiver.goBeforeF()
+	}
 	go func() {
 		defer func() {
 			if err := recover(); err != nil {
@@ -57,7 +63,9 @@ func (receiver *safeGo) Run(args ...any) {
 					goErr.Error(), goErr.Stack(), reset)
 			}
 		}()
-		receiver.callBeforeF(preRoutineId)
+		if receiver.callBeforeF != nil {
+			receiver.callBeforeF(preRoutineId)
+		}
 		receiver.argsF(args...)
 	}()
 }

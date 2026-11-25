@@ -3,6 +3,7 @@ package mongo
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -38,17 +39,54 @@ var logger = gologger.GetLogger()
 var ErrClosed = errors.New("mongodb client is closed")
 
 func (m *Mongodb) Init(mongodbConfigData []byte) {
+	_ = m.InitWithError(mongodbConfigData)
+}
+
+func (m *Mongodb) InitWithError(mongodbConfigData []byte) error {
 	if m == nil {
-		return
+		return errors.New("Mongodb is nil")
 	}
 	m.initMu.Lock()
 	defer m.initMu.Unlock()
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.initErr = nil
+	m.mu.RLock()
 	if m.closed {
-		return
+		m.mu.RUnlock()
+		return ErrClosed
 	}
+	useExisting := mongodbConfigData == nil
+	if useExisting {
+		mongodbConfigData = append([]byte(nil), m.confData...)
+	}
+	ready := useExisting && len(m.conns) > 0
+	m.mu.RUnlock()
+	if ready {
+		return nil
+	}
+	builder := &Mongodb{}
+	builder.build(mongodbConfigData)
+	if builder.initErr != nil && len(builder.conns) == 0 {
+		closeMongoConnections(builder.conns)
+		m.mu.Lock()
+		m.initErr = builder.initErr
+		m.mu.Unlock()
+		return builder.initErr
+	}
+	m.mu.Lock()
+	if m.closed {
+		m.mu.Unlock()
+		closeMongoConnections(builder.conns)
+		return ErrClosed
+	}
+	old := m.conns
+	m.multi, m.conns, m.tags, m.max = builder.multi, builder.conns, builder.tags, builder.max
+	m.conf, m.confData, m.initErr = builder.conf, append([]byte(nil), mongodbConfigData...), builder.initErr
+	m.mu.Unlock()
+	closeMongoConnections(old)
+	return builder.initErr
+}
+
+func (m *Mongodb) build(mongodbConfigData []byte) {
+	m.initErr = nil
 	if mongodbConfigData != nil {
 		m.confData = mongodbConfigData
 	}
@@ -93,6 +131,12 @@ func (m *Mongodb) Init(mongodbConfigData []byte) {
 			for _, dbName := range dbNames {
 				if dbName != "" && m.conf.Exists(fmt.Sprintf("go.data.mongodb.%s.uri", dbName)) {
 					uri := m.conf.String(fmt.Sprintf("go.data.mongodb.%s.uri", dbName))
+					database := m.conf.String(fmt.Sprintf("go.data.mongodb.%s.db", dbName))
+					uri, err := mongoURIWithDatabase(uri, database)
+					if err != nil {
+						m.initErr = err
+						continue
+					}
 					m.max = 10
 					if m.conf.Int("go.data.mongo_pool.max") > 1 {
 						m.max = m.conf.Int("go.data.mongo_pool.max")
@@ -102,12 +146,15 @@ func (m *Mongodb) Init(mongodbConfigData []byte) {
 					}
 					session, err := mgo.DialWithTimeout(uri, 10*time.Second, m.max)
 					if err != nil {
+						if m.initErr == nil {
+							m.initErr = err
+						}
 						logger.Error(dbName + " MongoDB连接错误:" + err.Error())
 						continue
 					}
 					m.conns[dbName] = connection{
 						conn: session,
-						db:   m.conf.String(fmt.Sprintf("go.data.mongodb.%s.db", dbName)),
+						db:   database,
 						url:  uri,
 					}
 					m.tags = append(m.tags, dbName)
@@ -121,7 +168,12 @@ func (m *Mongodb) Init(mongodbConfigData []byte) {
 					m.max = 10
 				}
 			}
-			conn, err := mgo.DialWithTimeout(m.conf.String("go.data.mongodb.uri"), 10*time.Second, m.max)
+			uri, err := mongoURIWithDatabase(m.conf.String("go.data.mongodb.uri"), m.conf.String("go.data.mongodb.db"))
+			if err != nil {
+				m.initErr = err
+				return
+			}
+			conn, err := mgo.DialWithTimeout(uri, 10*time.Second, m.max)
 			if err != nil {
 				m.initErr = err
 				logger.Error("MongoDB连接错误:" + err.Error())
@@ -134,16 +186,31 @@ func (m *Mongodb) Init(mongodbConfigData []byte) {
 			}
 		}
 	}
+	if len(m.conns) == 0 && m.initErr == nil {
+		m.initErr = errors.New("MongoDB has no available connections")
+	}
 }
 
-func (m *Mongodb) InitWithError(mongodbConfigData []byte) error {
-	if m == nil {
-		return errors.New("Mongodb is nil")
+func mongoURIWithDatabase(uri, database string) (string, error) {
+	parsed, err := url.Parse(uri)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return "", errors.New("invalid MongoDB URI")
 	}
-	m.Init(mongodbConfigData)
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	return m.initErr
+	if parsed.Path == "" || parsed.Path == "/" {
+		if database == "" {
+			return "", errors.New("MongoDB database name is required")
+		}
+		parsed.Path = "/" + database
+	}
+	return parsed.String(), nil
+}
+
+func closeMongoConnections(conns map[string]connection) {
+	for _, conn := range conns {
+		if conn.conn != nil {
+			conn.conn.Close()
+		}
+	}
 }
 
 func (m *Mongodb) Close() {
@@ -151,51 +218,12 @@ func (m *Mongodb) Close() {
 		return
 	}
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	m.closed = true
 	m.confData = nil
-	if m.conns == nil {
-		return
-	}
-	if m.multi {
-		for k, conn := range m.conns {
-			if conn.conn != nil {
-				conn.conn.Close()
-			}
-			delete(m.conns, k)
-		}
-	} else {
-		if conn, ok := m.conns["0"]; ok && conn.conn != nil {
-			conn.conn.Close()
-		}
-		delete(m.conns, "0")
-	}
-}
-
-func (m *Mongodb) mgoCheck(tag string) error {
-	if m == nil {
-		return errors.New("Mongodb is nil")
-	}
-	conn, ok := m.conns[tag]
-	if !ok || conn.conn == nil {
-		return errors.New("MongoDB connection not found")
-	}
-	if conn.conn.Ping() != nil {
-		uri := conn.url
-		db := conn.db
-		conn.conn.Close()
-		session, err := mgo.DialWithTimeout(uri, 10*time.Second, m.max)
-		if err != nil {
-			logger.Error(tag + " MongoDB连接错误:" + err.Error())
-			return err
-		}
-		m.conns[tag] = connection{
-			conn: session,
-			db:   db,
-			url:  uri,
-		}
-	}
-	return nil
+	conns := m.conns
+	m.conns = nil
+	m.mu.Unlock()
+	closeMongoConnections(conns)
 }
 
 func (m *Mongodb) Check() error {
@@ -223,6 +251,9 @@ func (m *Mongodb) Check() error {
 		connections[name] = conn.conn
 	}
 	m.mu.RUnlock()
+	if len(connections) == 0 {
+		return errors.New("MongoDB connections are unavailable")
+	}
 	var firstErr error
 	for name, conn := range connections {
 		if conn == nil {

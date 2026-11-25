@@ -103,30 +103,50 @@ func AnyToMap(obj any) map[string]string {
 	if obj == nil {
 		return map[string]string{}
 	}
-	switch reflect.ValueOf(obj).Type().Kind() {
-	case reflect.Map:
-		if m, ok := obj.(map[string]string); ok {
-			return m
+	value := reflect.ValueOf(obj)
+	for value.Kind() == reflect.Interface || value.Kind() == reflect.Pointer {
+		if value.IsNil() {
+			return map[string]string{}
 		}
+		value = value.Elem()
+	}
+	switch value.Kind() {
+	case reflect.Map:
 		rs := make(map[string]string)
-		m, ok := obj.(map[string]any)
-		if ok {
-			for k, v := range m {
-				switch reflect.ValueOf(v).Type().Kind() {
-				case reflect.String:
-					rs[k] = v.(string)
-				case reflect.Struct, reflect.Slice, reflect.Map:
-					rs[k] = ToJSON(v)
+		if value.Type().Key().Kind() != reflect.String {
+			return rs
+		}
+		iter := value.MapRange()
+		for iter.Next() {
+			key := iter.Key().String()
+			item := iter.Value()
+			if !item.IsValid() || (item.Kind() == reflect.Interface && item.IsNil()) {
+				rs[key] = "<nil>"
+				continue
+			}
+			if item.Kind() == reflect.Interface {
+				item = item.Elem()
+			}
+			if !item.IsValid() {
+				rs[key] = "<nil>"
+			} else if item.Kind() == reflect.String {
+				rs[key] = item.String()
+			} else if item.CanInterface() {
+				v := item.Interface()
+				switch item.Kind() {
+				case reflect.Struct, reflect.Slice, reflect.Map, reflect.Array:
+					rs[key] = ToJSON(v)
 				default:
-					rs[k] = fmt.Sprintf("%v", v)
+					rs[key] = fmt.Sprintf("%v", v)
 				}
 			}
-			return rs
-		} else {
-			return obj.(map[string]string)
 		}
+		return rs
 	case reflect.Struct:
-		return Struct2MapString(obj)
+		if value.CanInterface() {
+			return Struct2MapString(value.Interface())
+		}
+		return map[string]string{}
 	default:
 		return map[string]string{}
 	}

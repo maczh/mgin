@@ -27,40 +27,68 @@ func (l *LimitQueeMap) writeMap(key string, value []int64) {
 var LimitQueue = &LimitQueeMap{
 	LimitQueue: make(map[string][]int64),
 }
-var ok bool
+var cleanerOnce sync.Once
+var cleanerStop = make(chan struct{})
 
 func NewLimitQueue() {
 	cleanLimitQueue()
 }
 func cleanLimitQueue() {
-	go func() {
-		for {
-			log.Println("cleanLimitQueue start...")
-			LimitQueue.LimitQueue = nil
-			now := time.Now()
-			// 计算下一个零点
-			next := now.Add(time.Hour * 24)
-			next = time.Date(next.Year(), next.Month(), next.Day(), 0, 0, 0, 0, next.Location())
-			t := time.NewTimer(next.Sub(now))
-			<-t.C
-		}
-	}()
+	cleanerOnce.Do(func() {
+		go func() {
+			for {
+				log.Println("cleanLimitQueue start...")
+				LimitQueue.Lock()
+				LimitQueue.LimitQueue = make(map[string][]int64)
+				LimitQueue.Unlock()
+				now := time.Now()
+				// 计算下一个零点
+				next := now.Add(time.Hour * 24)
+				next = time.Date(next.Year(), next.Month(), next.Day(), 0, 0, 0, 0, next.Location())
+				t := time.NewTimer(next.Sub(now))
+				select {
+				case <-t.C:
+				case <-cleanerStop:
+					if !t.Stop() {
+						select {
+						case <-t.C:
+						default:
+						}
+					}
+					return
+				}
+			}
+		}()
+	})
+}
+
+func StopLimitQueueCleaner() {
+	select {
+	case <-cleanerStop:
+	default:
+		close(cleanerStop)
+	}
 }
 
 // 单机时间滑动窗口限流法
 func LimitFreqSingle(queueName string, count uint, timeWindow int64) bool {
+	if queueName == "" || count == 0 {
+		return false
+	}
 	currTime := time.Now().Unix()
+	LimitQueue.Lock()
+	defer LimitQueue.Unlock()
 	if LimitQueue.LimitQueue == nil {
 		LimitQueue.LimitQueue = make(map[string][]int64)
 	}
-	if _, ok = LimitQueue.readMap(queueName); !ok {
-		LimitQueue.writeMap(queueName, make([]int64, 0))
+	q, exists := LimitQueue.LimitQueue[queueName]
+	if !exists {
+		LimitQueue.LimitQueue[queueName] = []int64{currTime}
 		return true
 	}
-	q, _ := LimitQueue.readMap(queueName)
 	//队列未满
 	if uint(len(q)) < count {
-		LimitQueue.writeMap(queueName, append(q, currTime))
+		LimitQueue.LimitQueue[queueName] = append(q, currTime)
 		return true
 	}
 	//队列满了,取出最早访问的时间
@@ -71,7 +99,7 @@ func LimitFreqSingle(queueName string, count uint, timeWindow int64) bool {
 	} else {
 		//说明最早期的访问应该过期了,去掉最早期的
 		q = q[1:]
-		LimitQueue.writeMap(queueName, append(q, currTime))
+		LimitQueue.LimitQueue[queueName] = append(q, currTime)
 	}
 	return true
 }

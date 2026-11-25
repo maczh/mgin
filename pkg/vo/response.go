@@ -44,14 +44,24 @@ func ToResponse(r models.Result[any]) Response[any] {
 }
 
 func ToResponsePage(r models.Result[any]) ResponsePage[any] {
+	page := &PageData[any]{}
+	if r.Page != nil {
+		page.Total, page.Page, page.PageSize = int64(r.Page.Total), r.Page.Index, r.Page.Size
+	}
+	if list, ok := r.Data.([]any); ok {
+		page.List = list
+	} else {
+		value := reflect.ValueOf(r.Data)
+		if value.IsValid() && (value.Kind() == reflect.Slice || value.Kind() == reflect.Array) {
+			page.List = make([]any, value.Len())
+			for i := 0; i < value.Len(); i++ {
+				page.List[i] = value.Index(i).Interface()
+			}
+		}
+	}
 	return ResponsePage[any]{
-		Code: r.Status,
-		Data: &PageData[any]{
-			List:     r.Data.([]any),
-			Total:    int64(r.Page.Total),
-			Page:     r.Page.Index,
-			PageSize: r.Page.Size,
-		},
+		Code:    r.Status,
+		Data:    page,
 		Msg:     r.Msg,
 		SrvTime: time.Now(),
 	}
@@ -75,32 +85,24 @@ func SuccessT[T any](data T) Response[T] {
 	}
 }
 func SuccessPage(data any, page *models.ResultPage) ResponsePage[any] {
+	pageData := &PageData[any]{}
+	if page != nil {
+		pageData.Total, pageData.Page, pageData.PageSize = int64(page.Total), page.Index, page.Size
+	}
+	if anySlice, ok := data.([]any); ok {
+		pageData.List = anySlice
+	} else {
+		val := reflect.ValueOf(data)
+		if val.IsValid() && (val.Kind() == reflect.Slice || val.Kind() == reflect.Array) {
+			pageData.List = make([]any, val.Len())
+			for i := 0; i < val.Len(); i++ {
+				pageData.List[i] = val.Index(i).Interface()
+			}
+		}
+	}
 	return ResponsePage[any]{
-		Code: SUCCESS,
-		Data: &PageData[any]{
-			List: func() []any {
-				// Check if data is already a []any
-				if anySlice, ok := data.([]any); ok {
-					return anySlice
-				}
-
-				// Use reflection to handle typed slices
-				val := reflect.ValueOf(data)
-				if val.Kind() != reflect.Slice {
-					return nil // or handle error case
-				}
-
-				// Convert each element to any
-				anyList := make([]any, val.Len())
-				for i := 0; i < val.Len(); i++ {
-					anyList[i] = val.Index(i).Interface()
-				}
-				return anyList
-			}(),
-			Total:    int64(page.Total),
-			Page:     page.Index,
-			PageSize: page.Size,
-		},
+		Code:    SUCCESS,
+		Data:    pageData,
 		Msg:     "success",
 		SrvTime: time.Now(),
 	}
@@ -161,6 +163,9 @@ func (r Response[T]) ToAny() Response[any] {
 }
 
 func (r *ResponsePage[T]) ToAny() ResponsePage[any] {
+	if r == nil {
+		return ResponsePage[any]{Code: ERROR, Msg: "response is nil", SrvTime: time.Now()}
+	}
 	if r.Code != SUCCESS {
 		return ResponsePage[any]{
 			Code:    r.Code,
@@ -173,15 +178,18 @@ func (r *ResponsePage[T]) ToAny() ResponsePage[any] {
 			Code: r.Code,
 			Data: &PageData[any]{
 				List: func() []any {
+					if r.Data == nil {
+						return nil
+					}
 					anyList := make([]any, len(r.Data.List))
 					for i, v := range r.Data.List {
 						anyList[i] = v
 					}
 					return anyList
 				}(),
-				Total:    r.Data.Total,
-				Page:     r.Data.Page,
-				PageSize: r.Data.PageSize,
+				Total:    pageTotal(r.Data),
+				Page:     pageIndex(r.Data),
+				PageSize: pageSize(r.Data),
 			},
 			Msg:     r.Msg,
 			SrvTime: r.SrvTime,
@@ -189,23 +197,52 @@ func (r *ResponsePage[T]) ToAny() ResponsePage[any] {
 	}
 }
 
+func pageTotal[T any](page *PageData[T]) int64 {
+	if page == nil {
+		return 0
+	}
+	return page.Total
+}
+func pageIndex[T any](page *PageData[T]) int {
+	if page == nil {
+		return 0
+	}
+	return page.Page
+}
+func pageSize[T any](page *PageData[T]) int {
+	if page == nil {
+		return 0
+	}
+	return page.PageSize
+}
+
 func ResponseToT[T any](result Response[any]) Response[T] {
+	var data T
+	if result.Data != nil {
+		data, _ = result.Data.(T)
+	}
 	return Response[T]{
 		Code:    result.Code,
-		Data:    result.Data.(T),
+		Data:    data,
 		Msg:     result.Msg,
 		SrvTime: result.SrvTime,
 	}
 }
 
 func ResponsePageToT[T any](result ResponsePage[any]) ResponsePage[T] {
+	if result.Data == nil {
+		return ResponsePage[T]{Code: result.Code, Msg: result.Msg, SrvTime: result.SrvTime}
+	}
 	return ResponsePage[T]{
 		Code: result.Code,
 		Data: &PageData[T]{
 			List: func() []T {
 				anyList := make([]T, len(result.Data.List))
 				for i, v := range result.Data.List {
-					anyList[i] = v.(T)
+					converted, ok := v.(T)
+					if ok {
+						anyList[i] = converted
+					}
 				}
 				return anyList
 			}(),

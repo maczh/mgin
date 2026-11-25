@@ -299,12 +299,28 @@ func (m *Manager) IsRunning() bool {
 
 // Store 返回底层存储，便于业务侧扩展查询
 func (m *Manager) Store() *store {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	if m.st == nil {
-		m.st, _ = newStore(m.cfg.DbName)
+	st, _ := m.StoreWithError()
+	return st
+}
+
+// StoreWithError 返回底层存储；首次初始化失败时保留错误供调用方处理。
+func (m *Manager) StoreWithError() (*store, error) {
+	if m == nil {
+		return nil, errors.New("定时任务管理器为空")
 	}
-	return m.st
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.st == nil {
+		if m.cfg == nil {
+			return nil, errors.New("定时任务配置未初始化")
+		}
+		st, err := newStore(m.cfg.DbName)
+		if err != nil {
+			return nil, err
+		}
+		m.st = st
+	}
+	return m.st, nil
 }
 
 // Trigger 手动触发一次任务执行（等价于管理界面「执行一次」）。

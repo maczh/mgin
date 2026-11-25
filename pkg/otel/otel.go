@@ -33,9 +33,11 @@ var (
 	enabledFlag int32
 )
 
+type providerHolder struct{ provider trace.TracerProvider }
+
 func init() {
 	// 默认 noop，业务 SetTracerProvider 后切换。
-	tracerProvider.Store(noop.NewTracerProvider())
+	tracerProvider.Store(providerHolder{provider: noop.NewTracerProvider()})
 	atomic.StoreInt32(&enabledFlag, 0)
 }
 
@@ -47,7 +49,7 @@ func SetTracerProvider(tp trace.TracerProvider) {
 	if tp == nil {
 		tp = noop.NewTracerProvider()
 	}
-	tracerProvider.Store(tp)
+	tracerProvider.Store(providerHolder{provider: tp})
 	atomic.StoreInt32(&enabledFlag, 1)
 }
 
@@ -55,13 +57,17 @@ func SetTracerProvider(tp trace.TracerProvider) {
 // 重复调用安全。
 func Disable() {
 	atomic.StoreInt32(&enabledFlag, 0)
-	tracerProvider.Store(noop.NewTracerProvider())
+	tracerProvider.Store(providerHolder{provider: noop.NewTracerProvider()})
 }
 
 // Tracer 取 mgin 命名空间下的 Tracer。
 // 未启用时返 noop Tracer，所有 span 不会真正产生开销。
 func Tracer() trace.Tracer {
-	return tracerProvider.Load().(trace.TracerProvider).Tracer("mgin")
+	holder, ok := tracerProvider.Load().(providerHolder)
+	if !ok || holder.provider == nil {
+		return noop.NewTracerProvider().Tracer("mgin")
+	}
+	return holder.provider.Tracer("mgin")
 }
 
 // StartSpan 是 Tracer().Start 的便捷封装，自动从 ctx 透传 parent。

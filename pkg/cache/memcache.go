@@ -60,7 +60,7 @@ func (c *MemCache) Clear() bool {
 	if c == nil {
 		return false
 	}
-	c.items = sync.Map{}
+	c.items.Range(func(key, _ any) bool { c.items.Delete(key); return true })
 	return true
 }
 
@@ -189,5 +189,5 @@ func (cache *MemCache) Close() {
 			close(cache.close)
 		}
 	})
-	cache.items = sync.Map{}
+	cache.items.Range(func(key, _ any) bool { cache.items.Delete(key); return true })
 }

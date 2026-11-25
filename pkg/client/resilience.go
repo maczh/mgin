@@ -187,6 +187,11 @@ func callWithTimeoutCtx(ctx context.Context, service, uri string, op *Options, t
 	}
 	ch := make(chan callResult, 1)
 	go func() {
+		defer func() {
+			if recovered := recover(); recovered != nil {
+				ch <- callResult{err: fmt.Errorf("client call panic: %v", recovered)}
+			}
+		}()
 		body, err := CallCtx(ctx, service, uri, op)
 		ch <- callResult{body: body, err: err}
 	}()

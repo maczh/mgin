@@ -15,3 +15,17 @@ func TestNilAndUninitializedConnectionAreErrors(t *testing.T) {
 		t.Fatal("expected unopened check error")
 	}
 }
+
+func TestCloseIsTerminal(t *testing.T) {
+	client := &Sqlite{}
+	client.Close()
+	if err := client.InitWithError(""); err != ErrClosed {
+		t.Fatalf("expected ErrClosed from Init after Close, got %v", err)
+	}
+	if _, err := client.GetConnection(); err != ErrClosed {
+		t.Fatalf("expected ErrClosed from GetConnection after Close, got %v", err)
+	}
+	if err := client.Check(); err != ErrClosed {
+		t.Fatalf("expected ErrClosed from Check after Close, got %v", err)
+	}
+}

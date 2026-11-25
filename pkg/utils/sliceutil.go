@@ -18,6 +18,9 @@ func StringArrayContains(src []string, dst string) bool {
 }
 
 func StringArrayDelete(src []string, index int) []string {
+	if index < 0 || index >= len(src) {
+		return src
+	}
 	dst := append(src[:index], src[index+1:]...)
 	return dst
 }
@@ -35,6 +38,9 @@ func IntArrayContains(src []int, dst int) bool {
 }
 
 func IntArrayDelete(src []int, index int) []int {
+	if index < 0 || index >= len(src) {
+		return src
+	}
 	dst := append(src[:index], src[index+1:]...)
 	return dst
 }
@@ -52,6 +58,9 @@ func Float64ArrayContains(src []float64, dst float64) bool {
 }
 
 func Float64ArrayDelete(src []float64, index int) []float64 {
+	if index < 0 || index >= len(src) {
+		return src
+	}
 	dst := append(src[:index], src[index+1:]...)
 	return dst
 }
@@ -291,11 +300,7 @@ func Int64Unique(a []int64) []int64 {
 }
 
 func UnSplitString(src []string, sep string) string {
-	dst := ""
-	for _, item := range src {
-		dst = dst + item + sep
-	}
-	return dst[:len(dst)-1]
+	return strings.Join(src, sep)
 }
 
 func UnionStringSlice(slice1, slice2 []string) []string {

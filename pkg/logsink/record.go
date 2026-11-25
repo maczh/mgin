@@ -53,7 +53,11 @@ func (h RecordHandlerFunc) Write(r *Record) error {
 // RegisterRecord 注册一个日志处理器并立即启动其消费协程。
 // 同名 Handler 重复注册返回 ErrDuplicateHandler，原 Handler 保持不变。
 func RegisterRecord(h RecordHandler, opts ...Option) error {
-	if h == nil || h.Name() == "" {
+	if isNilHandler(h) {
+		return ErrInvalidHandler
+	}
+	name, nameErr := safeHandlerName(h.Name)
+	if nameErr != nil || name == "" {
 		return ErrInvalidHandler
 	}
 	var o Options
@@ -66,10 +70,10 @@ func RegisterRecord(h RecordHandler, opts ...Option) error {
 
 	recordMu.Lock()
 	defer recordMu.Unlock()
-	if _, exists := recordRegistry[h.Name()]; exists {
+	if _, exists := recordRegistry[name]; exists {
 		return ErrDuplicateHandler
 	}
-	s := newSink(h, o)
+	s := newSink(h, o, name)
 	recordRegistry[s.name] = s
 	recordOrder = append(recordOrder, s.name)
 	s.start()

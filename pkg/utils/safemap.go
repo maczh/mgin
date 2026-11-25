@@ -26,12 +26,16 @@ func (c *Map[T]) Store(name string, value *T) {
 }
 
 func (c *Map[T]) Range(iterator func(name string, item *T) bool) {
-	c.lock.RLock()
-	defer c.lock.RUnlock()
-	if c.container == nil {
+	if c == nil || iterator == nil {
 		return
 	}
+	c.lock.RLock()
+	items := make(map[string]*T, len(c.container))
 	for k, v := range c.container {
+		items[k] = v
+	}
+	c.lock.RUnlock()
+	for k, v := range items {
 		if !iterator(k, v) {
 			break
 		}
@@ -48,6 +52,8 @@ func (c *Map[T]) Delete(name string) {
 }
 
 func (c *Map[T]) DeleteDirectly(name string) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
 	if c.container == nil {
 		return
 	}
@@ -55,8 +61,8 @@ func (c *Map[T]) DeleteDirectly(name string) {
 }
 
 func (c *Map[T]) LoadAndStore(name string, value *T) *T {
-	c.lock.RLock()
-	defer c.lock.RUnlock()
+	c.lock.Lock()
+	defer c.lock.Unlock()
 	if c.container == nil {
 		c.container = make(map[string]*T)
 	}
@@ -66,8 +72,8 @@ func (c *Map[T]) LoadAndStore(name string, value *T) *T {
 }
 
 func (c *Map[T]) LoadAndDelete(name string) *T {
-	c.lock.RLock()
-	defer c.lock.RUnlock()
+	c.lock.Lock()
+	defer c.lock.Unlock()
 	if c.container == nil {
 		return nil
 	}
@@ -77,15 +83,23 @@ func (c *Map[T]) LoadAndDelete(name string) *T {
 }
 
 func (c *Map[T]) Len() int {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
 	return len(c.container)
 }
 
 func (c *Map[T]) Map() map[string]*T {
-	return c.container
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	copy := make(map[string]*T, len(c.container))
+	for key, value := range c.container {
+		copy[key] = value
+	}
+	return copy
 }
 
 func (c *Map[T]) Clear() {
-	c.lock.RLock()
-	defer c.lock.RUnlock()
+	c.lock.Lock()
+	defer c.lock.Unlock()
 	c.container = nil
 }

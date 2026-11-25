@@ -494,15 +494,19 @@ func (mw *XssMw) jsonToStringMap(buff bytes.Buffer, jsonBod interface{}) (bytes.
 	case []interface{}:
 		var multiRec bytes.Buffer
 		multiRec.WriteByte('[')
-		for _, n := range jbt {
-			//fmt.Printf("Item: %v= %v\n", i, n)
-			xmj := n.(map[string]interface{})
+		for i, n := range jbt {
+			xmj, ok := n.(map[string]interface{})
+			if !ok {
+				return bytes.Buffer{}, fmt.Errorf("JSON array element %d must be an object", i)
+			}
 			var sbuff bytes.Buffer
 			buff = mw.ConstructJson(xmj, sbuff)
 			multiRec.WriteString(buff.String())
 			multiRec.WriteByte(',')
 		}
-		multiRec.Truncate(multiRec.Len() - 1) // remove last ','
+		if len(jbt) > 0 {
+			multiRec.Truncate(multiRec.Len() - 1)
+		}
 		multiRec.WriteByte(']')
 		return multiRec, nil
 	default:
