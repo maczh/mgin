@@ -28,6 +28,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 )
@@ -53,6 +54,7 @@ type App struct {
 	metricsMounted bool
 	checkTicker    *time.Ticker
 	checkDone      chan struct{}
+	checkWG        sync.WaitGroup
 }
 
 // NewApp 创建一个新的 MGin App 实例。
@@ -114,7 +116,9 @@ func NewApp(configFile, appName, version string, xlang bool) *App {
 	//设置定时任务自动检查
 	app.checkTicker = time.NewTicker(time.Minute * 5)
 	app.checkDone = make(chan struct{})
+	app.checkWG.Add(1)
 	go func() {
+		defer app.checkWG.Done()
 		for {
 			select {
 			case <-app.checkTicker.C:
@@ -384,6 +388,7 @@ func (app *App) Run() {
 		close(app.checkDone)
 		app.checkDone = nil
 	}
+	app.checkWG.Wait()
 	// 优雅关闭超时时间：读取 go.application.shutdownTimeout（秒），
 	// 未配置或 <= 0 时回退为默认 5 秒（与升级前的硬编码值一致）。
 	shutdownTimeout := config.Config.GetShutdownTimeout()
