@@ -56,6 +56,8 @@ type App struct {
 	checkTicker    *time.Ticker
 	checkDone      chan struct{}
 	checkWG        sync.WaitGroup
+	runMu          sync.Mutex
+	runStarted     bool
 }
 
 // NewApp 创建一个新的 MGin App 实例。
@@ -298,6 +300,10 @@ func (app *App) Run() {
 		logs.Error("无法启动应用: App、Router 或 MGin 未初始化")
 		return
 	}
+	if !app.beginRun() {
+		logs.Error("应用 Run 不支持重复调用")
+		return
+	}
 	// 获取当前可执行文件所在的绝对路径
 	path, _ := filepath.Abs(filepath.Dir(os.Args[0]))
 
@@ -411,6 +417,19 @@ func (app *App) Run() {
 	// 记录服务器退出信息
 	logs.Error("Server exiting")
 	return
+}
+
+func (app *App) beginRun() bool {
+	if app == nil {
+		return false
+	}
+	app.runMu.Lock()
+	defer app.runMu.Unlock()
+	if app.runStarted {
+		return false
+	}
+	app.runStarted = true
+	return true
 }
 
 // waitForHealthChecks bounds shutdown latency when a health check blocks.

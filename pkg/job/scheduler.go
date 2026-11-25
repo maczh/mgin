@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
@@ -139,18 +140,29 @@ func (jr *jobRuntime) snapshot() JobInfo {
 //   - 支持超时中断、失败重试、阻塞策略、调度过期补偿
 //   - 纯单机调度：调度器只在本进程内工作，不做多实例协调
 type Manager struct {
-	mu       sync.RWMutex
-	cfg      *Config
-	st       *store
-	parser   cron.Parser
-	loc      *time.Location
-	jobs     map[int64]*jobRuntime
-	sem      chan struct{}
-	hostname string
+	mu           sync.RWMutex
+	storeMu      sync.Mutex
+	startMu      sync.Mutex
+	cfg          *Config
+	st           *store
+	storeFactory func(string) (*store, error)
+	parser       cron.Parser
+	loc          *time.Location
+	jobs         map[int64]*jobRuntime
+	sem          chan struct{}
+	hostname     string
 
-	running  bool
-	stopChan chan struct{}
-	wg       sync.WaitGroup
+	running    bool
+	starting   bool
+	startDone  chan struct{}
+	stopping   bool
+	loopErrors map[string]error
+	stopChan   chan struct{}
+	stopDone   chan struct{}
+	runCtx     context.Context
+	runCancel  context.CancelFunc
+	wg         sync.WaitGroup
+	handlerWG  sync.WaitGroup
 }
 
 var (
@@ -187,51 +199,90 @@ func Stop() {
 
 // Start 启动调度器
 func (m *Manager) Start() error {
+	m.startMu.Lock()
+	defer m.startMu.Unlock()
 	m.mu.Lock()
-	if m.running {
+	if m.running || m.starting || m.stopping {
 		m.mu.Unlock()
 		return errors.New("定时任务调度器已在运行中")
 	}
+	m.starting = true
+	m.startDone = make(chan struct{})
+	m.mu.Unlock()
+	defer func() {
+		m.mu.Lock()
+		m.starting = false
+		close(m.startDone)
+		m.startDone = nil
+		if m.stopping && !m.running {
+			m.stopping = false
+			if m.stopDone != nil {
+				close(m.stopDone)
+			}
+		}
+		m.mu.Unlock()
+	}()
+
 	cfg := loadConfig()
 	if !cfg.Enabled {
-		m.mu.Unlock()
 		logs.Info("[Job] go.job.enabled 未开启，定时任务模块不启动")
 		return nil
 	}
-	m.cfg = cfg
 	tablePrefix = cfg.TablePrefix
 
 	// 解析时区
-	m.loc = time.Local
+	loc := time.Local
 	if cfg.Timezone != "" {
-		if loc, err := time.LoadLocation(cfg.Timezone); err == nil {
-			m.loc = loc
+		if loaded, err := time.LoadLocation(cfg.Timezone); err == nil {
+			loc = loaded
 		} else {
 			logs.Error("[Job] 时区{}加载失败，使用系统默认时区: {}", cfg.Timezone, err.Error())
 		}
 	}
 
 	// 按 MySQL → PostgreSQL → SQLite 优先级选择存储
+	m.storeMu.Lock()
+	defer m.storeMu.Unlock()
 	st, err := newStore(cfg.DbName)
 	if err != nil {
-		m.mu.Unlock()
 		logs.Error("[Job] {}", err.Error())
 		return err
 	}
-	m.st = st
-
+	published := false
+	defer func() {
+		if !published {
+			closeStore(st)
+		}
+	}()
 	if cfg.Initdb {
 		if err = st.autoMigrate(); err != nil {
-			m.mu.Unlock()
 			logs.Error("[Job] 定时任务表创建失败: {}", err.Error())
 			return err
 		}
 		logs.Info("[Job] 定时任务表已就绪: {}job_info, {}job_log", cfg.TablePrefix, cfg.TablePrefix)
 	}
 
+	m.mu.Lock()
+	if m.stopping {
+		m.mu.Unlock()
+		return errors.New("定时任务启动已被停止请求取消")
+	}
+	m.cfg = cfg
+	m.loc = loc
+	m.st = st
+	published = true
 	m.sem = make(chan struct{}, cfg.MaxConcurrent)
 	m.stopChan = make(chan struct{})
+	m.runCtx, m.runCancel = context.WithCancel(context.Background())
+	m.stopDone = nil
+	m.stopping = false
+	m.loopErrors = nil
 	m.running = true
+	loopCount := 2
+	if cfg.LogRetainDays > 0 {
+		loopCount++
+	}
+	m.wg.Add(loopCount)
 	m.mu.Unlock()
 
 	// 清理上次非正常退出残留的「执行中」日志
@@ -243,12 +294,9 @@ func (m *Manager) Start() error {
 		logs.Error("[Job] 载入任务列表失败: {}", err.Error())
 	}
 
-	m.wg.Add(1)
 	utils.GoSafe(m.scheduleLoop)
-	m.wg.Add(1)
 	utils.GoSafe(m.refreshLoop)
 	if cfg.LogRetainDays > 0 {
-		m.wg.Add(1)
 		utils.GoSafe(m.cleanLoop)
 	}
 
@@ -259,27 +307,97 @@ func (m *Manager) Start() error {
 
 // Stop 停止调度器，等待运行中的任务执行完毕
 func (m *Manager) Stop() {
-	m.mu.Lock()
-	if !m.running {
-		m.mu.Unlock()
-		return
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := m.StopWithContext(ctx); err != nil {
+		logs.Error("[Job] 定时任务停止未在期限内完成: {}", err.Error())
 	}
-	m.running = false
-	close(m.stopChan)
-	m.mu.Unlock()
+}
 
-	logs.Info("[Job] 正在停止定时任务调度器，等待运行中的任务结束...")
-	m.wg.Wait()
-	logs.Info("[Job] 定时任务调度器已停止")
+// StopWithContext cancels running handlers and waits until all job goroutines
+// exit or ctx expires. A timeout leaves the manager in stopping state.
+func (m *Manager) StopWithContext(ctx context.Context) error {
+	if m == nil {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	var done chan struct{}
+	m.mu.Lock()
+	if m.starting && !m.running {
+		if !m.stopping {
+			m.stopping = true
+			m.stopDone = make(chan struct{})
+		}
+		done = m.stopDone
+		m.mu.Unlock()
+		select {
+		case <-done:
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	if !m.running && !m.stopping {
+		m.mu.Unlock()
+		return nil
+	}
+	if !m.stopping {
+		m.stopping = true
+		if m.stopChan != nil {
+			close(m.stopChan)
+		}
+		m.stopDone = make(chan struct{})
+		done = m.stopDone
+		cancel := m.runCancel
+		m.mu.Unlock()
+		if cancel != nil {
+			cancel()
+		}
+		utils.GoSafe(func() {
+			m.wg.Wait()
+			m.handlerWG.Wait()
+			m.mu.Lock()
+			m.running = false
+			m.stopping = false
+			m.runCancel = nil
+			m.runCtx = nil
+			close(done)
+			m.mu.Unlock()
+		})
+	} else {
+		done = m.stopDone
+		m.mu.Unlock()
+		select {
+		case <-done:
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // Check 健康检查，供 mgin 定时自检调用
 func (m *Manager) Check() error {
 	m.mu.RLock()
 	st, running := m.st, m.running
+	loopErrors := make([]error, 0, len(m.loopErrors))
+	for _, loopErr := range m.loopErrors {
+		loopErrors = append(loopErrors, loopErr)
+	}
 	m.mu.RUnlock()
 	if !running {
 		return nil
+	}
+	if len(loopErrors) > 0 {
+		return errors.Join(loopErrors...)
 	}
 	if st == nil {
 		return errors.New("定时任务存储未初始化")
@@ -291,16 +409,39 @@ func (m *Manager) Check() error {
 	return sqldb.Ping()
 }
 
+func (m *Manager) runLoopTask(name string, run func()) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			loopErr := fmt.Errorf("job %s loop panic: %v", name, recovered)
+			m.mu.Lock()
+			if m.loopErrors == nil {
+				m.loopErrors = make(map[string]error)
+			}
+			m.loopErrors[name] = loopErr
+			m.mu.Unlock()
+			logs.Error("{}\n{}", loopErr, string(debug.Stack()))
+			return
+		}
+		m.mu.Lock()
+		delete(m.loopErrors, name)
+		m.mu.Unlock()
+	}()
+	run()
+}
+
 // IsRunning 调度器是否运行中
 func (m *Manager) IsRunning() bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	return m.running
+	return m.running && !m.stopping
 }
 
 // Store 返回底层存储，便于业务侧扩展查询
 func (m *Manager) Store() *store {
-	st, _ := m.StoreWithError()
+	st, err := m.StoreWithError()
+	if err != nil {
+		logs.Error("[Job] 获取定时任务存储失败: {}", err.Error())
+	}
 	return st
 }
 
@@ -309,36 +450,52 @@ func (m *Manager) StoreWithError() (*store, error) {
 	if m == nil {
 		return nil, errors.New("定时任务管理器为空")
 	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.st == nil {
-		if m.cfg == nil {
-			return nil, errors.New("定时任务配置未初始化")
-		}
-		st, err := newStore(m.cfg.DbName)
-		if err != nil {
-			return nil, err
-		}
-		m.st = st
+	m.storeMu.Lock()
+	defer m.storeMu.Unlock()
+	m.mu.RLock()
+	st, cfg, factory := m.st, m.cfg, m.storeFactory
+	m.mu.RUnlock()
+	if st != nil {
+		return st, nil
 	}
-	return m.st, nil
+	if cfg == nil {
+		return nil, errors.New("定时任务配置未初始化")
+	}
+	if factory == nil {
+		factory = newStore
+	}
+	st, err := factory(cfg.DbName)
+	if err != nil {
+		return nil, err
+	}
+	m.mu.Lock()
+	if m.st == nil {
+		m.st = st
+	} else {
+		st = m.st
+	}
+	m.mu.Unlock()
+	return st, nil
 }
 
 // Trigger 手动触发一次任务执行（等价于管理界面「执行一次」）。
 // param 可临时覆盖任务配置中的 JobParam，留空则使用任务配置的参数。
 // 返回本次执行产生的日志 ID；若调度器未运行或任务不存在则返回错误。
 func (m *Manager) Trigger(id int64, param map[string]interface{}) (int64, error) {
-	m.mu.RLock()
-	running := m.running
-	jr, ok := m.jobs[id]
-	st := m.st
-	m.mu.RUnlock()
-	if !running {
+	m.mu.Lock()
+	if !m.running || m.stopping {
+		m.mu.Unlock()
 		return 0, errors.New("定时任务调度器未运行")
 	}
+	jr, ok := m.jobs[id]
+	st := m.st
 	if !ok {
+		m.mu.Unlock()
 		return 0, fmt.Errorf("任务[%d]不存在或未启用", id)
 	}
+	m.wg.Add(1)
+	m.mu.Unlock()
+	defer m.wg.Done()
 	info := jr.snapshot()
 	if param == nil || len(param) == 0 {
 		param = info.JobParam
@@ -533,7 +690,7 @@ func (m *Manager) scheduleLoop() {
 	for {
 		select {
 		case <-ticker.C:
-			m.tick(time.Now().In(m.loc))
+			m.runLoopTask("schedule", func() { m.tick(time.Now().In(m.loc)) })
 		case <-m.stopChan:
 			return
 		}
@@ -610,9 +767,11 @@ func (m *Manager) refreshLoop() {
 	for {
 		select {
 		case <-ticker.C:
-			if err := m.reload(); err != nil {
-				logs.Error("[Job] 同步任务配置失败: {}", err.Error())
-			}
+			m.runLoopTask("refresh", func() {
+				if err := m.reload(); err != nil {
+					logs.Error("[Job] 同步任务配置失败: {}", err.Error())
+				}
+			})
 		case <-m.stopChan:
 			return
 		}
@@ -627,17 +786,19 @@ func (m *Manager) cleanLoop() {
 	for {
 		select {
 		case <-ticker.C:
-			m.mu.RLock()
-			st, days := m.st, m.cfg.LogRetainDays
-			m.mu.RUnlock()
-			if st == nil {
-				continue
-			}
-			if n, err := st.cleanLog(days); err != nil {
-				logs.Error("[Job] 清理执行日志失败: {}", err.Error())
-			} else if n > 0 {
-				logs.Info("[Job] 已清理{}天前的执行日志{}条", days, n)
-			}
+			m.runLoopTask("clean", func() {
+				m.mu.RLock()
+				st, days := m.st, m.cfg.LogRetainDays
+				m.mu.RUnlock()
+				if st == nil {
+					return
+				}
+				if n, err := st.cleanLog(days); err != nil {
+					logs.Error("[Job] 清理执行日志失败: {}", err.Error())
+				} else if n > 0 {
+					logs.Info("[Job] 已清理{}天前的执行日志{}条", days, n)
+				}
+			})
 		case <-m.stopChan:
 			return
 		}
@@ -675,7 +836,13 @@ func (m *Manager) fire(jr *jobRuntime, triggerType string, param map[string]inte
 		}
 	}
 
+	m.mu.Lock()
+	if !m.running || m.stopping {
+		m.mu.Unlock()
+		return
+	}
 	m.wg.Add(1)
+	m.mu.Unlock()
 	utils.GoSafe(func() {
 		defer m.wg.Done()
 		// serial 策略：排队等待上一次执行完成
@@ -771,7 +938,13 @@ func (m *Manager) runOnce(jr *jobRuntime, handler HandlerFunc, info JobInfo,
 	}
 
 	// 构造带超时的执行上下文
-	baseCtx := context.Background()
+	m.mu.RLock()
+	parentCtx := m.runCtx
+	m.mu.RUnlock()
+	if parentCtx == nil {
+		parentCtx = context.Background()
+	}
+	baseCtx := parentCtx
 	var cancel context.CancelFunc
 	if info.Timeout > 0 {
 		baseCtx, cancel = context.WithTimeout(baseCtx, time.Duration(info.Timeout)*time.Second)
@@ -796,7 +969,9 @@ func (m *Manager) runOnce(jr *jobRuntime, handler HandlerFunc, info JobInfo,
 
 	// 在独立协程中执行，以便超时后主流程能及时返回
 	done := make(chan error, 1)
+	m.handlerWG.Add(1)
 	utils.NewSafeGo(func(...any) {
+		defer m.handlerWG.Done()
 		defer func() {
 			if r := recover(); r != nil {
 				wrapped := goerr.Wrap(r, 2)

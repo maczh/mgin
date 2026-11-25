@@ -51,3 +51,14 @@ func TestProviderCanChangeConcreteType(t *testing.T) {
 	}
 	Disable()
 }
+
+func TestSetTypedNilProviderFallsBackToNoop(t *testing.T) {
+	var provider *customProvider
+	SetTracerProvider(provider)
+	ctx, span := StartSpan(context.Background(), "typed-nil")
+	if ctx == nil || span == nil {
+		t.Fatal("typed-nil provider should fall back to a usable noop tracer")
+	}
+	span.End()
+	Disable()
+}

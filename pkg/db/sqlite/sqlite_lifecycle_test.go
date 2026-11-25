@@ -1,6 +1,12 @@
 package sqlite
 
-import "testing"
+import (
+	"errors"
+	"testing"
+
+	sqlitedriver "gorm.io/driver/sqlite"
+	"gorm.io/gorm"
+)
 
 func TestNilAndUninitializedConnectionAreErrors(t *testing.T) {
 	var client *Sqlite
@@ -27,5 +33,25 @@ func TestCloseIsTerminal(t *testing.T) {
 	}
 	if err := client.Check(); err != ErrClosed {
 		t.Fatalf("expected ErrClosed from Check after Close, got %v", err)
+	}
+}
+
+func TestCloseClosesUnderlyingDatabaseEvenWhenGormHasError(t *testing.T) {
+	conn, err := gorm.Open(sqlitedriver.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sqlDB, err := conn.DB()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := sqlDB.Ping(); err != nil {
+		t.Fatal(err)
+	}
+	conn.Error = errors.New("previous query failed")
+	client := &Sqlite{sqlite: conn}
+	client.Close()
+	if err := sqlDB.Ping(); err == nil {
+		t.Fatal("underlying database remains open after Close")
 	}
 }

@@ -24,6 +24,20 @@ type store struct {
 	driver string
 }
 
+func closeStore(st *store) {
+	if st == nil || st.db == nil {
+		return
+	}
+	db, err := st.db.DB()
+	if err != nil {
+		logs.Error("[Job] 存储底层连接获取失败: {}", err.Error())
+		return
+	}
+	if err := db.Close(); err != nil {
+		logs.Error("[Job] 存储底层连接关闭失败: {}", err.Error())
+	}
+}
+
 // newStore 按 MySQL → PostgreSQL → SQLite 的优先级选择当前可用的 GORM 数据库连接。
 //
 // 选择逻辑：

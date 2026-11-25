@@ -31,6 +31,9 @@ func TripleDesDecrypt(crypted, key []byte, pcks5padding bool) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	if len(key) < block.BlockSize() || len(crypted) == 0 || len(crypted)%block.BlockSize() != 0 {
+		return nil, errors.New("invalid 3DES ciphertext or IV length")
+	}
 	blockMode := cipher.NewCBCDecrypter(block, key[:8])
 	origData := make([]byte, len(crypted))
 	// origData := crypted

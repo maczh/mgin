@@ -8,6 +8,9 @@ type Map[T any] struct {
 }
 
 func (c *Map[T]) Load(name string) *T {
+	if c == nil {
+		return nil
+	}
 	c.lock.RLock()
 	defer c.lock.RUnlock()
 	if c.container == nil {
@@ -17,6 +20,9 @@ func (c *Map[T]) Load(name string) *T {
 }
 
 func (c *Map[T]) Store(name string, value *T) {
+	if c == nil {
+		return
+	}
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	if c.container == nil {
@@ -43,6 +49,9 @@ func (c *Map[T]) Range(iterator func(name string, item *T) bool) {
 }
 
 func (c *Map[T]) Delete(name string) {
+	if c == nil {
+		return
+	}
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	if c.container == nil {
@@ -52,6 +61,9 @@ func (c *Map[T]) Delete(name string) {
 }
 
 func (c *Map[T]) DeleteDirectly(name string) {
+	if c == nil {
+		return
+	}
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	if c.container == nil {
@@ -61,6 +73,9 @@ func (c *Map[T]) DeleteDirectly(name string) {
 }
 
 func (c *Map[T]) LoadAndStore(name string, value *T) *T {
+	if c == nil {
+		return nil
+	}
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	if c.container == nil {
@@ -72,6 +87,9 @@ func (c *Map[T]) LoadAndStore(name string, value *T) *T {
 }
 
 func (c *Map[T]) LoadAndDelete(name string) *T {
+	if c == nil {
+		return nil
+	}
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	if c.container == nil {
@@ -83,12 +101,18 @@ func (c *Map[T]) LoadAndDelete(name string) *T {
 }
 
 func (c *Map[T]) Len() int {
+	if c == nil {
+		return 0
+	}
 	c.lock.RLock()
 	defer c.lock.RUnlock()
 	return len(c.container)
 }
 
 func (c *Map[T]) Map() map[string]*T {
+	if c == nil {
+		return map[string]*T{}
+	}
 	c.lock.RLock()
 	defer c.lock.RUnlock()
 	copy := make(map[string]*T, len(c.container))
@@ -99,6 +123,9 @@ func (c *Map[T]) Map() map[string]*T {
 }
 
 func (c *Map[T]) Clear() {
+	if c == nil {
+		return
+	}
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	c.container = nil

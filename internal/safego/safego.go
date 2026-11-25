@@ -3,7 +3,7 @@
 package safego
 
 import (
-	"fmt"
+	"log/slog"
 
 	"github.com/go-errors/errors"
 )
@@ -17,8 +17,7 @@ func Run(fn func()) {
 		defer func() {
 			if recovered := recover(); recovered != nil {
 				goErr := errors.Wrap(recovered, 2)
-				reset := string([]byte{27, 91, 48, 109})
-				fmt.Printf("[SafeGo] panic recovered:\n\n%s%s\n\n%s", goErr.Error(), goErr.Stack(), reset)
+				slog.Error("goroutine panic recovered", "panic", goErr.Error(), "stack", goErr.Stack())
 			}
 		}()
 		fn()

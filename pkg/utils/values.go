@@ -25,7 +25,17 @@ func (p *Values) Get(id string) any {
 }
 
 func (p *Values) GetAll() any {
-	return p.data
+	if p == nil {
+		return map[string]any{}
+	}
+	p.lock.RLock()
+	defer p.lock.RUnlock()
+
+	data := make(map[string]any, len(p.data))
+	for key, value := range p.data {
+		data[key] = value
+	}
+	return data
 }
 
 func (p *Values) Merge(props map[string]any) {
@@ -42,5 +52,10 @@ func (p *Values) Merge(props map[string]any) {
 }
 
 func (p *Values) Clear() {
+	if p == nil {
+		return
+	}
+	p.lock.Lock()
+	defer p.lock.Unlock()
 	p.data = make(map[string]any)
 }

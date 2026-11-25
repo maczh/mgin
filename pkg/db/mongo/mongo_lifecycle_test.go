@@ -2,6 +2,7 @@ package mongo
 
 import (
 	"net"
+	"reflect"
 	"testing"
 	"time"
 
@@ -30,6 +31,24 @@ func TestMongoURIRequiresDatabaseAndPreservesExistingPath(t *testing.T) {
 	got, err = mongoURIWithDatabase("mongodb://localhost:27017/existing", "configured")
 	if err != nil || got != "mongodb://localhost:27017/existing" {
 		t.Fatalf("existing database path changed: got %q, err=%v", got, err)
+	}
+}
+
+func TestRepeatedInitPreservesPublishedTags(t *testing.T) {
+	want := []string{"orders", "users"}
+	client := &Mongodb{
+		conns: map[string]connection{
+			"orders": {},
+			"users":  {},
+		},
+		tags:     append([]string(nil), want...),
+		confData: []byte("go:\n  data:\n    mongodb:\n      multidb: true\n"),
+	}
+	if err := client.InitWithError(nil); err != nil {
+		t.Fatalf("repeated InitWithError: %v", err)
+	}
+	if !reflect.DeepEqual(client.tags, want) {
+		t.Fatalf("repeated init changed published tags: got %v, want %v", client.tags, want)
 	}
 }
 

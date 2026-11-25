@@ -1,6 +1,9 @@
 package cache
 
 import (
+	"errors"
+	"log/slog"
+	"reflect"
 	"sync"
 	"time"
 
@@ -22,8 +25,18 @@ func (c *MemCache) Add(key any, value any, lifeSpan time.Duration) {
 	if c == nil {
 		return
 	}
+	if err := c.AddWithError(key, value, lifeSpan); err != nil {
+		slog.Error("memory cache add rejected", "error", err)
+	}
+}
+
+// AddWithError clones and stores a value, returning invalid-key errors to the caller.
+func (c *MemCache) AddWithError(key any, value any, lifeSpan time.Duration) error {
+	if c == nil {
+		return errors.New("cache is nil")
+	}
 	v := clone.Clone(value)
-	c.Set(key, v, lifeSpan)
+	return c.SetWithError(key, v, lifeSpan)
 }
 
 /*
@@ -108,7 +121,7 @@ func New(cleaningInterval time.Duration) *MemCache {
 
 // Get gets the value for the given key.
 func (cache *MemCache) Get(key any) (any, bool) {
-	if cache == nil {
+	if cache == nil || !validCacheKey(key) {
 		return nil, false
 	}
 	obj, exists := cache.items.Load(key)
@@ -133,8 +146,18 @@ func (cache *MemCache) Get(key any) (any, bool) {
 // Set sets a value for the given key with an expiration duration.
 // If the duration is 0 or less, it will be stored forever.
 func (cache *MemCache) Set(key any, value any, duration time.Duration) {
+	if err := cache.SetWithError(key, value, duration); err != nil && cache != nil {
+		slog.Error("memory cache set rejected", "error", err)
+	}
+}
+
+// SetWithError stores a value and rejects keys that sync.Map cannot accept.
+func (cache *MemCache) SetWithError(key any, value any, duration time.Duration) error {
 	if cache == nil {
-		return
+		return errors.New("cache is nil")
+	}
+	if !validCacheKey(key) {
+		return errors.New("cache key must be non-nil and comparable")
 	}
 	var expires int64
 
@@ -146,6 +169,12 @@ func (cache *MemCache) Set(key any, value any, duration time.Duration) {
 		data:    value,
 		expires: expires,
 	})
+	return nil
+}
+
+func validCacheKey(key any) bool {
+	t := reflect.TypeOf(key)
+	return t != nil && t.Comparable()
 }
 
 // Range calls f sequentially for each key and value present in the cache.
@@ -174,7 +203,7 @@ func (cache *MemCache) Range(f func(key, value any) bool) {
 
 // Delete deletes the key and its value from the cache.
 func (cache *MemCache) Delete(key any) {
-	if cache == nil {
+	if cache == nil || !validCacheKey(key) {
 		return
 	}
 	cache.items.Delete(key)

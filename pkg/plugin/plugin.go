@@ -35,10 +35,12 @@ type Plugin interface {
 }
 
 var (
-	mu      sync.RWMutex
-	plugins = make(map[string]Plugin)
-	meta    = make(map[string]pluginMeta)
-	order   = make([]string, 0) // 注册顺序，保证确定性
+	mu          sync.RWMutex
+	lifecycleMu sync.Mutex
+	plugins     = make(map[string]Plugin)
+	meta        = make(map[string]pluginMeta)
+	initialized = make(map[string]pluginMeta)
+	order       = make([]string, 0) // 注册顺序，保证确定性
 )
 
 type pluginMeta struct {
@@ -140,6 +142,8 @@ func sortedByOrder() []pluginMeta {
 // 任一插件 Init 失败仅记录首个错误并继续，不会中断其余插件的初始化
 // （与旧 mgin.Init 的 if 链“不中断”语义一致）。
 func InitAll(ctx context.Context) error {
+	lifecycleMu.Lock()
+	defer lifecycleMu.Unlock()
 	var firstErr error
 	for _, item := range sortedByOrder() {
 		p := item.plugin
@@ -161,6 +165,9 @@ func InitAll(ctx context.Context) error {
 			}
 			logs.Error("初始化插件{}失败:{}", item.name, err)
 		} else {
+			mu.Lock()
+			initialized[item.name] = item
+			mu.Unlock()
 			logs.Info("插件{}初始化成功", item.name)
 		}
 	}
@@ -172,25 +179,19 @@ func InitAll(ctx context.Context) error {
 //   - 单插件 Close 返回 error 仅记入首个错误并继续关闭其余插件；
 //   - 单插件 Close 若 panic，由 defer+recover 兜底，保证不会中断整条关闭链。
 func CloseAll(ctx context.Context) error {
-	ps := sortedByOrder()
+	lifecycleMu.Lock()
+	defer lifecycleMu.Unlock()
+	mu.RLock()
+	ps := make([]pluginMeta, 0, len(initialized))
+	for _, item := range initialized {
+		ps = append(ps, item)
+	}
+	mu.RUnlock()
+	sort.Slice(ps, func(i, j int) bool { return ps[i].order < ps[j].order })
 	var firstErr error
 	for i := len(ps) - 1; i >= 0; i-- {
 		item := ps[i]
 		p := item.plugin
-		enabled, err := safeEnabled(p)
-		if err != nil {
-			logs.Error("检查插件{}关闭状态失败:{}，仍尝试关闭", item.name, err)
-			if closeErr := safeClose(p, ctx, item.name); closeErr != nil && firstErr == nil {
-				firstErr = closeErr
-			}
-			if firstErr == nil {
-				firstErr = err
-			}
-			continue
-		}
-		if !enabled {
-			continue
-		}
 		logs.Info("正在关闭{}", item.name)
 		func() {
 			defer func() {
@@ -207,6 +208,10 @@ func CloseAll(ctx context.Context) error {
 				if firstErr == nil {
 					firstErr = err
 				}
+			} else {
+				mu.Lock()
+				delete(initialized, item.name)
+				mu.Unlock()
 			}
 		}()
 	}

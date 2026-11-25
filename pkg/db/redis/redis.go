@@ -33,6 +33,7 @@ type RedisClient struct {
 	initErr       error
 	subMu         sync.Mutex
 	subscriptions map[uint64]context.CancelFunc
+	subWG         sync.WaitGroup
 	nextSub       atomic.Uint64
 }
 
@@ -270,6 +271,16 @@ func (r *RedisClient) Close() {
 	}
 	r.subMu.Unlock()
 	closeRedisClients(clients)
+	done := make(chan struct{})
+	utils.GoSafe(func() {
+		r.subWG.Wait()
+		close(done)
+	})
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		logger.Error("等待 Redis Pub/Sub 订阅退出超时")
+	}
 }
 
 func (r *RedisClient) redisCheck(dbName string) error {
@@ -427,10 +438,17 @@ func (r *RedisClient) PSubscribeContext(ctx context.Context, dbName string, hand
 		r.subscriptions = make(map[uint64]context.CancelFunc)
 	}
 	r.subscriptions[id] = cancel
+	r.subWG.Add(1)
 	r.subMu.Unlock()
 	r.mu.RUnlock()
 	utils.GoSafe(func() {
-		defer func() { cancel(); r.subMu.Lock(); delete(r.subscriptions, id); r.subMu.Unlock() }()
+		defer func() {
+			cancel()
+			r.subMu.Lock()
+			delete(r.subscriptions, id)
+			r.subMu.Unlock()
+			r.subWG.Done()
+		}()
 		for {
 			select {
 			case <-ctx.Done():

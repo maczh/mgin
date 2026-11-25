@@ -28,6 +28,7 @@ var LimitQueue = &LimitQueeMap{
 	LimitQueue: make(map[string][]int64),
 }
 var cleanerOnce sync.Once
+var cleanerStopOnce sync.Once
 var cleanerStop = make(chan struct{})
 
 func NewLimitQueue() {
@@ -62,12 +63,11 @@ func cleanLimitQueue() {
 	})
 }
 
+// StopLimitQueueCleaner 幂等地停止限流队列清理协程。
 func StopLimitQueueCleaner() {
-	select {
-	case <-cleanerStop:
-	default:
+	cleanerStopOnce.Do(func() {
 		close(cleanerStop)
-	}
+	})
 }
 
 // 单机时间滑动窗口限流法

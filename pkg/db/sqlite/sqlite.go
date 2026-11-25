@@ -80,9 +80,14 @@ func (m *Sqlite) Close() {
 	defer m.mu.Unlock()
 	m.closed = true
 	if m.sqlite != nil {
-		if validateSqlite(m.sqlite) == nil {
-			db, _ := m.sqlite.DB()
-			_ = db.Close()
+		if m.sqlite.Config != nil && m.sqlite.Statement != nil {
+			if db, err := m.sqlite.DB(); err != nil {
+				logger.Error(fmt.Sprintf("SQLite底层连接获取失败:%s", err.Error()))
+			} else if db != nil {
+				if err := db.Close(); err != nil {
+					logger.Error(fmt.Sprintf("SQLite底层连接关闭失败:%s", err.Error()))
+				}
+			}
 		}
 		m.sqlite = nil
 	}

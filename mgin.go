@@ -9,10 +9,14 @@ package mgin
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"reflect"
 	goruntime "runtime"
+	"runtime/debug"
+	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/maczh/mgin/v2/pkg/config"
@@ -28,6 +32,7 @@ type mgin struct {
 	// 但其 Close/Check 仍由 SafeExit / checkAll 显式驱动，不走 plugin.PluginRegistry。
 	// 注意：当业务使用旧 API 时，可同时通过 plugin.Register 注入新框架，二者不冲突。
 	plugins map[string]legacyPlugin
+	mu      sync.RWMutex
 }
 
 // MginPlugin 是 v1 时代暴露的"组件适配接口"，保留以兼容存量项目。
@@ -66,17 +71,61 @@ func (m *mgin) Use(dbConfigName string, dbInit dbInitFunc, dbClose dbCloseFunc, 
 		logs.Error("{}配置错误，无法获取配置地址", dbConfigName)
 		return
 	}
-	if m.plugins == nil {
-		m.plugins = make(map[string]legacyPlugin)
-	}
-	m.plugins[dbConfigName] = legacyPlugin{
+	m.registerLegacyPlugin(dbConfigName, legacyPlugin{
 		InitFunc:  dbInit,
 		CloseFunc: dbClose,
 		CheckFunc: dbCheck,
-	}
+	})
 	logs.Info("正在连接{}", dbConfigName)
-	dbInit(cnfData)
+	if err := callLegacy(dbConfigName, "init", func() error { dbInit(cnfData); return nil }); err != nil {
+		logs.Error("{}初始化失败:{}", dbConfigName, err)
+		return
+	}
 	logs.Info("{}连接成功", dbConfigName)
+}
+
+func (m *mgin) registerLegacyPlugin(name string, plugin legacyPlugin) {
+	if m == nil {
+		return
+	}
+	m.mu.Lock()
+	if m.plugins == nil {
+		m.plugins = make(map[string]legacyPlugin)
+	}
+	m.plugins[name] = plugin
+	m.mu.Unlock()
+}
+
+func (m *mgin) legacyPluginsSnapshot() []struct {
+	name   string
+	plugin legacyPlugin
+} {
+	if m == nil {
+		return nil
+	}
+	m.mu.RLock()
+	items := make([]struct {
+		name   string
+		plugin legacyPlugin
+	}, 0, len(m.plugins))
+	for name, plugin := range m.plugins {
+		items = append(items, struct {
+			name   string
+			plugin legacyPlugin
+		}{name: name, plugin: plugin})
+	}
+	m.mu.RUnlock()
+	sort.Slice(items, func(i, j int) bool { return items[i].name < items[j].name })
+	return items
+}
+
+func callLegacy(name, operation string, call func() error) (err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = fmt.Errorf("legacy plugin %s %s panic: %v\n%s", name, operation, recovered, debug.Stack())
+		}
+	}()
+	return call()
 }
 
 // UsePlugin 是 v1 时代基于 MginPlugin 接口的便捷入口，等价于 Use 的对象化版本。
@@ -181,13 +230,11 @@ func (m *mgin) checkAll() {
 		}
 	}
 	// v1 兼容：遍历 m.plugins 中的旧接口组件
-	if m.plugins != nil {
-		for dbConfigName, pl := range m.plugins {
-			if pl.CheckFunc != nil {
-				logs.Info("正在检查{}", dbConfigName)
-				if err := pl.CheckFunc(); err != nil {
-					logs.Error("{}连接检查失败:{}", dbConfigName, err.Error())
-				}
+	for _, item := range m.legacyPluginsSnapshot() {
+		if item.plugin.CheckFunc != nil {
+			logs.Info("正在检查{}", item.name)
+			if err := callLegacy(item.name, "check", item.plugin.CheckFunc); err != nil {
+				logs.Error("{}连接检查失败:{}", item.name, err)
 			}
 		}
 	}
@@ -213,11 +260,11 @@ func (m *mgin) SafeExit() {
 	}
 
 	// v1 兼容：旧 m.plugins 中的组件。
-	if m.plugins != nil {
-		for dbConfigName, pl := range m.plugins {
-			if pl.CloseFunc != nil {
-				logs.Info("正在关闭{}", dbConfigName)
-				pl.CloseFunc()
+	for _, item := range m.legacyPluginsSnapshot() {
+		if item.plugin.CloseFunc != nil {
+			logs.Info("正在关闭{}", item.name)
+			if err := callLegacy(item.name, "close", func() error { item.plugin.CloseFunc(); return nil }); err != nil {
+				logs.Error("{}关闭失败:{}", item.name, err)
 			}
 		}
 	}

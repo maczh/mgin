@@ -147,10 +147,10 @@ func (c *ConsulClient) GetServiceURL(servicename string, groupName ...string) (s
 	currentGroup := groupName[0]
 	for _, group := range groupName {
 		services, _, err := c.client.Health().Service(servicename, group, true, &api.QueryOptions{})
-		services = filterCluster(services, c.cluster)
 		if err != nil {
 			continue
 		}
+		services = filterCluster(services, c.cluster)
 		if len(services) == 0 {
 			continue
 		}
@@ -179,11 +179,11 @@ func (c *ConsulClient) GetServices(servicename string, groupName ...string) ([]s
 	}
 	for _, group := range groupName {
 		services, _, err := c.client.Health().Service(servicename, group, true, &api.QueryOptions{})
-		services = filterCluster(services, c.cluster)
 		if err != nil {
 			logger.Error("Consul 拉取" + servicename + "实例失败:" + err.Error())
 			continue
 		}
+		services = filterCluster(services, c.cluster)
 		if len(services) == 0 {
 			continue
 		}
@@ -300,11 +300,15 @@ func getInstanceId(ip string, port uint64, scope ...string) string {
 }
 
 func filterCluster(services []*api.ServiceEntry, cluster string) []*api.ServiceEntry {
-	if cluster == "" {
-		return services
-	}
 	filtered := make([]*api.ServiceEntry, 0, len(services))
 	for _, service := range services {
+		if service == nil || service.Service == nil {
+			continue
+		}
+		if cluster == "" {
+			filtered = append(filtered, service)
+			continue
+		}
 		for _, tag := range service.Service.Tags {
 			if tag == cluster {
 				filtered = append(filtered, service)

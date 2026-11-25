@@ -7,9 +7,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/maczh/mgin/v2/pkg/casbin"
 	"github.com/maczh/mgin/v2/pkg/config"
+	"github.com/maczh/mgin/v2/pkg/middleware/routeallow"
 	"github.com/maczh/mgin/v2/pkg/models"
 	"net/http"
-	"strings"
 )
 
 // CasbinHandler 拦截器
@@ -33,7 +33,7 @@ func CasbinHandler() gin.HandlerFunc {
 			}
 		}
 		swaggerURI := config.Config.Sys.Swagger.Uri
-		if strings.Contains(path, "/docs/") || strings.Contains(path, "/swagger/") || (swaggerURI != "" && strings.Contains(path, swaggerURI)) {
+		if routeallow.MatchesPrefix(path, "/docs") || routeallow.MatchesPrefix(path, "/swagger") || routeallow.MatchesPrefix(path, swaggerURI) {
 			c.Next()
 			return
 		}

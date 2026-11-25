@@ -2,6 +2,7 @@ package utils
 
 import (
 	"fmt"
+	"math"
 	"reflect"
 	"sort"
 	"strings"
@@ -13,7 +14,7 @@ import (
 func MapItoS(src map[string]any) map[string]string {
 	dst := make(map[string]string)
 	for k, v := range src {
-		dst[k] = v.(string)
+		dst[k] = fmt.Sprint(v)
 	}
 	return dst
 }
@@ -45,9 +46,44 @@ type Pair struct {
 
 type PairList []Pair
 
-func (p PairList) Len() int           { return len(p) }
-func (p PairList) Less(i, j int) bool { return p[i].Value.(float64) < p[j].Value.(float64) }
-func (p PairList) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
+func (p PairList) Len() int { return len(p) }
+func (p PairList) Less(i, j int) bool {
+	left, leftNumeric := numericValue(p[i].Value)
+	right, rightNumeric := numericValue(p[j].Value)
+	if leftNumeric && rightNumeric && left != right {
+		return left < right
+	}
+	if leftNumeric != rightNumeric {
+		return leftNumeric
+	}
+	leftText, rightText := fmt.Sprint(p[i].Value), fmt.Sprint(p[j].Value)
+	if leftText != rightText {
+		return leftText < rightText
+	}
+	return p[i].Key < p[j].Key
+}
+
+func numericValue(value any) (float64, bool) {
+	reflected := reflect.ValueOf(value)
+	if !reflected.IsValid() {
+		return 0, false
+	}
+	switch reflected.Kind() {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return float64(reflected.Int()), true
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+		return float64(reflected.Uint()), true
+	case reflect.Float32, reflect.Float64:
+		value := reflected.Float()
+		if math.IsNaN(value) {
+			return 0, false
+		}
+		return value, true
+	default:
+		return 0, false
+	}
+}
+func (p PairList) Swap(i, j int) { p[i], p[j] = p[j], p[i] }
 
 func SortMapByValue(src map[string]any) PairList {
 	list := make(PairList, len(src))
@@ -125,6 +161,9 @@ func MapGet(input interface{}, fieldName string) interface{} {
 func Struct2StringMap(input any) (map[string]string, error) {
 	result := make(map[string]string)
 	inputVal := reflect.ValueOf(input)
+	if !inputVal.IsValid() {
+		return result, fmt.Errorf("input must be a struct or pointer to struct")
+	}
 	inputType := inputVal.Type()
 
 	if inputVal.Kind() == reflect.Ptr {

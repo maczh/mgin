@@ -127,6 +127,32 @@ func TestDropWhenQueueFull(t *testing.T) {
 	Unregister("slow", 200*time.Millisecond)
 }
 
+func TestDropLoggerCanRegisterHandlerWithoutDeadlockingEmit(t *testing.T) {
+	Reset()
+	defer Reset()
+	registered := make(chan error, 1)
+	SetDropLogger(func(string, uint64) {
+		registered <- Register(&memHandler{name: "reentrant"})
+	})
+	defer SetDropLogger(nil)
+	blocked := &memHandler{name: "blocked", writeCh: make(chan struct{}, 1)}
+	if err := Register(blocked, WithQueueSize(1)); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 100; i++ {
+		Emit(newEntry("/drop"))
+	}
+	select {
+	case err := <-registered:
+		if err != nil {
+			t.Fatalf("reentrant Register: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("drop callback deadlocked while registering another handler")
+	}
+	Close(20 * time.Millisecond)
+}
+
 func TestPanicAndErrorAreIsolated(t *testing.T) {
 	Reset()
 	defer Reset()
@@ -212,13 +238,14 @@ func TestConcurrentEmit(t *testing.T) {
 		wg.Add(1)
 		safego.Run(func() {
 			defer wg.Done()
-			for j := 0; j < 20; j++ {
+			for j := 0; j < 100; j++ {
 				Emit(newEntry("/c"))
 			}
 		})
 	}
 	wg.Wait()
-	waitFor(t, func() bool { return h.len()+int(droppedOf(h.name)) == 1000 }, "全部日志被处理或丢弃")
+	const emitted = 50 * 100
+	waitFor(t, func() bool { return h.len()+int(droppedOf(h.name)) == emitted }, "全部日志被处理或丢弃")
 	Close(3 * time.Second)
 }
 
@@ -255,5 +282,12 @@ func TestQueueKeepsNewestAndFIFO(t *testing.T) {
 		if e.Uri != fmt.Sprint(i+5) {
 			t.Fatalf("entry %d: %s", i, e.Uri)
 		}
+	}
+}
+
+func TestQueueSizeMaximumMatchesDefaultConstant(t *testing.T) {
+	options := (&Options{QueueSize: DefaultQueueSize + 1}).normalize()
+	if options.QueueSize != DefaultQueueSize {
+		t.Fatalf("queue size=%d, want maximum %d", options.QueueSize, DefaultQueueSize)
 	}
 }

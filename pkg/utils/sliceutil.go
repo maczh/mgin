@@ -214,6 +214,9 @@ func SliceSumFloat64(intslice []float64) (sum float64) {
 
 // 删除数组
 func DeleteArray(src []any, index int) (result []any) {
+	if index < 0 || index >= len(src) {
+		return src
+	}
 	result = append(src[:index], src[(index+1):]...)
 	return
 }

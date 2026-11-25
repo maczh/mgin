@@ -1,7 +1,11 @@
 package utils
 
 import (
+	"fmt"
+	"runtime/debug"
+
 	"github.com/maczh/mgin/v2/internal/safego"
+	"github.com/maczh/mgin/v2/pkg/logs"
 )
 
 type safeGo struct {
@@ -60,7 +64,19 @@ func (receiver *safeGo) Run(args ...any) {
 	}
 	var preRoutineId map[string]any
 	if receiver.goBeforeF != nil {
-		preRoutineId = receiver.goBeforeF()
+		var ok bool
+		func() {
+			defer func() {
+				if recovered := recover(); recovered != nil {
+					logs.Error("SafeGo before hook panic: {}\n{}", fmt.Sprint(recovered), string(debug.Stack()))
+				}
+			}()
+			preRoutineId = receiver.goBeforeF()
+			ok = true
+		}()
+		if !ok {
+			return
+		}
 	}
 	safego.Run(func() {
 		if receiver.callBeforeF != nil {

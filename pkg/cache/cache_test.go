@@ -19,6 +19,25 @@ func TestMemCacheHandlesInvalidLifecycleInputs(t *testing.T) {
 	cache.Close()
 }
 
+func TestMemCacheRejectsUncomparableKeysWithoutPanic(t *testing.T) {
+	cache := &MemCache{}
+	if err := cache.SetWithError([]int{1}, "value", 0); err == nil {
+		t.Fatal("expected uncomparable key error")
+	}
+	if err := cache.AddWithError(map[string]int{"x": 1}, "value", 0); err == nil {
+		t.Fatal("expected AddWithError to reject an uncomparable key")
+	}
+	cache.Set([]int{1}, "value", 0)
+	cache.Add(map[string]int{"x": 1}, "value", 0)
+	cache.Delete([]int{1})
+	if value, ok := cache.Get([]int{1}); ok || value != nil {
+		t.Fatalf("Get(uncomparable)=(%v,%v), want (nil,false)", value, ok)
+	}
+	if err := cache.SetWithError("valid", "value", 0); err != nil {
+		t.Fatalf("SetWithError(valid): %v", err)
+	}
+}
+
 func TestMemCacheHandlesCorruptStoredValue(t *testing.T) {
 	cache := &MemCache{}
 	cache.items.Store("key", "invalid")

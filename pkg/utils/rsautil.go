@@ -108,6 +108,9 @@ func (rsas *RSASecurity) PriKeyDECRYPT(input []byte) ([]byte, error) {
  * 使用RSAWithSHA1算法签名
  */
 func (rsas *RSASecurity) SignSha1WithRsa(data string) (string, error) {
+	if rsas == nil || rsas.prikey == nil {
+		return "", errors.New("Please set the private key in advance")
+	}
 	sha1Hash := sha1.New()
 	s_data := []byte(data)
 	sha1Hash.Write(s_data)
@@ -122,6 +125,9 @@ func (rsas *RSASecurity) SignSha1WithRsa(data string) (string, error) {
  * 使用RSAWithSHA256算法签名
  */
 func (rsas *RSASecurity) SignSha256WithRsa(data string) (string, error) {
+	if rsas == nil || rsas.prikey == nil {
+		return "", errors.New("Please set the private key in advance")
+	}
 	sha256Hash := sha256.New()
 	s_data := []byte(data)
 	sha256Hash.Write(s_data)
@@ -133,6 +139,9 @@ func (rsas *RSASecurity) SignSha256WithRsa(data string) (string, error) {
 }
 
 func (rsas *RSASecurity) SignSha256WithRsaHex(data string) (string, error) {
+	if rsas == nil || rsas.prikey == nil {
+		return "", errors.New("Please set the private key in advance")
+	}
 	sha256Hash := sha256.New()
 	s_data := []byte(data)
 	sha256Hash.Write(s_data)
@@ -144,6 +153,9 @@ func (rsas *RSASecurity) SignSha256WithRsaHex(data string) (string, error) {
 }
 
 func (rsas *RSASecurity) SignSha256WithRsaUrlSafe(data string) (string, error) {
+	if rsas == nil || rsas.prikey == nil {
+		return "", errors.New("Please set the private key in advance")
+	}
 	sha256Hash := sha256.New()
 	s_data := []byte(data)
 	sha256Hash.Write(s_data)
@@ -158,6 +170,9 @@ func (rsas *RSASecurity) SignSha256WithRsaUrlSafe(data string) (string, error) {
  * 使用RSAWithSHA1验证签名
  */
 func (rsas *RSASecurity) VerifySignSha1WithRsa(data string, signData string) error {
+	if rsas == nil || rsas.pubkey == nil {
+		return errors.New("Please set the public key in advance")
+	}
 	sign, err := base64.StdEncoding.DecodeString(signData)
 	if err != nil {
 		return err
@@ -171,6 +186,9 @@ func (rsas *RSASecurity) VerifySignSha1WithRsa(data string, signData string) err
  * 使用RSAWithSHA256验证签名
  */
 func (rsas *RSASecurity) VerifySignSha256WithRsa(data string, signData string) error {
+	if rsas == nil || rsas.pubkey == nil {
+		return errors.New("Please set the public key in advance")
+	}
 	sign, err := base64.StdEncoding.DecodeString(signData)
 	if err != nil {
 		return err

@@ -15,6 +15,9 @@ func Clone(src any, dst any) {
 // Struct2Map return map
 func Struct2Map(obj any) map[string]any {
 	objT := reflect.TypeOf(obj)
+	if objT == nil || (objT.Kind() == reflect.Pointer && reflect.ValueOf(obj).IsNil()) {
+		return map[string]any{}
+	}
 	if objT.Kind() != reflect.Struct {
 		panic(errors.New("argument is not of the expected type"))
 	}
@@ -48,6 +51,9 @@ func Struct2Map(obj any) map[string]any {
 
 func Struct2MapString(obj any) map[string]string {
 	objT := reflect.TypeOf(obj)
+	if objT == nil || (objT.Kind() == reflect.Pointer && reflect.ValueOf(obj).IsNil()) {
+		return map[string]string{}
+	}
 	if objT.Kind() != reflect.Struct {
 		panic(errors.New("argument is not of the expected type"))
 	}
@@ -73,6 +79,9 @@ func Struct2MapString(obj any) map[string]string {
 func GetStructFields(obj any) []string {
 	t := reflect.TypeOf(obj)
 	fields := make([]string, 0)
+	if t == nil || (t.Kind() == reflect.Pointer && reflect.ValueOf(obj).IsNil()) {
+		return fields
+	}
 	for i := 0; i < t.NumField(); i++ {
 		fields = append(fields, t.Field(i).Name)
 	}
@@ -82,6 +91,9 @@ func GetStructFields(obj any) []string {
 func GetStructJsonTags(obj any) []string {
 	t := reflect.TypeOf(obj)
 	fields := make([]string, 0)
+	if t == nil || (t.Kind() == reflect.Pointer && reflect.ValueOf(obj).IsNil()) {
+		return fields
+	}
 	for i := 0; i < t.NumField(); i++ {
 		fields = append(fields, t.Field(i).Tag.Get("json"))
 	}

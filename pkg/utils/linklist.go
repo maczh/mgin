@@ -261,12 +261,16 @@ func (l *LinkList[T]) Walk(fn func(v T) bool) {
 		return
 	}
 
-	// 必须先加锁再读 l.size，否则与 Push/Remove 中的 l.size 写入产生数据竞争（与 jh 保持一致）
+	// 回调可能再次修改链表，因此只在锁内建立快照；外部代码在锁外执行。
 	l.lock.RLock()
-	defer l.lock.RUnlock()
-
+	items := make([]T, 0, l.size)
 	for node := l.head; node != nil; node = node.next {
-		if !fn(node.value) {
+		items = append(items, node.value)
+	}
+	l.lock.RUnlock()
+
+	for _, item := range items {
+		if !fn(item) {
 			return
 		}
 	}

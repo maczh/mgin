@@ -5,7 +5,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
+	casbinService "github.com/maczh/mgin/v2/pkg/casbin"
 	"github.com/maczh/mgin/v2/pkg/config"
 )
 
@@ -41,6 +43,24 @@ func TestDocumentationPathBypassesAuthentication(t *testing.T) {
 	}
 }
 
+func TestPrivatePathContainingDocumentationSegmentDoesNotBypassAuthentication(t *testing.T) {
+	old := *config.Config
+	t.Cleanup(func() { *config.Config = old })
+	config.Config.Casbin.Enabled = true
+	config.Config.Sys.Swagger.Uri = "/swagger/sys"
+	for _, path := range []string{"/private/docs/secret", "/private/swagger/secret", "/api/document"} {
+		config.Config.Sys.Swagger.Uri = "/api/doc"
+		router := gin.New()
+		router.Use(CasbinHandler())
+		router.GET(path, func(c *gin.Context) { c.Status(http.StatusOK) })
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, path, nil))
+		if recorder.Code != http.StatusUnauthorized {
+			t.Errorf("path %q bypassed Casbin: status=%d", path, recorder.Code)
+		}
+	}
+}
+
 func TestClaimIDRejectsUnexpectedTypes(t *testing.T) {
 	if _, ok := claimID("7"); ok {
 		t.Fatal("string claim must be rejected")
@@ -56,6 +76,33 @@ func TestNilConfigFailsClosed(t *testing.T) {
 	t.Cleanup(func() { config.Config = old })
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
+	router.Use(CasbinHandler())
+	router.GET("/private", func(c *gin.Context) { c.Status(http.StatusOK) })
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/private", nil))
+	if w.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status=%d, want %d", w.Code, http.StatusServiceUnavailable)
+	}
+}
+
+func TestNilEnforcerFailsClosed(t *testing.T) {
+	oldConfig := *config.Config
+	oldCasbin := casbinService.Casbin
+	t.Cleanup(func() {
+		*config.Config = oldConfig
+		casbinService.Casbin = oldCasbin
+	})
+	config.Config.Casbin.Enabled = true
+	config.Config.Sys.Swagger.Uri = ""
+	casbinService.Casbin.SyncedCachedEnforcer = nil
+	casbinService.Casbin.UnAuthPath = nil
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set("claims", jwt.MapClaims{"userId": float64(1), "roleId": float64(1)})
+		c.Next()
+	})
 	router.Use(CasbinHandler())
 	router.GET("/private", func(c *gin.Context) { c.Status(http.StatusOK) })
 	w := httptest.NewRecorder()

@@ -62,7 +62,7 @@ type Options struct {
 // Option 注册时的可选配置。
 type Option func(*Options)
 
-// WithQueueSize 设置缓冲队列长度，最大 100。
+// WithQueueSize 设置缓冲队列长度，最大值为 DefaultQueueSize。
 func WithQueueSize(n int) Option { return func(o *Options) { o.QueueSize = n } }
 
 // WithWorkers 保留兼容；消费协程数固定为 1，保证 FIFO。
@@ -198,13 +198,20 @@ func Emit(entry *Entry) bool {
 		return false
 	}
 	mu.RLock()
-	defer mu.RUnlock()
 	if len(order) == 0 {
+		mu.RUnlock()
 		return false
 	}
-	delivered := false
+	sinks := make([]*sink[Entry], 0, len(order))
 	for _, name := range order {
-		if registry[name].deliver(entry) {
+		if current := registry[name]; current != nil {
+			sinks = append(sinks, current)
+		}
+	}
+	mu.RUnlock()
+	delivered := false
+	for _, current := range sinks {
+		if current.deliver(entry) {
 			delivered = true
 		}
 	}

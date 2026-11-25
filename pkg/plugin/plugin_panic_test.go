@@ -26,3 +26,62 @@ func TestRegisterRejectsPanickingMetadata(t *testing.T) {
 		t.Fatal("plugin with panicking metadata must not be registered")
 	}
 }
+
+type unstableMetadataPlugin struct {
+	nameCalls   int
+	orderCalls  int
+	closeCalls  int
+	enabled     bool
+	panicEnable bool
+}
+
+func (p *unstableMetadataPlugin) Name() string {
+	p.nameCalls++
+	if p.nameCalls > 1 {
+		panic("name changed after registration")
+	}
+	return "unstable-metadata-test"
+}
+func (p *unstableMetadataPlugin) Order() int {
+	p.orderCalls++
+	if p.orderCalls > 1 {
+		panic("order changed after registration")
+	}
+	return 1
+}
+func (*unstableMetadataPlugin) Init(context.Context) error { return nil }
+func (p *unstableMetadataPlugin) Close(context.Context) error {
+	p.closeCalls++
+	return nil
+}
+func (*unstableMetadataPlugin) Health() error { return nil }
+func (p *unstableMetadataPlugin) Enabled() bool {
+	if p.panicEnable {
+		panic("enabled panic")
+	}
+	return p.enabled
+}
+
+func TestLifecycleUsesCachedMetadataAndClosesWhenEnabledPanics(t *testing.T) {
+	plugin := &unstableMetadataPlugin{enabled: true}
+	Register(plugin)
+	defer Unregister("unstable-metadata-test")
+
+	if err := InitAll(context.Background()); err != nil {
+		t.Fatalf("InitAll: %v", err)
+	}
+	plugin.enabled = false
+	plugin.panicEnable = true
+	if got := HealthAll()["unstable-metadata-test"]; got == nil {
+		t.Fatal("expected Enabled panic to be reported by HealthAll")
+	}
+	if err := CloseAll(context.Background()); err != nil {
+		t.Fatalf("CloseAll should close an initialized plugin despite Enabled panic: %v", err)
+	}
+	if plugin.closeCalls != 1 {
+		t.Fatalf("Close calls=%d, want 1 when Enabled changes or panics", plugin.closeCalls)
+	}
+	if plugin.nameCalls != 1 || plugin.orderCalls != 1 {
+		t.Fatalf("metadata methods called after registration: Name=%d Order=%d", plugin.nameCalls, plugin.orderCalls)
+	}
+}

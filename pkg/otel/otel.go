@@ -20,6 +20,7 @@ package otel
 
 import (
 	"context"
+	"reflect"
 	"sync/atomic"
 
 	"go.opentelemetry.io/otel/trace"
@@ -46,7 +47,7 @@ func init() {
 //
 // 重复设置会以最后一次为准（用于测试场景切换）。
 func SetTracerProvider(tp trace.TracerProvider) {
-	if tp == nil {
+	if isNilProvider(tp) {
 		tp = noop.NewTracerProvider()
 	}
 	tracerProvider.Store(providerHolder{provider: tp})
@@ -64,10 +65,27 @@ func Disable() {
 // 未启用时返 noop Tracer，所有 span 不会真正产生开销。
 func Tracer() trace.Tracer {
 	holder, ok := tracerProvider.Load().(providerHolder)
-	if !ok || holder.provider == nil {
+	if !ok || isNilProvider(holder.provider) {
 		return noop.NewTracerProvider().Tracer("mgin")
 	}
-	return holder.provider.Tracer("mgin")
+	tracer := holder.provider.Tracer("mgin")
+	if tracer == nil {
+		return noop.NewTracerProvider().Tracer("mgin")
+	}
+	return tracer
+}
+
+func isNilProvider(provider trace.TracerProvider) bool {
+	if provider == nil {
+		return true
+	}
+	value := reflect.ValueOf(provider)
+	switch value.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return value.IsNil()
+	default:
+		return false
+	}
 }
 
 // StartSpan 是 Tracer().Start 的便捷封装，自动从 ctx 透传 parent。
