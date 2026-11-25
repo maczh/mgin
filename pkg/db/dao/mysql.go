@@ -75,6 +75,9 @@ func (m *MySQLDao[E]) connection() (*gorm.DB, error) {
 			return nil, err
 		}
 	}
+	if conn == nil || conn.Config == nil || conn.Statement == nil || conn.Error != nil {
+		return nil, errors.New("数据库连接不可用")
+	}
 	if m.debug {
 		conn = conn.Debug()
 	}
@@ -631,5 +634,9 @@ func (receiver *MySQLDao[E]) DB() *gorm.DB {
 }
 
 func (receiver *MySQLDao[E]) JOIN(alias, query string, args ...interface{}) *gorm.DB {
-	return receiver.Alias(alias).Joins(query, args...)
+	conn := receiver.Alias(alias)
+	if conn == nil {
+		return nil
+	}
+	return conn.Joins(query, args...)
 }

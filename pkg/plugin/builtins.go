@@ -65,8 +65,7 @@ func Mysql() Plugin {
 		name: "mysql", order: 10,
 		enabledFn: func() bool { return enabled("mysql") },
 		initFn: func(ctx context.Context) error {
-			db.Mysql.Init(getCfg(config.Config.Config.Prefix.Mysql))
-			return nil
+			return db.Mysql.InitWithError(getCfg(config.Config.Config.Prefix.Mysql))
 		},
 		closeFn:  func(ctx context.Context) error { db.Mysql.Close(); return nil },
 		healthFn: func() error { return db.Mysql.Check() },
