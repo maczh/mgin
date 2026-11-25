@@ -181,14 +181,16 @@ func (m *Mongodb) Check() error {
 	if m == nil {
 		return errors.New("Mongodb is nil")
 	}
+	m.mu.RLock()
+	needsInit := len(m.conns) == 0 && len(m.confData) > 0
+	confData := append([]byte(nil), m.confData...)
+	m.mu.RUnlock()
+	if needsInit {
+		m.Init(confData)
+	}
 	var err error
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if len(m.conns) == 0 && len(m.confData) > 0 {
-		// Init is intentionally not called while holding mu; callers should
-		// initialize the client before health checks.
-		return errors.New("MongoDB connection is not initialized")
-	}
 	if m.multi {
 		for dbName := range m.conns {
 			err = m.mgoCheck(dbName)
@@ -206,6 +208,13 @@ func (m *Mongodb) Check() error {
 func (m *Mongodb) GetConnection(dbName ...string) (*mgo.Database, error) {
 	if m == nil {
 		return nil, errors.New("Mongodb is nil")
+	}
+	m.mu.RLock()
+	needsInit := len(m.conns) == 0 && len(m.confData) > 0
+	confData := append([]byte(nil), m.confData...)
+	m.mu.RUnlock()
+	if needsInit {
+		m.Init(confData)
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
