@@ -24,6 +24,7 @@ type Mongodb struct {
 	conf     *koanf.Koanf
 	confUrl  string
 	confData []byte
+	closed   bool
 }
 
 type connection struct {
@@ -33,6 +34,7 @@ type connection struct {
 }
 
 var logger = gologger.GetLogger()
+var ErrClosed = errors.New("mongodb client is closed")
 
 func (m *Mongodb) Init(mongodbConfigData []byte) {
 	if m == nil {
@@ -42,6 +44,9 @@ func (m *Mongodb) Init(mongodbConfigData []byte) {
 	defer m.initMu.Unlock()
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if m.closed {
+		return
+	}
 	if mongodbConfigData != nil {
 		m.confData = mongodbConfigData
 	}
@@ -133,6 +138,8 @@ func (m *Mongodb) Close() {
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	m.closed = true
+	m.confData = nil
 	if m.conns == nil {
 		return
 	}
@@ -182,6 +189,10 @@ func (m *Mongodb) Check() error {
 		return errors.New("Mongodb is nil")
 	}
 	m.mu.RLock()
+	if m.closed {
+		m.mu.RUnlock()
+		return ErrClosed
+	}
 	needsInit := len(m.conns) == 0 && len(m.confData) > 0
 	confData := append([]byte(nil), m.confData...)
 	m.mu.RUnlock()
@@ -191,6 +202,9 @@ func (m *Mongodb) Check() error {
 	var err error
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if m.closed {
+		return ErrClosed
+	}
 	if m.multi {
 		for dbName := range m.conns {
 			err = m.mgoCheck(dbName)
@@ -210,6 +224,10 @@ func (m *Mongodb) GetConnection(dbName ...string) (*mgo.Database, error) {
 		return nil, errors.New("Mongodb is nil")
 	}
 	m.mu.RLock()
+	if m.closed {
+		m.mu.RUnlock()
+		return nil, ErrClosed
+	}
 	needsInit := len(m.conns) == 0 && len(m.confData) > 0
 	confData := append([]byte(nil), m.confData...)
 	m.mu.RUnlock()
@@ -218,6 +236,9 @@ func (m *Mongodb) GetConnection(dbName ...string) (*mgo.Database, error) {
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if m.closed {
+		return nil, ErrClosed
+	}
 	if m.multi {
 		if len(dbName) > 1 || len(dbName) == 0 {
 			return nil, errors.New("Multidb Mongodb get connection must be specified one dbName")

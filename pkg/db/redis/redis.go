@@ -27,11 +27,13 @@ type RedisClient struct {
 	confUrl  string
 	confData []byte
 	conns    []string
+	closed   bool
 }
 
 var Redis = &RedisClient{}
 
 var logger = gologger.GetLogger()
+var ErrClosed = errors.New("redis client is closed")
 
 func (r *RedisClient) Init(redisConfigData []byte) {
 	if r == nil {
@@ -41,6 +43,9 @@ func (r *RedisClient) Init(redisConfigData []byte) {
 	defer r.initMu.Unlock()
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.closed {
+		return
+	}
 	if redisConfigData != nil {
 		r.confData = redisConfigData
 	}
@@ -191,6 +196,8 @@ func (r *RedisClient) Close() {
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	r.closed = true
+	r.confData = nil
 	if r.multi {
 		for dbName, rc := range r.clients {
 			if rc != nil {
@@ -230,6 +237,9 @@ func (r *RedisClient) Check() error {
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.closed {
+		return ErrClosed
+	}
 	var firstErr error
 	for name, client := range r.clients {
 		if client == nil {
@@ -274,6 +284,12 @@ func (r *RedisClient) GetConnection(dbName ...string) (redis.UniversalClient, er
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.closed {
+		return nil, ErrClosed
+	}
+	if len(r.clients) == 0 {
+		return nil, errors.New("Redis connection unavailable")
+	}
 	if r.multi {
 		if len(dbName) == 0 || len(dbName) > 1 {
 			return nil, errors.New("Multidb Get RedisClient connection must specify one database name")
