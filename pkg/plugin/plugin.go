@@ -37,8 +37,15 @@ type Plugin interface {
 var (
 	mu      sync.RWMutex
 	plugins = make(map[string]Plugin)
+	meta    = make(map[string]pluginMeta)
 	order   = make([]string, 0) // 注册顺序，保证确定性
 )
+
+type pluginMeta struct {
+	plugin Plugin
+	name   string
+	order  int
+}
 
 // Register 注册一个插件。按 Name 去重：同名插件后注册者覆盖先注册者，
 // 但注册顺序（order 切片）仅在首次出现时记录。
@@ -46,13 +53,23 @@ func Register(p Plugin) {
 	if isNilPlugin(p) {
 		return
 	}
-	name := p.Name()
+	name, err := safeName(p)
+	if err != nil {
+		logs.Error("注册插件失败:{}", err)
+		return
+	}
+	pluginOrder, err := safeOrder(p)
+	if err != nil {
+		logs.Error("注册插件{}失败:{}", name, err)
+		return
+	}
 	mu.Lock()
 	defer mu.Unlock()
 	if _, ok := plugins[name]; !ok {
 		order = append(order, name)
 	}
 	plugins[name] = p
+	meta[name] = pluginMeta{plugin: p, name: name, order: pluginOrder}
 }
 
 func isNilPlugin(p Plugin) bool {
@@ -76,6 +93,7 @@ func Unregister(name string) {
 		return
 	}
 	delete(plugins, name)
+	delete(meta, name)
 	for i, n := range order {
 		if n == name {
 			order = append(order[:i], order[i+1:]...)
@@ -103,10 +121,17 @@ func All() []Plugin {
 }
 
 // sortedByOrder 返回按 Order 升序排列的插件副本。
-func sortedByOrder() []Plugin {
-	ps := All()
+func sortedByOrder() []pluginMeta {
+	mu.RLock()
+	ps := make([]pluginMeta, 0, len(order))
+	for _, name := range order {
+		if item, ok := meta[name]; ok {
+			ps = append(ps, item)
+		}
+	}
+	mu.RUnlock()
 	sort.Slice(ps, func(i, j int) bool {
-		return ps[i].Order() < ps[j].Order()
+		return ps[i].order < ps[j].order
 	})
 	return ps
 }
@@ -116,10 +141,11 @@ func sortedByOrder() []Plugin {
 // （与旧 mgin.Init 的 if 链“不中断”语义一致）。
 func InitAll(ctx context.Context) error {
 	var firstErr error
-	for _, p := range sortedByOrder() {
+	for _, item := range sortedByOrder() {
+		p := item.plugin
 		enabled, err := safeEnabled(p)
 		if err != nil {
-			logs.Error("检查插件{}启用状态失败:{}", p.Name(), err)
+			logs.Error("检查插件{}启用状态失败:{}", item.name, err)
 			if firstErr == nil {
 				firstErr = err
 			}
@@ -128,14 +154,14 @@ func InitAll(ctx context.Context) error {
 		if !enabled {
 			continue
 		}
-		logs.Info("正在初始化{}", p.Name())
-		if err := safeInit(p, ctx); err != nil {
+		logs.Info("正在初始化{}", item.name)
+		if err := safeInit(p, ctx, item.name); err != nil {
 			if firstErr == nil {
 				firstErr = err
 			}
-			logs.Error("初始化插件{}失败:{}", p.Name(), err)
+			logs.Error("初始化插件{}失败:{}", item.name, err)
 		} else {
-			logs.Info("插件{}初始化成功", p.Name())
+			logs.Info("插件{}初始化成功", item.name)
 		}
 	}
 	return firstErr
@@ -149,9 +175,14 @@ func CloseAll(ctx context.Context) error {
 	ps := sortedByOrder()
 	var firstErr error
 	for i := len(ps) - 1; i >= 0; i-- {
-		p := ps[i]
+		item := ps[i]
+		p := item.plugin
 		enabled, err := safeEnabled(p)
 		if err != nil {
+			logs.Error("检查插件{}关闭状态失败:{}，仍尝试关闭", item.name, err)
+			if closeErr := safeClose(p, ctx, item.name); closeErr != nil && firstErr == nil {
+				firstErr = closeErr
+			}
 			if firstErr == nil {
 				firstErr = err
 			}
@@ -160,19 +191,19 @@ func CloseAll(ctx context.Context) error {
 		if !enabled {
 			continue
 		}
-		logs.Info("正在关闭{}", p.Name())
+		logs.Info("正在关闭{}", item.name)
 		func() {
 			defer func() {
 				if r := recover(); r != nil {
-					err := fmt.Errorf("plugin %s close panic: %v", p.Name(), r)
+					err := fmt.Errorf("plugin %s close panic: %v", item.name, r)
 					logs.Error("{}", string(debug.Stack()))
 					if firstErr == nil {
 						firstErr = err
 					}
 				}
 			}()
-			if err := safeClose(p, ctx); err != nil {
-				logs.Error("关闭插件{}失败:{}", p.Name(), err)
+			if err := safeClose(p, ctx, item.name); err != nil {
+				logs.Error("关闭插件{}失败:{}", item.name, err)
 				if firstErr == nil {
 					firstErr = err
 				}
@@ -185,16 +216,17 @@ func CloseAll(ctx context.Context) error {
 // HealthAll 汇总各 Enabled()==true 插件的 Health() 结果，供 /health/ready 使用。
 func HealthAll() map[string]error {
 	m := make(map[string]error)
-	for _, p := range sortedByOrder() {
+	for _, item := range sortedByOrder() {
+		p := item.plugin
 		enabled, err := safeEnabled(p)
 		if err != nil {
-			m[p.Name()] = err
+			m[item.name] = err
 			continue
 		}
 		if !enabled {
 			continue
 		}
-		m[p.Name()] = safeHealth(p)
+		m[item.name] = safeHealth(p, item.name)
 	}
 	return m
 }
@@ -208,29 +240,47 @@ func safeEnabled(p Plugin) (enabled bool, err error) {
 	return p.Enabled(), nil
 }
 
-func safeInit(p Plugin, ctx context.Context) (err error) {
+func safeInit(p Plugin, ctx context.Context, name string) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			err = fmt.Errorf("plugin %s init panic: %v", p.Name(), r)
+			err = fmt.Errorf("plugin %s init panic: %v", name, r)
 		}
 	}()
 	return p.Init(ctx)
 }
 
-func safeClose(p Plugin, ctx context.Context) (err error) {
+func safeClose(p Plugin, ctx context.Context, name string) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			err = fmt.Errorf("plugin %s close panic: %v", p.Name(), r)
+			err = fmt.Errorf("plugin %s close panic: %v", name, r)
 		}
 	}()
 	return p.Close(ctx)
 }
 
-func safeHealth(p Plugin) (err error) {
+func safeHealth(p Plugin, name string) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			err = fmt.Errorf("plugin %s health panic: %v", p.Name(), r)
+			err = fmt.Errorf("plugin %s health panic: %v", name, r)
 		}
 	}()
 	return p.Health()
+}
+
+func safeName(p Plugin) (name string, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("plugin name panic: %v", r)
+		}
+	}()
+	return p.Name(), nil
+}
+
+func safeOrder(p Plugin) (order int, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("plugin order panic: %v", r)
+		}
+	}()
+	return p.Order(), nil
 }
