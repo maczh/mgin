@@ -82,7 +82,7 @@ go:
 
 字段：`time/requestId/responseTime/method/contentType/uri/clientIP/requestHeader/requestParam/requestBody/responseStr/responseMap/appName/apiName`。
 
-- 请求体/响应体超长会截断；`get: line` 只记录 120 字符。
+- 请求体/响应体日志各封顶 1 MiB：请求超限只记录省略标记，剩余流仍交给业务 handler；响应或 gzip 解压超限会截断并标记；`get: line` 只记录 120 字符。
 - 代码不创建索引，建议给 `time` 建 TTL 索引、`requestId` 建普通索引。
 - 敏感信息（密码、token）不会被自动脱敏，业务应在日志层过滤或配置 `go.log.get: off`。
 

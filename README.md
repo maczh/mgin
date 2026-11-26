@@ -11,6 +11,8 @@ MGin 是一个基于 [Gin](https://github.com/gin-gonic/gin) 的 Go 微服务运
 
 > 近期（2026-10）能力更新：Nacos 注册中心/配置中心支持 **v1/v2/v3**；`go.discovery.registries` **多注册中心**并存；服务发现本地缓存（TTL + singleflight + 热刷新）与实例选择策略；`client.Call` 的**超时/重试/熔断/降级回放**；etcd/Consul 的 namespace/group/cluster 作用域；Redis `Check()` 改为真实 `Ping()`。详见 [§2](#2-核心功能清单)、[§5.5](#55-多注册中心与-nacos-版本)、[§6.4](#64-微服务调用)、[§7](#7-常见问题与故障排查)。
 
+> 近期（2026-11）稳定性与日志更新：配置读取引入不可变快照 `config.Current()`；热重载后可重新打开 MySQL/SQLite，并在多注册中心模式下自动重新注册；Redis/Mongo 初始化改为锁外建连；postlog 为请求/响应缓冲设置 1 MiB 上限；VictoriaLogs 改走 **OTLP/HTTP protobuf**。详见 [§5.6](#56-配置快照与热重载)、[§7](#7-常见问题与故障排查)。
+
 ---
 
 ## 目录
@@ -58,8 +60,8 @@ MGin 提供「一个进程内可完成的微服务底座」：`mgin.NewApp(...)`
 | # | 能力 | 入口 | 启用方式 | 说明 |
 |---|------|------|----------|------|
 | 1 | 应用运行时 | `mgin.NewApp` / `App.Run` | 代码 | 配置加载、路由、HTTP/HTTPS、优雅关闭 |
-| 2 | 配置体系 | `config.Config` | 自动 | 本地文件 / HTTP / Nacos / Consul / etcd / Polaris / Spring Config |
-| 3 | 配置热重载 | `PUT /cfg/reload` | `go.config.reload.token` 非空 | 仅重载配置与资源，不重建路由与端口 |
+| 2 | 配置体系 | `config.Config` / `config.Current()` | 自动 | 本地文件 / HTTP / Nacos / Consul / etcd / Polaris / Spring Config；`Current()` 返回不可变快照 |
+| 3 | 配置热重载 | `PUT /cfg/reload` | `go.config.reload.token` 非空 | 重载配置并重建资源；MySQL/SQLite 可重开，多注册中心自动重注册；不重建路由与端口 |
 | 4 | MySQL | `db.Mysql` | `used` 含 `mysql` | GORM v2，多库、连接池、断线重连 |
 | 5 | SQLite | `db.Sqlite` | `used` 含 `sqlite` | 纯 Go 驱动（`glebarez/sqlite`），无需 CGO |
 | 6 | MongoDB | `db.Mongo` | `used` 含 `mongodb` | 多库、连接自愈 |
@@ -75,8 +77,8 @@ MGin 提供「一个进程内可完成的微服务底座」：`mgin.NewApp(...)`
 | 16 | 限流 | `middleware/ratelimit` | `go.ratelimit.enabled` | 令牌桶 / 滑动窗口 / 并发；维度 global/ip/path/ip_path/header |
 | 17 | 国际化 | `i18n` | `NewApp(..., true)` 或 `go.i18n.enabled` | 字典落 MySQL/SQLite，按 `X-Lang` 取词 |
 | 18 | 错误码 | `errcode` | 代码 | 1000–1014 业务码 + messageId |
-| 19 | 日志 | `logs` | 自动 | 控制台 / 文件 / VictoriaLogs；`{}` 占位符 |
-| 20 | 日志管道 | `logsink` | 代码 | 每 handler 单协程 FIFO 队列，满时淘汰最旧 |
+| 19 | 日志 | `logs` | 自动 | 控制台 / 文件 / VictoriaLogs（OTLP/HTTP protobuf）；`{}` 占位符 |
+| 20 | 日志管道 | `logsink` | 代码 | 每 handler 单协程 FIFO 队列，满时淘汰最旧；请求/响应日志各封顶 1 MiB |
 | 21 | 定时任务 | `job` | `go.job.enabled` | cron/fixed_rate/fixed_delay/once，管理路由 `/job/*` |
 | 22 | 健康探针 | `health` | `go.health.enabled` 或 `App.EnableHealth()` | `/healthz`、`/health/live`、`/health/ready`、`/health/startup` |
 | 23 | 指标 | `metrics` | `go.metrics.enabled` 或 `App.EnableMetrics()` | `/metrics`，HTTP/构建/插件指标 |
@@ -149,6 +151,7 @@ App 运行时 (app.go)  ── 中间件链 / 路由 / 生命周期 / 重载
 | `github.com/robfig/cron/v3` | v3.0.1 | 定时任务 |
 | `github.com/microcosm-cc/bluemonday` | v1.0.27 | XSS 过滤 |
 | `github.com/levigross/grequests` | `v0.0.0-20250606...` | 服务调用 HTTP 客户端 |
+| `google.golang.org/protobuf` | v1.36.9 | OTLP protobuf 编码（`encoding/protowire`） |
 | `git.mills.io/prologic/bitcask` | v1.0.2 | 磁盘缓存 |
 | `github.com/dgrijalva/jwt-go` | v3.2.0+incompatible | JWT（已停止维护，见 §7） |
 
@@ -158,7 +161,7 @@ App 运行时 (app.go)  ── 中间件链 / 路由 / 生命周期 / 重载
 
 - `go build ./...` 通过（Go 1.25.7）。
 - 仓库**没有** Makefile、CI 配置、Dockerfile；构建/测试命令见 [开发环境搭建](docs/development/01-getting-started/02-environment.md)。
-- 单元测试非全绿或需外部服务，基线见 [测试策略](docs/development/10-contributing/03-testing-strategy.md)。
+- `go test ./...` 默认全绿；`registry/{etcd,consul,polaris}` 的活体用例会访问真实注册中心，离线或网络受限时可能超时，建议用聚焦包测试或先准备可达环境。`gofmt -l .`、`go build ./...`、`go vet ./...` 可作为提交门。基线见 [测试策略](docs/development/10-contributing/03-testing-strategy.md)。
 
 ---
 
@@ -250,14 +253,14 @@ go:
 | | `go.config.apiversion` | `v1` | Nacos 配置中心接口版本：`v1`/`v2`/`v3`（`1`/`2`/`3` 等价） |
 | | `go.config.namespace` | 空 | Nacos 配置中心 namespaceId（v1 以 `tenant` 传参） |
 | | `go.config.username` / `password` / `accessToken` | 空 | Nacos 鉴权；`accessToken` 优先，为空时用用户名密码登录换取 token |
-| | `go.config.reload.token` | 空 | 非空才注册 `PUT /cfg/reload`；请求头 `X-MGin-Reload-Token` 或 `Bearer` |
+| | `go.config.reload.token` | 空 | 非空才注册 `PUT /cfg/reload`；请求头 `X-MGin-Reload-Token` 或 `Bearer`；重载语义见 §5.6 |
 | 日志 | `go.logger.level` | error | debug/info/warn/error |
 | | `go.logger.out` / `file` | 空 | 旧式输出：`console`/`file`，文件按天切分 |
 | | `go.logger.outputs[]` | 空 | 新式多目标：`target`(console/file/victorialogs/自定义)、`format`(text/json)、`fields`、`logtext` |
 | 访问日志 | `go.log.req` | 空 | 非空**且** `used` 含 `mongodb` 时才落库 |
 | | `go.log.get` | 空（按 `full` 处理） | GET 响应记录：`full`/`line`（截断 120 字符）/`off` |
 | | `go.log.sink.queue` / `workers` / `shutdown` | 100 / 1 / 3000 | 队列上限、消费协程（强制 1）、关闭超时(ms) |
-| | `go.log.victorialogs.*` | 空 | `url`/`api_token`/`api_crt`/`request`/`client`/`timeout` |
+| | `go.log.victorialogs.*` | 空 | `url`（基地址）/ `api_token` / `api_crt` / `request` / `client` / `timeout`；上报 `/insert/opentelemetry/v1/logs`（OTLP/HTTP protobuf） |
 | 发现 | `go.discovery.registry` | 空 | `nacos`/`consul`/`etcd`/`polaris`；空则用空实现（不注册不发现） |
 | | `go.discovery.registries[]` | 空 | 命名注册中心实例：`name`/`type`/`prefix`/`namespace`/`group`/`clusterName`；**非空时取代 `registry`**，见 §5.5 |
 | | `go.discovery.defaultRegistry` | 列表首项 | `client.Options.Registry` 为空时使用的实例名 |
@@ -369,6 +372,45 @@ go:
 | 登录 | `/nacos/v1/auth/login` | 同 v1 | `/nacos/v3/auth/user/login` |
 
 发现响应结构差异由框架内部解析（v2/v3 为 `{code,message,data}` 包装），业务代码无需区分。v3 的 HTTP OpenAPI 不提供服务推送，框架仍使用轮询 watcher。
+
+### 5.6 配置快照与热重载
+
+**为什么需要快照**：`Reload` 会整体替换 `App/Config/Log/Logger/Discovery/...` 字段。请求处理、日志写入等热路径如果逐个直接读 `config.Config.xxx`，可能与重载并发，读到撕裂的 slice/string，或在 `go test -race` 下报 DATA RACE。
+
+**推荐读法**：
+
+```go
+cfg := config.Current()            // 一次 RLock 复制，后续多次读取保持一致
+name := cfg.App.Name
+registries := cfg.Discovery.Registries
+```
+
+- `config.Current()` 返回 `config.Snapshot`，适合一次逻辑操作内需要读多个字段或遍历切片的场景。
+- `config.Config.GetConfigString/GetConfigBool/GetConfigInt/GetConfigDuration/Exists` 内部自带读锁，单次读取安全。
+- 直接读 `config.Config.App.Name` 等导出字段仅在“启动期、重载不会并发发生”时安全；伴生插件应迁移到 `config.Current()`。
+- 不要把 `Snapshot` 或其 slice 长期缓存后跨重载复用；每次操作重新取一次。
+
+**2026-11 行为变化（升级前必读）**：
+
+| 项 | 旧行为 | 当前行为 |
+|---|---|---|
+| 配置读取 | 直接读 `config.Config` 导出字段，热重载并发时可能 DATA RACE | 推荐 `config.Current()` 快照；框架内部读点已迁移 |
+| 热重载数据源 | Close 后 `Init` 被 `closed` 短路，MySQL/SQLite 永久不可用 | 成功的候选连接可重新打开并替换旧连接 |
+| 多注册中心重载 | 旧实例被注销，新实例不再注册 | Reload 末尾 `RegisterConfigured()` 重新注册 |
+| Redis/Mongo Init | 持写锁建连/Ping，慢连接阻塞所有读者 | 锁外建连、锁内发布；Redis Ping 独立 5s |
+| 接口日志缓冲 | chunked 请求体无上限；截断标记因值接收者失效 | 请求/响应各 1 MiB；剩余请求流回填；截断标记生效 |
+| VictoriaLogs | `/v1/logs` + JSON lines | `/insert/opentelemetry/v1/logs` + OTLP protobuf |
+
+**Reload 做了什么**：
+
+| 阶段 | 行为 |
+|---|---|
+| 解析 | `config.Init` 在私有 candidate 上解析并整体发布；解析失败时旧配置不被替换，仅记录错误日志 |
+| 关闭 | 关闭 MySQL/SQLite/MongoDB/Redis，注销旧注册实例，停止 job 与已注册插件 |
+| 重建 | 重新初始化数据源；MySQL/SQLite 由成功候选连接重新打开；单注册中心重新 `Register`；Redis/Mongo 的慢建连不再阻塞其他读者 |
+| 多注册中心 | 末尾调用 `RegisterConfigured()`，避免服务从发现中消失 |
+| 不重建 | 路由、中间件链、监听端口；这些需要重启进程 |
+| 注意 | i18n 字典 `Store` 不会在 Reload 中自动重建，重载后仍持有旧连接；需要重启或显式重新初始化 |
 
 ---
 
@@ -569,6 +611,18 @@ go mod tidy && go build -o demo . && ./demo
 **Q18：多实例部署后注册中心出现重复实例（同一 IP:端口登记多次）？**
 Consul 的实例 ID 由 IP、端口、服务名、namespace、group、cluster 共同哈希（12 位），同机部署在不同 namespace/group 的实例会被区分开。若仍是重复，检查是否同时配置了 `go.discovery.registry` 与 `go.discovery.registries`（后者生效），或子配置中 `group`/`clusterName` 与注册中心控制台不一致。
 
+**Q19：热重载后偶发读到新旧混合的配置，或 `-race` 报配置字段竞争？**
+在请求/日志热路径用 `cfg := config.Current()` 在一次操作内取一份快照，避免直接读 `config.Config` 的导出字段。`Reload` 只整体替换字段，不会同步业务侧长期缓存的 `Snapshot` 或旧指针；每次操作重新取快照。
+
+**Q20：调用 `PUT /cfg/reload` 后服务从注册中心消失？**
+已修复：`Reload` 末尾会对多注册中心调用 `RegisterConfigured()`，单注册中心也会重新 `Register`。若仍消失，检查 reload token、配置中心可达性，以及 `go.discovery.registries` 子配置在重载后是否仍能读取。
+
+**Q21：VictoriaLogs 查询不到日志，或字段名和以前不一样？**
+新版本使用 OTLP/HTTP protobuf，端点为 `{url}/insert/opentelemetry/v1/logs`（不是 `/v1/logs`，且该接口不接受 JSON）。正文进 `_msg`，级别同时写 `severity_text`/`severity_number` 和兼容字段 `level`；PostLog/Record 字段被平铺为属性，嵌套对象/数组为 OTLP key-value list/array。旧查询里的 `fields.xxx` 需改为 `xxx`。详见 [VictoriaLogs 接入](docs/victorialogs.md)。
+
+**Q22：大请求/大响应在接口日志里被截断？**
+postlog 对请求体和响应体各设 1 MiB 上限：超过上限的请求体只读取 1 MiB+1 字节用于日志，剩余流通过 `MultiReader` 交还业务 handler，不会丢数据；响应或 gzip 解压输出超过 1 MiB 会截断并标记 `<body truncated: ...>`。这是日志预算，不是业务读取限制。
+
 ---
 
 ## 8. 贡献指南
@@ -577,7 +631,9 @@ Consul 的实例 ID 由 IP、端口、服务名、namespace、group、cluster �
 2. **提交信息**：本仓库历史提交以「序号. 变更点」列举为主。新提交建议使用 `type(scope): subject`（`feat`/`fix`/`refactor`/`docs`/`test`/`chore`），正文说明动机与影响面，详见 [编码规范与协作流程](docs/development/10-contributing/02-coding-standards.md#7-git-工作流)。
 3. **提交前自检**：
    ```bash
-   gofmt -l . && go build ./... && go vet ./... && go test ./health/ ./metrics/ ./logs/ ./utils/ ./middleware/cors/
+   gofmt -l . && go build ./... && go vet ./...
+   go test -race ./config ./db/... ./logs ./middleware/postlog ./registry ./i18n ./client
+   # registry 活体用例可达时，可再跑 go test ./...
    ```
 4. **新增配置键**：必须同时更新 `config/configure.go` 解析、`application.example.yml`、README §5 与对应文档，避免「文档有、代码无」。
 5. **新增能力**：提供单元测试；涉及外部依赖的用例要能在无服务时跳过或使用本地 stub。
@@ -613,7 +669,7 @@ Consul 的实例 ID 由 IP、端口、服务名、namespace、group、cluster �
 | [版本发布与变更记录规范](docs/development/10-contributing/04-release-process.md) | 版本号、分支模型、发布步骤、CHANGELOG 约定、回滚 |
 | [演进路线图 v1.26→v3.0](docs/development/09-advanced/04-evolution-roadmap.md) | 行业能力基线、差距分析、分版本能力建设与优先级 |
 | [i18n 使用说明](docs/i18n.md) | 字典表与 API 细节 |
-| [VictoriaLogs 接入](docs/victorialogs.md) | 日志上报配置 |
+| [VictoriaLogs 接入](docs/victorialogs.md) | OTLP/HTTP protobuf 日志上报配置 |
 | [服务发现与负载均衡](docs/development/05-governance/01-discovery-and-load-balancing.md) | 四种注册中心能力矩阵、可选接口、缓存/策略/熔断配置 |
 | [服务调用](docs/development/03-development/03-service-call.md) | `client` 协议、超时、重试、熔断与兜底 |
 | [注册中心优化说明](docs/registry_optimization_jh_overview.md) | 本地缓存与热刷新设计 |
