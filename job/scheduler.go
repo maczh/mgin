@@ -14,6 +14,7 @@ import (
 	"github.com/araddon/dateparse"
 	goerr "github.com/go-errors/errors"
 	"github.com/maczh/mgin/config"
+	"github.com/maczh/mgin/internal/safego"
 	"github.com/maczh/mgin/logs"
 	"github.com/robfig/cron/v3"
 )
@@ -140,6 +141,8 @@ func (jr *jobRuntime) snapshot() JobInfo {
 //   - 纯单机调度：调度器只在本进程内工作，不做多实例协调
 type Manager struct {
 	mu               sync.RWMutex
+	startMu          sync.Mutex
+	storeMu          sync.Mutex
 	cfg              *Config
 	st               *store
 	parser           cron.Parser
@@ -190,25 +193,28 @@ func Stop() {
 
 // Start 启动调度器
 func (m *Manager) Start() error {
-	m.mu.Lock()
-	if m.running {
-		m.mu.Unlock()
+	if m == nil {
+		return errors.New("定时任务管理器为空")
+	}
+	m.startMu.Lock()
+	defer m.startMu.Unlock()
+	m.mu.RLock()
+	running := m.running
+	m.mu.RUnlock()
+	if running {
 		return errors.New("定时任务调度器已在运行中")
 	}
 	cfg := loadConfig()
 	if !cfg.Enabled {
-		m.mu.Unlock()
 		logs.Info("[Job] go.job.enabled 未开启，定时任务模块不启动")
 		return nil
 	}
-	m.cfg = cfg
-	tablePrefix = cfg.TablePrefix
 
 	// 解析时区
-	m.loc = time.Local
+	loc := time.Local
 	if cfg.Timezone != "" {
-		if loc, err := time.LoadLocation(cfg.Timezone); err == nil {
-			m.loc = loc
+		if loaded, err := time.LoadLocation(cfg.Timezone); err == nil {
+			loc = loaded
 		} else {
 			logs.Error("[Job] 时区{}加载失败，使用系统默认时区: {}", cfg.Timezone, err.Error())
 		}
@@ -217,21 +223,28 @@ func (m *Manager) Start() error {
 	// 按 MySQL → PostgreSQL → SQLite 优先级选择存储
 	st, err := newStore(cfg.DbName)
 	if err != nil {
-		m.mu.Unlock()
 		logs.Error("[Job] {}", err.Error())
 		return err
 	}
-	m.st = st
-
 	if cfg.Initdb {
 		if err = st.autoMigrate(); err != nil {
-			m.mu.Unlock()
+			closeStore(st)
 			logs.Error("[Job] 定时任务表创建失败: {}", err.Error())
 			return err
 		}
 		logs.Info("[Job] 定时任务表已就绪: {}job_info, {}job_log", cfg.TablePrefix, cfg.TablePrefix)
 	}
 
+	m.mu.Lock()
+	if m.running {
+		m.mu.Unlock()
+		closeStore(st)
+		return errors.New("定时任务调度器已在运行中")
+	}
+	m.cfg = cfg
+	tablePrefix = cfg.TablePrefix
+	m.loc = loc
+	m.st = st
 	m.sem = make(chan struct{}, cfg.MaxConcurrent)
 	m.stopChan = make(chan struct{})
 	m.stopDone = make(chan struct{})
@@ -252,10 +265,10 @@ func (m *Manager) Start() error {
 		logs.Error("[Job] 载入任务列表失败: {}", err.Error())
 	}
 
-	go m.scheduleLoop()
-	go m.refreshLoop()
+	safego.Run(m.scheduleLoop)
+	safego.Run(m.refreshLoop)
 	if cfg.LogRetainDays > 0 {
-		go m.cleanLoop()
+		safego.Run(m.cleanLoop)
 	}
 
 	logs.Info("[Job] 定时任务调度器已启动, 存储={}, 任务数={}, 已注册执行器={}",
@@ -265,6 +278,11 @@ func (m *Manager) Start() error {
 
 // Stop 停止调度器，等待运行中的任务执行完毕
 func (m *Manager) Stop() {
+	if m == nil {
+		return
+	}
+	m.startMu.Lock()
+	defer m.startMu.Unlock()
 	m.submitMu.Lock()
 	m.mu.Lock()
 	if !m.running {
@@ -322,12 +340,41 @@ func (m *Manager) IsRunning() bool {
 
 // Store 返回底层存储，便于业务侧扩展查询
 func (m *Manager) Store() *store {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	if m.st == nil {
-		m.st, _ = newStore(m.cfg.DbName)
+	st, err := m.StoreWithError()
+	if err != nil {
+		logs.Error("[Job] 获取定时任务存储失败: {}", err.Error())
 	}
-	return m.st
+	return st
+}
+
+func (m *Manager) StoreWithError() (*store, error) {
+	if m == nil {
+		return nil, errors.New("定时任务管理器为空")
+	}
+	m.storeMu.Lock()
+	defer m.storeMu.Unlock()
+	m.mu.RLock()
+	st, cfg := m.st, m.cfg
+	m.mu.RUnlock()
+	if st != nil {
+		return st, nil
+	}
+	if cfg == nil {
+		return nil, errors.New("定时任务配置未初始化")
+	}
+	st, err := newStore(cfg.DbName)
+	if err != nil {
+		return nil, err
+	}
+	m.mu.Lock()
+	if m.st == nil {
+		m.st = st
+	} else {
+		closeStore(st)
+		st = m.st
+	}
+	m.mu.Unlock()
+	return st, nil
 }
 
 // Trigger 手动触发一次任务执行（等价于管理界面「执行一次」）。
@@ -670,7 +717,7 @@ func (m *Manager) fire(jr *jobRuntime, triggerType string, param map[string]inte
 	}
 	m.wg.Add(1)
 	m.submitMu.Unlock()
-	go func() {
+	safego.Run(func() {
 		defer m.wg.Done()
 		if info.BlockStrategy == BlockSerial {
 			defer atomic.AddInt32(&jr.queued, -1)
@@ -700,7 +747,7 @@ func (m *Manager) fire(jr *jobRuntime, triggerType string, param map[string]inte
 			return
 		}
 		m.execute(jr, handler, triggerType, param)
-	}()
+	})
 }
 
 func (m *Manager) rescheduleFixedDelay(jr *jobRuntime, info JobInfo) {
@@ -809,14 +856,14 @@ func (m *Manager) runOnce(jr *jobRuntime, handler HandlerFunc, info JobInfo,
 	stopDone := make(chan struct{})
 	if stopChan != nil {
 		stopCtx, stopCancel := context.WithCancel(baseCtx)
-		go func() {
+		safego.Run(func() {
 			defer close(stopDone)
 			select {
 			case <-stopChan:
 				stopCancel()
 			case <-stopCtx.Done():
 			}
-		}()
+		})
 		baseCtx = stopCtx
 		defer func() { stopCancel(); <-stopDone }()
 	} else {
@@ -846,7 +893,7 @@ func (m *Manager) runOnce(jr *jobRuntime, handler HandlerFunc, info JobInfo,
 
 	// 在独立协程中执行，以便超时后主流程能及时返回
 	done := make(chan error, 1)
-	go func() {
+	safego.Run(func() {
 		defer func() {
 			if r := recover(); r != nil {
 				wrapped := goerr.Wrap(r, 2)
@@ -854,7 +901,7 @@ func (m *Manager) runOnce(jr *jobRuntime, handler HandlerFunc, info JobInfo,
 			}
 		}()
 		done <- handler(jobCtx)
-	}()
+	})
 
 	var (
 		status  int
@@ -1040,11 +1087,11 @@ func (m *Manager) asyncUpdateFire(id int64, last, next time.Time) {
 		n := next
 		nextPtr = &n
 	}
-	go func() {
+	safego.Run(func() {
 		if err := st.updateFireTime(id, lastPtr, nextPtr); err != nil {
 			logs.Debug("[Job] 调度时间更新失败: {}", err.Error())
 		}
-	}()
+	})
 }
 
 // asyncUpdateNext 异步仅更新下次调度时间
@@ -1060,11 +1107,11 @@ func (m *Manager) asyncUpdateNext(id int64, next time.Time) {
 		n := next
 		nextPtr = &n
 	}
-	go func() {
+	safego.Run(func() {
 		if err := st.updateNextTime(id, nextPtr); err != nil {
 			logs.Debug("[Job] 下次调度时间更新失败: {}", err.Error())
 		}
-	}()
+	})
 }
 
 func fmtTime(t time.Time) string {

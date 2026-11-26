@@ -15,6 +15,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/levigross/grequests"
 	"github.com/maczh/mgin/config"
+	"github.com/maczh/mgin/internal/safego"
 	"github.com/maczh/mgin/logs"
 	"github.com/maczh/mgin/logsink"
 	"github.com/maczh/mgin/middleware/trace"
@@ -428,7 +429,7 @@ func resolveLegacyWithContext(ctx context.Context, r interface {
 }, service string, group ...string) (string, string) {
 	type result struct{ host, group string }
 	done := make(chan result, 1)
-	go func() { h, g := r.GetServiceURL(service, group...); done <- result{h, g} }()
+	safego.Run(func() { h, g := r.GetServiceURL(service, group...); done <- result{h, g} })
 	select {
 	case v := <-done:
 		return v.host, v.group

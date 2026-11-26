@@ -2,6 +2,9 @@ package mgin
 
 import (
 	"errors"
+	"fmt"
+	"reflect"
+	"runtime/debug"
 	"strings"
 	"sync"
 
@@ -17,6 +20,7 @@ import (
 
 type mgin struct {
 	plugins  map[string]plugin
+	pluginMu sync.RWMutex
 	reloadMu sync.Mutex
 }
 
@@ -40,10 +44,18 @@ type dbCloseFunc func()
 type dbCheckFunc func() error
 
 func (m *mgin) UsePlugin(dbConfigName string, mginPlugin MginPlugin) {
+	if mginPlugin == nil || isNilLegacyPlugin(mginPlugin) {
+		logs.Error("忽略空插件{}", dbConfigName)
+		return
+	}
 	m.Use(dbConfigName, mginPlugin.Init, mginPlugin.Close, mginPlugin.Check)
 }
 
 func (m *mgin) Use(dbConfigName string, dbInit dbInitFunc, dbClose dbCloseFunc, dbCheck dbCheckFunc) {
+	if m == nil || config.Config == nil || dbInit == nil {
+		logs.Error("无法加载{}：MGin、配置或插件初始化函数未就绪", dbConfigName)
+		return
+	}
 	if !strings.Contains(config.Config.Config.Used, dbConfigName) {
 		logs.Error("加载{}失败，配置文件中未使用", dbConfigName)
 		return
@@ -53,6 +65,7 @@ func (m *mgin) Use(dbConfigName string, dbInit dbInitFunc, dbClose dbCloseFunc, 
 		logs.Error("{}配置错误，无法获取配置地址", dbConfigName)
 		return
 	}
+	m.pluginMu.Lock()
 	if m.plugins == nil {
 		m.plugins = make(map[string]plugin)
 	}
@@ -61,9 +74,55 @@ func (m *mgin) Use(dbConfigName string, dbInit dbInitFunc, dbClose dbCloseFunc, 
 		CloseFunc: dbClose,
 		CheckFunc: dbCheck,
 	}
+	m.pluginMu.Unlock()
 	logs.Info("正在连接{}", dbConfigName)
-	dbInit(cnfData)
+	if err := callLegacyPlugin(dbConfigName, "init", func() { dbInit(cnfData) }); err != nil {
+		logs.Error("{}初始化失败: {}", dbConfigName, err)
+		return
+	}
 	logs.Info("{}连接成功", dbConfigName)
+}
+
+func isNilLegacyPlugin(p MginPlugin) bool {
+	v := reflect.ValueOf(p)
+	switch v.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Ptr, reflect.Slice:
+		return v.IsNil()
+	default:
+		return false
+	}
+}
+
+func (m *mgin) pluginSnapshot() map[string]plugin {
+	if m == nil {
+		return nil
+	}
+	m.pluginMu.RLock()
+	defer m.pluginMu.RUnlock()
+	copy := make(map[string]plugin, len(m.plugins))
+	for name, item := range m.plugins {
+		copy[name] = item
+	}
+	return copy
+}
+
+func callLegacyPlugin(name, operation string, call func()) (err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = fmt.Errorf("legacy plugin %s %s panic: %v\n%s", name, operation, recovered, debug.Stack())
+		}
+	}()
+	call()
+	return nil
+}
+
+func callLegacyPluginCheck(name string, call func() error) (err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = fmt.Errorf("legacy plugin %s check panic: %v\n%s", name, recovered, debug.Stack())
+		}
+	}()
+	return call()
 }
 
 // Reload reloads the application configuration and recreates all resources
@@ -73,6 +132,9 @@ func (m *mgin) Reload(configFile string) error {
 	m.reloadMu.Lock()
 	defer m.reloadMu.Unlock()
 
+	if config.Config == nil {
+		return errors.New("配置未初始化")
+	}
 	oldUsed := config.Config.Config.Used
 	oldRegistry := registry.Registry
 	config.Config.Init(configFile)
@@ -119,7 +181,7 @@ func initResources(m *mgin) {
 		}
 	}
 	if m != nil {
-		for name, pl := range m.plugins {
+		for name, pl := range m.pluginSnapshot() {
 			if !strings.Contains(configs, name) || pl.InitFunc == nil {
 				continue
 			}
@@ -128,7 +190,9 @@ func initResources(m *mgin) {
 				logs.Error("{}配置错误，无法获取配置地址", name)
 				continue
 			}
-			pl.InitFunc(data)
+			if err := callLegacyPlugin(name, "init", func() { pl.InitFunc(data) }); err != nil {
+				logs.Error("{}初始化失败: {}", name, err)
+			}
 		}
 	}
 }
@@ -154,9 +218,11 @@ func (m *mgin) closeResources(configs string, currentRegistry registry.RegistryC
 		job.Stop()
 	}
 	if m != nil {
-		for name, pl := range m.plugins {
+		for name, pl := range m.pluginSnapshot() {
 			if strings.Contains(configs, name) && pl.CloseFunc != nil {
-				pl.CloseFunc()
+				if err := callLegacyPlugin(name, "close", pl.CloseFunc); err != nil {
+					logs.Error("{}关闭失败: {}", name, err)
+				}
 			}
 		}
 	}
@@ -195,11 +261,11 @@ func (m *mgin) checkAll() {
 			logs.Error("Redis check failed： {}", err.Error())
 		}
 	}
-	if m.plugins != nil {
-		for dbConfigName, pl := range m.plugins {
+	if m != nil {
+		for dbConfigName, pl := range m.pluginSnapshot() {
 			if pl.CheckFunc != nil {
 				logs.Info("正在检查{}", dbConfigName)
-				err := pl.CheckFunc()
+				err := callLegacyPluginCheck(dbConfigName, pl.CheckFunc)
 				if err != nil {
 					logs.Error("{}连接检查失败:{}", dbConfigName, err.Error())
 				}
@@ -209,6 +275,9 @@ func (m *mgin) checkAll() {
 }
 
 func (m *mgin) SafeExit() {
+	if config.Config == nil {
+		return
+	}
 	configs := config.Config.Config.Used
 
 	// 先排空接口日志队列并关闭各日志 handler，再关闭数据库连接
@@ -244,11 +313,13 @@ func (m *mgin) SafeExit() {
 			logs.Error("定时任务调度器健康检查失败: {}", err.Error())
 		}
 	}
-	if m.plugins != nil {
-		for dbConfigName, pl := range m.plugins {
+	if m != nil {
+		for dbConfigName, pl := range m.pluginSnapshot() {
 			if pl.CloseFunc != nil {
 				logs.Info("正在关闭{}", dbConfigName)
-				pl.CloseFunc()
+				if err := callLegacyPlugin(dbConfigName, "close", pl.CloseFunc); err != nil {
+					logs.Error("{}关闭失败: {}", dbConfigName, err)
+				}
 			}
 		}
 	}

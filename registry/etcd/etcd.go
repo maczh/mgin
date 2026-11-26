@@ -14,6 +14,7 @@ import (
 	"github.com/knadh/koanf/parsers/yaml"
 	"github.com/knadh/koanf/providers/rawbytes"
 	"github.com/maczh/mgin/config"
+	"github.com/maczh/mgin/internal/safego"
 	registryModel "github.com/maczh/mgin/registry/model"
 	"github.com/maczh/mgin/utils"
 	"github.com/sadlil/gologger"
@@ -174,7 +175,7 @@ func (c *EtcdClient) Register(etcdConfigData []byte) {
 		c.registeredKey = key
 		c.ctx, c.cancel = context.WithCancel(context.Background())
 		c.workerWG.Add(1)
-		go func() { defer c.workerWG.Done(); c.keepAliveLoop() }()
+		safego.Run(func() { defer c.workerWG.Done(); c.keepAliveLoop() })
 	}
 }
 
@@ -286,7 +287,7 @@ func (c *EtcdClient) SubscribeOffline(callback func(service, group string)) erro
 		watchCtx = c.ctx
 	}
 	c.workerWG.Add(1)
-	go func() {
+	safego.Run(func() {
 		defer c.workerWG.Done()
 		watch := c.client.Watch(watchCtx, c.watchPrefix(), clientv3.WithPrefix())
 		for response := range watch {
@@ -298,10 +299,10 @@ func (c *EtcdClient) SubscribeOffline(callback func(service, group string)) erro
 				if !ok {
 					continue
 				}
-				go callback(service, group)
+				safego.Run(func() { callback(service, group) })
 			}
 		}
-	}()
+	})
 	return nil
 }
 
@@ -347,7 +348,7 @@ func (c *EtcdClient) WatchService(service, group string, callback func()) (func(
 	ctx, cancel := context.WithCancel(context.Background())
 	c.workerWG.Add(1)
 	prefix := c.servicePrefix(group, service)
-	go func() {
+	safego.Run(func() {
 		defer c.workerWG.Done()
 		watch := c.client.Watch(ctx, prefix, clientv3.WithPrefix())
 		for response := range watch {
@@ -358,7 +359,7 @@ func (c *EtcdClient) WatchService(service, group string, callback func()) (func(
 				}
 			}
 		}
-	}()
+	})
 	return cancel, nil
 }
 

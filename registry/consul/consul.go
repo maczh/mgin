@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"net"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/hashicorp/consul/api"
@@ -15,6 +16,7 @@ import (
 	"github.com/knadh/koanf/parsers/yaml"
 	"github.com/knadh/koanf/providers/rawbytes"
 	"github.com/maczh/mgin/config"
+	"github.com/maczh/mgin/internal/safego"
 	registryModel "github.com/maczh/mgin/registry/model"
 	"github.com/sadlil/gologger"
 )
@@ -34,6 +36,8 @@ type ConsulClient struct {
 	checkID    string
 	ctx        context.Context
 	cancel     context.CancelFunc
+	ttlWG      sync.WaitGroup
+	stopOnce   sync.Once
 }
 
 var logger = gologger.GetLogger()
@@ -133,7 +137,8 @@ func (c *ConsulClient) Register(etcdConfigData []byte) {
 		if err := c.client.Agent().UpdateTTL(c.checkID, "initial health check passed", api.HealthPassing); err != nil {
 			logger.Error("Consul TTL健康检查首次更新失败: " + err.Error())
 		}
-		go c.passTTL()
+		c.ttlWG.Add(1)
+		safego.Run(func() { defer c.ttlWG.Done(); c.passTTL() })
 	}
 }
 
@@ -212,11 +217,15 @@ func (c *ConsulClient) GetServiceInstances(servicename string, groupName ...stri
 }
 
 func filterCluster(services []*api.ServiceEntry, cluster string) []*api.ServiceEntry {
-	if cluster == "" {
-		return services
-	}
 	filtered := make([]*api.ServiceEntry, 0, len(services))
 	for _, service := range services {
+		if service == nil || service.Service == nil {
+			continue
+		}
+		if cluster == "" {
+			filtered = append(filtered, service)
+			continue
+		}
 		for _, tag := range service.Service.Tags {
 			if tag == cluster {
 				filtered = append(filtered, service)
@@ -237,7 +246,7 @@ func (c *ConsulClient) WatchService(service, group string, callback func()) (fun
 		group = c.group
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	go func() {
+	safego.Run(func() {
 		available := true
 		ticker := time.NewTicker(5 * time.Second)
 		defer ticker.Stop()
@@ -265,14 +274,26 @@ func (c *ConsulClient) WatchService(service, group string, callback func()) (fun
 				available = found
 			}
 		}
-	}()
+	})
 	return cancel, nil
 }
 
 // DeRegister 方法用于从 Consul 注销服务
 func (c *ConsulClient) DeRegister() {
-	if c.cancel != nil {
-		c.cancel()
+	if c == nil {
+		return
+	}
+	c.stopOnce.Do(func() {
+		if c.cancel != nil {
+			c.cancel()
+		}
+	})
+	done := make(chan struct{})
+	safego.Run(func() { c.ttlWG.Wait(); close(done) })
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		logger.Error("等待Consul TTL协程退出超时")
 	}
 	if c.client == nil {
 		logger.Error("Consul 未初始化，无法注销服务")
@@ -307,7 +328,7 @@ func (c *ConsulClient) DeRegister() {
 
 // passTTL 周期性向 Consul 上报 TTL 健康检查通过，避免实例被自动反注册。
 func (c *ConsulClient) passTTL() {
-	if c.client == nil || c.checkID == "" {
+	if c == nil || c.client == nil || c.checkID == "" || c.ctx == nil {
 		return
 	}
 	ticker := time.NewTicker(25 * time.Second)

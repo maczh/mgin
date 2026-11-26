@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"errors"
 	"fmt"
 	"github.com/maczh/mgin/logs"
 	"reflect"
@@ -15,10 +14,17 @@ func Clone(src any, dst any) {
 // Struct2Map return map
 func Struct2Map(obj any) map[string]any {
 	objT := reflect.TypeOf(obj)
-	if objT == nil || objT.Kind() != reflect.Struct {
-		panic(errors.New("argument is not of the expected type"))
-	}
 	objV := reflect.ValueOf(obj)
+	for objT != nil && (objT.Kind() == reflect.Pointer || objT.Kind() == reflect.Interface) {
+		if objV.IsNil() {
+			return map[string]any{}
+		}
+		objV = objV.Elem()
+		objT = objV.Type()
+	}
+	if objT == nil || objT.Kind() != reflect.Struct {
+		return map[string]any{}
+	}
 	var data = make(map[string]any, objT.NumField())
 	for i := 0; i < objT.NumField(); i++ {
 		field := objT.Field(i)
@@ -53,10 +59,17 @@ func Struct2Map(obj any) map[string]any {
 
 func Struct2MapString(obj any) map[string]string {
 	objT := reflect.TypeOf(obj)
-	if objT == nil || objT.Kind() != reflect.Struct {
-		panic(errors.New("argument is not of the expected type"))
-	}
 	objV := reflect.ValueOf(obj)
+	for objT != nil && (objT.Kind() == reflect.Pointer || objT.Kind() == reflect.Interface) {
+		if objV.IsNil() {
+			return map[string]string{}
+		}
+		objV = objV.Elem()
+		objT = objV.Type()
+	}
+	if objT == nil || objT.Kind() != reflect.Struct {
+		return map[string]string{}
+	}
 	var data = make(map[string]string, objT.NumField())
 	for i := 0; i < objT.NumField(); i++ {
 		field := objT.Field(i)

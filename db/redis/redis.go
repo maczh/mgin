@@ -1,27 +1,36 @@
 package redis
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	redis "github.com/go-redis/redis/v7"
 	"github.com/knadh/koanf"
 	"github.com/knadh/koanf/parsers/yaml"
 	"github.com/knadh/koanf/providers/rawbytes"
+	"github.com/maczh/mgin/internal/safego"
 	"github.com/maczh/mgin/logs"
 	"github.com/sadlil/gologger"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 )
 
 type RedisClient struct {
-	multi    bool
-	master   string
-	clients  map[string]redis.UniversalClient
-	cfgs     map[string]redis.UniversalOptions
-	conf     *koanf.Koanf
-	confUrl  string
-	confData []byte
-	conns    []string
+	multi         bool
+	master        string
+	clients       map[string]redis.UniversalClient
+	cfgs          map[string]redis.UniversalOptions
+	conf          *koanf.Koanf
+	confUrl       string
+	confData      []byte
+	conns         []string
+	subMu         sync.Mutex
+	subscriptions map[uint64]context.CancelFunc
+	subWG         sync.WaitGroup
+	nextSub       atomic.Uint64
+	subClosed     bool
 }
 
 var Redis = &RedisClient{}
@@ -166,18 +175,39 @@ func (r *RedisClient) Init(redisConfigData []byte) {
 			fmt.Printf("%s 连接成功\n", dbName)
 			r.clients[dbName] = rc
 		}
+		r.subMu.Lock()
+		r.subClosed = false
+		r.subMu.Unlock()
 	}
 }
 
 func (r *RedisClient) Close() {
+	if r == nil {
+		return
+	}
+	r.subMu.Lock()
+	r.subClosed = true
+	for _, cancel := range r.subscriptions {
+		cancel()
+	}
+	r.subMu.Unlock()
+	done := make(chan struct{})
+	safego.Run(func() { r.subWG.Wait(); close(done) })
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		logger.Error("等待Redis订阅退出超时")
+	}
 	if r.multi {
 		for dbName, rc := range r.clients {
-			rc.Close()
+			if rc != nil {
+				_ = rc.Close()
+			}
 			delete(r.clients, dbName)
 		}
 	} else {
 		if client, ok := r.clients["0"]; ok {
-			client.Close()
+			_ = client.Close()
 			delete(r.clients, "0")
 		}
 	}
@@ -200,19 +230,30 @@ func (r *RedisClient) redisCheck(dbName string) error {
 }
 
 func (r *RedisClient) Check() error {
+	if r == nil {
+		return errors.New("Redis client is nil")
+	}
 	if len(r.clients) == 0 {
 		return errors.New("redis connection is not initialized")
 	}
 	if r.multi {
 		for name, client := range r.clients {
-			if client == nil { return fmt.Errorf("redis %s connection is nil", name) }
-			if err := client.Ping().Err(); err != nil { return fmt.Errorf("redis %s ping failed: %w", name, err) }
+			if client == nil {
+				return fmt.Errorf("redis %s connection is nil", name)
+			}
+			if err := client.Ping().Err(); err != nil {
+				return fmt.Errorf("redis %s ping failed: %w", name, err)
+			}
 		}
 		return nil
 	}
 	client := r.clients["0"]
-	if client == nil { return errors.New("redis connection is not initialized") }
-	if err := client.Ping().Err(); err != nil { return fmt.Errorf("redis ping failed: %w", err) }
+	if client == nil {
+		return errors.New("redis connection is not initialized")
+	}
+	if err := client.Ping().Err(); err != nil {
+		return fmt.Errorf("redis ping failed: %w", err)
+	}
 	return nil
 	//var err error
 	//if r.client == nil && len(r.clients) == 0 {
@@ -237,10 +278,12 @@ func (r *RedisClient) Check() error {
 	//		}
 	//	}
 	//}
-	return nil
 }
 
 func (r *RedisClient) GetConnection(dbName ...string) (redis.UniversalClient, error) {
+	if r == nil {
+		return nil, errors.New("Redis client is nil")
+	}
 	if r.multi {
 		if len(dbName) == 0 || len(dbName) > 1 {
 			return nil, errors.New("Multidb Get RedisClient connection must specify one database name")
@@ -252,7 +295,7 @@ func (r *RedisClient) GetConnection(dbName ...string) (redis.UniversalClient, er
 		if err != nil {
 			return nil, err
 		}
-		if client, ok := r.clients[dbName[0]]; ok {
+		if client, ok := r.clients[dbName[0]]; ok && client != nil {
 			return client, nil
 		} else {
 			return nil, errors.New("Redis connection failed.")
@@ -262,7 +305,7 @@ func (r *RedisClient) GetConnection(dbName ...string) (redis.UniversalClient, er
 		//if err != nil {
 		//	return nil, errors.New("redis connection failed")
 		//}
-		if client, ok := r.clients["0"]; ok {
+		if client, ok := r.clients["0"]; ok && client != nil {
 			return client, nil
 		} else {
 			return nil, errors.New("Redis connection failed.")
@@ -271,43 +314,120 @@ func (r *RedisClient) GetConnection(dbName ...string) (redis.UniversalClient, er
 }
 
 func (r *RedisClient) IsMultiDB() bool {
+	if r == nil {
+		return false
+	}
 	return r.multi
 }
 
 func (r *RedisClient) ListConnNames() []string {
-	return r.conns
+	if r == nil {
+		return nil
+	}
+	return append([]string(nil), r.conns...)
 }
 
 // PSubscribe 订阅消息并自动重连
 func (r *RedisClient) PSubscribe(dbName string, handler func(msg *redis.Message, dbName string), channels ...string) {
-	go func() {
+	r.PSubscribeContext(context.Background(), dbName, handler, channels...)
+}
+
+// PSubscribeContext starts a reconnecting subscription that stops when ctx is canceled or Close is called.
+func (r *RedisClient) PSubscribeContext(ctx context.Context, dbName string, handler func(msg *redis.Message, dbName string), channels ...string) {
+	if r == nil || handler == nil {
+		return
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	ctx, cancel := context.WithCancel(ctx)
+	id := r.nextSub.Add(1)
+	r.subMu.Lock()
+	if r.subClosed {
+		r.subMu.Unlock()
+		cancel()
+		return
+	}
+	if r.subscriptions == nil {
+		r.subscriptions = make(map[uint64]context.CancelFunc)
+	}
+	r.subscriptions[id] = cancel
+	r.subWG.Add(1)
+	r.subMu.Unlock()
+	safego.Run(func() {
+		defer func() {
+			cancel()
+			r.subMu.Lock()
+			delete(r.subscriptions, id)
+			r.subMu.Unlock()
+			r.subWG.Done()
+		}()
 		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
 			conn, err := r.GetConnection(dbName)
 			if err != nil {
 				logger.Error("Redis connection failed: " + err.Error())
-				time.Sleep(time.Second)
+				timer := time.NewTimer(time.Second)
+				select {
+				case <-ctx.Done():
+					timer.Stop()
+					return
+				case <-timer.C:
+				}
 				continue
 			}
 			dbNum := 0
 			if cli, ok := conn.(*redis.Client); ok {
 				dbNum = cli.Options().DB
 			}
-			for i, _ := range channels {
-				channels[i] = strings.ReplaceAll(channels[i], "{db}", fmt.Sprintf("%d", dbNum))
+			localChannels := make([]string, len(channels))
+			for i, channel := range channels {
+				localChannels[i] = strings.ReplaceAll(channel, "{db}", fmt.Sprintf("%d", dbNum))
 			}
-			pubsub := conn.PSubscribe(channels...)
-			_, err = pubsub.Receive()
+			pubsub := conn.PSubscribe(localChannels...)
+			_, err = pubsub.ReceiveTimeout(time.Second)
 			if err != nil {
 				logs.Error("订阅错误:" + err.Error())
+				_ = pubsub.Close()
+				if ctx.Err() != nil {
+					return
+				}
 				continue
 			}
 			ch := pubsub.Channel()
-			for msg := range ch {
-				logs.Debug("收到Redis消息:{}", msg.Payload)
-				handler(msg, dbName)
+			reconnect := false
+			for !reconnect {
+				select {
+				case <-ctx.Done():
+					reconnect = true
+				case msg, ok := <-ch:
+					if !ok {
+						reconnect = true
+						continue
+					}
+					if msg == nil {
+						continue
+					}
+					logs.Debug("收到Redis消息:{}", msg.Payload)
+					func() {
+						defer func() {
+							if recovered := recover(); recovered != nil {
+								logs.Error("Redis订阅回调异常:{}", recovered)
+							}
+						}()
+						handler(msg, dbName)
+					}()
+				}
 			}
 			logger.Error("Redis订阅异常退出")
-			pubsub.Close()
+			_ = pubsub.Close()
+			if ctx.Err() != nil {
+				return
+			}
 		}
-	}()
+	})
 }

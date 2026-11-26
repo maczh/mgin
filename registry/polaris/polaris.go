@@ -10,6 +10,7 @@ import (
 	"github.com/levigross/grequests"
 	"github.com/maczh/mgin/cache"
 	"github.com/maczh/mgin/config"
+	"github.com/maczh/mgin/internal/safego"
 	registryModel "github.com/maczh/mgin/registry/model"
 	"github.com/sadlil/gologger"
 	"io"
@@ -262,7 +263,7 @@ func (c *PolarisClient) WatchService(service, namespace string, callback func())
 	}
 	stop := make(chan struct{})
 	var stopOnce sync.Once
-	go func() {
+	safego.Run(func() {
 		wasAvailable := true
 		ticker := time.NewTicker(5 * time.Second)
 		defer ticker.Stop()
@@ -279,7 +280,7 @@ func (c *PolarisClient) WatchService(service, namespace string, callback func())
 				wasAvailable = available
 			}
 		}
-	}()
+	})
 	return func() { stopOnce.Do(func() { close(stop) }) }, nil
 }
 

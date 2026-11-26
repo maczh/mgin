@@ -17,6 +17,7 @@ import (
 	jsoniter "github.com/json-iterator/go"
 	"github.com/levigross/grequests"
 	"github.com/maczh/mgin/config"
+	"github.com/maczh/mgin/internal/safego"
 	registryModel "github.com/maczh/mgin/registry/model"
 	"github.com/sadlil/gologger"
 
@@ -224,7 +225,7 @@ func (n *NacosClient) Register(nacosConfigData []byte) {
 			maxFails: 3,
 		}
 		n.worker.wg.Add(1)
-		go n.worker.Start(n)
+		safego.Run(func() { n.worker.Start(n) })
 		logger.Info("Nacos注册服务成功:" + ip + ":" + strconv.Itoa(int(port)))
 	}
 
@@ -368,7 +369,7 @@ func (n *NacosClient) WatchService(service, group string, callback func()) (func
 	}
 	stop := make(chan struct{})
 	var stopOnce sync.Once
-	go func() {
+	safego.Run(func() {
 		wasAvailable := true
 		ticker := time.NewTicker(5 * time.Second)
 		defer ticker.Stop()
@@ -385,7 +386,7 @@ func (n *NacosClient) WatchService(service, group string, callback func()) (func
 				wasAvailable = available
 			}
 		}
-	}()
+	})
 	return func() { stopOnce.Do(func() { close(stop) }) }, nil
 }
 

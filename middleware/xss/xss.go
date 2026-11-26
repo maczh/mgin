@@ -531,7 +531,6 @@ func (mw *XssMw) jsonToStringMap(buff bytes.Buffer, jsonBod interface{}) (bytes.
 		//fmt.Printf("Unknown Type!:%v\n", r)
 		return bytes.Buffer{}, errors.New("Unknown Content Type Received")
 	}
-	return bytes.Buffer{}, errors.New("Unknown Error")
 }
 
 // encode processed body back to json and re-set http request body

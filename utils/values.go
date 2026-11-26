@@ -8,6 +8,9 @@ type Values struct {
 }
 
 func (p *Values) Put(id string, val any) {
+	if p == nil {
+		return
+	}
 	p.lock.Lock()
 	defer p.lock.Unlock()
 
@@ -18,6 +21,9 @@ func (p *Values) Put(id string, val any) {
 }
 
 func (p *Values) Get(id string) any {
+	if p == nil {
+		return nil
+	}
 	p.lock.RLock()
 	defer p.lock.RUnlock()
 
@@ -26,6 +32,9 @@ func (p *Values) Get(id string) any {
 
 // GetAll 返回内部 map 的浅拷贝，避免外部并发写入导致 concurrent map read and map write
 func (p *Values) GetAll() any {
+	if p == nil {
+		return map[string]any{}
+	}
 	p.lock.RLock()
 	defer p.lock.RUnlock()
 	cp := make(map[string]any, len(p.data))
@@ -36,6 +45,9 @@ func (p *Values) GetAll() any {
 }
 
 func (p *Values) Merge(props map[string]any) {
+	if p == nil {
+		return
+	}
 	p.lock.Lock()
 	defer p.lock.Unlock()
 
@@ -49,6 +61,9 @@ func (p *Values) Merge(props map[string]any) {
 }
 
 func (p *Values) Clear() {
+	if p == nil {
+		return
+	}
 	p.lock.Lock()
 	defer p.lock.Unlock()
 	p.data = make(map[string]any)

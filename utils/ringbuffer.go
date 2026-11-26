@@ -1,16 +1,18 @@
 package utils
 
-import "sync/atomic"
+import "sync"
 
 type RingBuffer[T any] struct {
 	Size   int32
 	Reader int32
 	Writer int32
 	Buffer []T
+	mu     sync.Mutex
+	count  int
 }
 
 func NewRingBuffer[T any](size int) *RingBuffer[T] {
-	if size <= 0 {
+	if size < 1 {
 		size = 1
 	}
 	rb := &RingBuffer[T]{
@@ -21,73 +23,106 @@ func NewRingBuffer[T any](size int) *RingBuffer[T] {
 }
 
 func (r *RingBuffer[T]) Write(value T) {
-	if r == nil || r.Size <= 0 || len(r.Buffer) == 0 {
+	if r == nil || len(r.Buffer) == 0 {
 		return
 	}
-	current := atomic.LoadInt32(&r.Writer)
-	idx := current % r.Size
-	if idx < 0 {
-		idx = 0
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.normalizeIndexesLocked()
+	r.Buffer[r.Writer] = value
+	r.Writer = (r.Writer + 1) % int32(len(r.Buffer))
+	if r.count < len(r.Buffer) {
+		r.count++
+	} else {
+		r.Reader = (r.Reader + 1) % int32(len(r.Buffer))
 	}
-	r.Buffer[idx] = value
-	next := (current + 1) % r.Size
-	atomic.StoreInt32(&r.Writer, next)
 }
 
 func (r *RingBuffer[T]) seekReader(delta int32) {
-	if r == nil || r.Size <= 0 {
+	if len(r.Buffer) == 0 {
 		return
 	}
-	current := atomic.LoadInt32(&r.Reader)
-	expected := (current + delta) % r.Size
-	atomic.StoreInt32(&r.Reader, expected)
+	r.Reader = (r.Reader + delta) % int32(len(r.Buffer))
 }
 
 func (r *RingBuffer[T]) Read() T {
-	if r == nil || r.Size <= 0 || len(r.Buffer) == 0 {
+	if r == nil || len(r.Buffer) == 0 {
 		var zero T
 		return zero
 	}
-	defer r.seekReader(1)
-	idx := atomic.LoadInt32(&r.Reader) % r.Size
-	if idx < 0 {
-		idx = 0
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.normalizeIndexesLocked()
+	if r.count == 0 {
+		var zero T
+		return zero
 	}
-	return r.Buffer[idx]
+	value := r.Buffer[r.Reader]
+	r.seekReader(1)
+	r.count--
+	return value
 }
 
 func (r *RingBuffer[T]) Latest() T {
-	if r == nil || r.Size <= 0 || len(r.Buffer) == 0 {
+	if r == nil || len(r.Buffer) == 0 {
 		var zero T
 		return zero
 	}
-	idx := atomic.LoadInt32(&r.Writer) - 1
-	if idx < 0 {
-		idx = r.Size - 1
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.normalizeIndexesLocked()
+	if r.count == 0 {
+		var zero T
+		return zero
 	}
-	idx = idx % r.Size
+	idx := r.Writer - 1
+	if idx < 0 {
+		idx = int32(len(r.Buffer)) - 1
+	}
 	return r.Buffer[idx]
 }
 
 func (r *RingBuffer[T]) Oldest() T {
-	if r == nil || r.Size <= 0 || len(r.Buffer) == 0 {
+	if r == nil || len(r.Buffer) == 0 {
 		var zero T
 		return zero
 	}
-	idx := atomic.LoadInt32(&r.Writer) % r.Size
-	if idx < 0 {
-		idx = 0
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.normalizeIndexesLocked()
+	if r.count == 0 {
+		var zero T
+		return zero
 	}
-	return r.Buffer[idx]
+	return r.Buffer[r.Reader]
 }
 
 func (r *RingBuffer[T]) Overwrite(v T) {
-	if r == nil || r.Size <= 0 || len(r.Buffer) == 0 {
+	if r == nil || len(r.Buffer) == 0 {
 		return
 	}
-	idx := atomic.LoadInt32(&r.Writer) % r.Size
-	if idx < 0 {
-		idx = 0
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.normalizeIndexesLocked()
+	r.Buffer[r.Writer] = v
+	if r.count < len(r.Buffer) {
+		r.count++
 	}
-	r.Buffer[idx] = v
+	r.Writer = (r.Writer + 1) % int32(len(r.Buffer))
+}
+
+func (r *RingBuffer[T]) normalizeIndexesLocked() {
+	size := int32(len(r.Buffer))
+	if size == 0 {
+		r.Reader, r.Writer = 0, 0
+		return
+	}
+	r.Reader %= size
+	r.Writer %= size
+	if r.Reader < 0 {
+		r.Reader += size
+	}
+	if r.Writer < 0 {
+		r.Writer += size
+	}
 }

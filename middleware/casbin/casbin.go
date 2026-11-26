@@ -18,10 +18,15 @@ func CasbinHandler() gin.HandlerFunc {
 			c.Next()
 			return
 		}
+		service := casbin.Casbin
+		if service == nil {
+			c.AbortWithStatusJSON(http.StatusServiceUnavailable, models.Error(503, "权限服务不可用"))
+			return
+		}
 		//获取请求的PATH
 		path := c.Request.URL.Path
 		// 白名单路径
-		for _, v := range casbin.Casbin.UnAuthPath {
+		for _, v := range service.UnAuthPath {
 			if v.Path == path && v.Method == c.Request.Method {
 				c.Next()
 				return
@@ -46,7 +51,7 @@ func CasbinHandler() gin.HandlerFunc {
 		roleId := claimID(mc["roleId"])
 		// 获取请求方法
 		act := c.Request.Method
-		enforcer := casbin.Casbin.GetEnforcer()
+		enforcer := service.GetEnforcer()
 		if enforcer == nil {
 			c.AbortWithStatusJSON(http.StatusInternalServerError, models.Error(500, "权限服务不可用"))
 			return

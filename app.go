@@ -16,6 +16,7 @@ import (
 	"github.com/maczh/mgin/errcode"
 	"github.com/maczh/mgin/health"
 	"github.com/maczh/mgin/i18n"
+	"github.com/maczh/mgin/internal/safego"
 	"github.com/maczh/mgin/job"
 	"github.com/maczh/mgin/logs"
 	"github.com/maczh/mgin/metrics"
@@ -33,6 +34,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 )
@@ -54,6 +56,11 @@ type App struct {
 	metricsEnabled bool
 	// metricsMounted 防止重复挂载 /metrics（Gin 对重复 method+path 会 panic）。
 	metricsMounted bool
+	runMu          sync.Mutex
+	runStarted     bool
+	checkStop      chan struct{}
+	checkDone      chan struct{}
+	checkStopOnce  sync.Once
 }
 
 // NewApp 创建一个新的 MGin App 实例。
@@ -101,11 +108,20 @@ func NewApp(configFile, appName, version string, xlang bool) *App {
 	Init(app.configFile)
 	//设置定时任务自动检查
 	ticker := time.NewTicker(time.Minute * 5)
-	go func() {
-		for _ = range ticker.C {
-			app.MGin.checkAll()
+	app.checkStop = make(chan struct{})
+	app.checkDone = make(chan struct{})
+	safego.Run(func() {
+		defer close(app.checkDone)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-app.checkStop:
+				return
+			case <-ticker.C:
+				app.MGin.checkAll()
+			}
 		}
-	}()
+	})
 
 	//GIN的模式，生产环境可以设置成release
 	// 设置 Gin 框架的运行模式为调试模式
@@ -333,6 +349,19 @@ func (app *App) Run() {
 // RunContext runs HTTP/HTTPS listeners and returns listener or shutdown errors.
 // It is suitable for hosts that need to make the process exit policy explicit.
 func (app *App) RunContext(ctx context.Context) error {
+	if app == nil || app.Router == nil || config.Config == nil {
+		return errors.New("application, router, or configuration is not initialized")
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	app.runMu.Lock()
+	if app.runStarted {
+		app.runMu.Unlock()
+		return errors.New("application RunContext does not support repeated calls")
+	}
+	app.runStarted = true
+	app.runMu.Unlock()
 	// 获取当前可执行文件所在的绝对路径
 	path, _ := filepath.Abs(filepath.Dir(os.Args[0]))
 
@@ -409,14 +438,19 @@ func (app *App) RunContext(ctx context.Context) error {
 	serveErr := make(chan error, len(listeners))
 	for i, ln := range listeners {
 		srv := servers[i]
-		go func(s *http.Server, l net.Listener) {
-			err := s.Serve(l)
-			if err != nil && err != http.ErrServerClosed {
-				serveErr <- err
-			} else {
-				serveErr <- nil
+		safego.Run(func() {
+			var serveErrValue error
+			defer func() {
+				if recovered := recover(); recovered != nil {
+					serveErrValue = fmt.Errorf("HTTP server panic: %v", recovered)
+				}
+				serveErr <- serveErrValue
+			}()
+			serveErrValue = srv.Serve(ln)
+			if errors.Is(serveErrValue, http.ErrServerClosed) {
+				serveErrValue = nil
 			}
-		}(srv, ln)
+		})
 	}
 	// 若配置了 go.health.autoStarted=true，则在监听启动之后自动标记启动完成，
 	// 使 /startup 探针返回 200。默认不自动标记，由业务自行调用 health.MarkStarted()。
@@ -432,13 +466,13 @@ func (app *App) RunContext(ctx context.Context) error {
 	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGHUP, syscall.SIGTERM, syscall.SIGQUIT)
 	// 阻塞等待系统信号
 	stopSignals := make(chan struct{})
-	go func() {
+	safego.Run(func() {
 		select {
 		case <-ctx.Done():
 			signalChan <- syscall.SIGTERM
 		case <-stopSignals:
 		}
-	}()
+	})
 	var runErr error
 	select {
 	case sig := <-signalChan:
@@ -455,8 +489,6 @@ func (app *App) RunContext(ctx context.Context) error {
 	signal.Stop(signalChan)
 	// 记录服务器开始关闭的信息
 	logs.Error("Shutdown Server ...")
-	// 安全退出应用
-	app.MGin.SafeExit()
 	// 创建一个带有 5 秒超时的上下文
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -472,9 +504,28 @@ func (app *App) RunContext(ctx context.Context) error {
 		// 记录服务器关闭错误信息
 		logs.Error("Server Shutdown:" + err.Error())
 	}
+	// 先让 HTTP handlers 排空并关闭监听，再释放它们可能仍在使用的资源。
+	app.stopHealthChecker()
+	if app.MGin != nil {
+		app.MGin.SafeExit()
+	}
 	// 记录服务器退出信息
 	logs.Error("Server exiting")
 	return errors.Join(runErr, shutdownErr)
+}
+
+func (app *App) stopHealthChecker() {
+	if app == nil || app.checkStop == nil {
+		return
+	}
+	app.checkStopOnce.Do(func() { close(app.checkStop) })
+	if app.checkDone != nil {
+		select {
+		case <-app.checkDone:
+		case <-time.After(time.Second):
+			logs.Error("等待健康检查协程退出超时")
+		}
+	}
 }
 
 func recoveryHandler(c *gin.Context, err interface{}) {

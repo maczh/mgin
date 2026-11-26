@@ -7,6 +7,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/maczh/mgin/internal/safego"
+
 	"github.com/gin-gonic/gin"
 	"github.com/maczh/mgin/models"
 	"github.com/sadlil/gologger"
@@ -71,7 +73,7 @@ func (m *Manager) Config() *Config {
 
 // startGC 启动空闲限流器回收协程
 func (m *Manager) startGC() {
-	go func() {
+	safego.Run(func() {
 		ticker := time.NewTicker(defaultGCInterval)
 		defer ticker.Stop()
 		for {
@@ -82,7 +84,7 @@ func (m *Manager) startGC() {
 				return
 			}
 		}
-	}()
+	})
 }
 
 // gc 清理超过空闲时间未被访问的限流器

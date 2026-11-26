@@ -2,24 +2,26 @@ package jwt
 
 import (
 	"errors"
+	"net/http"
+	"strings"
+
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
 	"github.com/maczh/mgin/config"
-	"net/http"
-	"strings"
+	"github.com/maczh/mgin/middleware/routeallow"
 )
 
 // JwtAuthorize JWT认证中间件
 func JwtAuthorize() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if config.Config == nil {
+			c.AbortWithStatus(http.StatusServiceUnavailable)
+			return
+		}
 		// nil 防护：c.Request/c.Request.URL 可能为 nil
 		if c.Request != nil && c.Request.URL != nil {
 			path := c.Request.URL.Path
-			swaggerUri := ""
-			if config.Config != nil {
-				swaggerUri = config.Config.Sys.Swagger.Uri
-			}
-			if strings.Contains(path, "/docs/") || strings.Contains(path, "/swagger/") || (swaggerUri != "" && strings.Contains(path, swaggerUri)) {
+			if routeallow.MatchesPrefix(path, "/docs") || routeallow.MatchesPrefix(path, "/swagger") || routeallow.MatchesPrefix(path, config.Config.Sys.Swagger.Uri) {
 				c.Next()
 				return
 			}

@@ -13,10 +13,12 @@ package logsink
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/maczh/mgin/internal/safego"
 	"github.com/maczh/mgin/models"
 )
 
@@ -60,7 +62,7 @@ type Options struct {
 // Option 注册时的可选配置。
 type Option func(*Options)
 
-// WithQueueSize 设置缓冲队列长度，最大 100。
+// WithQueueSize 设置缓冲队列长度，最大 DefaultQueueSize。
 func WithQueueSize(n int) Option { return func(o *Options) { o.QueueSize = n } }
 
 // WithWorkers 保留兼容；消费协程数固定为 1，保证 FIFO。
@@ -117,7 +119,11 @@ func SetErrorLogger(fn func(handler string, err error)) {
 // Register 注册一个日志处理器并立即启动其消费协程。
 // 同名 Handler 重复注册返回 ErrDuplicateHandler，原 Handler 保持不变。
 func Register(h Handler, opts ...Option) error {
-	if h == nil || h.Name() == "" {
+	if isNilHandler(h) {
+		return ErrInvalidHandler
+	}
+	name, nameErr := safeHandlerName(h.Name)
+	if nameErr != nil || name == "" {
 		return ErrInvalidHandler
 	}
 	var o Options
@@ -130,10 +136,10 @@ func Register(h Handler, opts ...Option) error {
 
 	mu.Lock()
 	defer mu.Unlock()
-	if _, exists := registry[h.Name()]; exists {
+	if _, exists := registry[name]; exists {
 		return ErrDuplicateHandler
 	}
-	s := newSink(h, o)
+	s := newSink(h, o, name)
 	registry[s.name] = s
 	order = append(order, s.name)
 	s.start()
@@ -192,13 +198,20 @@ func Emit(entry *Entry) bool {
 		return false
 	}
 	mu.RLock()
-	defer mu.RUnlock()
 	if len(order) == 0 {
+		mu.RUnlock()
 		return false
 	}
-	delivered := false
+	sinks := make([]*sink[Entry], 0, len(order))
 	for _, name := range order {
-		if registry[name].deliver(entry) {
+		if current := registry[name]; current != nil {
+			sinks = append(sinks, current)
+		}
+	}
+	mu.RUnlock()
+	delivered := false
+	for _, current := range sinks {
+		if current.deliver(entry) {
 			delivered = true
 		}
 	}
@@ -284,9 +297,9 @@ type sink[T any] struct {
 	lastErrNotify  atomic.Int64
 }
 
-func newSink[T any](h typedHandler[T], opt Options) *sink[T] {
+func newSink[T any](h typedHandler[T], opt Options, name string) *sink[T] {
 	return &sink[T]{
-		name:    h.Name(),
+		name:    name,
 		h:       h,
 		workers: opt.Workers,
 		ch:      make(chan *T, opt.QueueSize),
@@ -297,7 +310,7 @@ func newSink[T any](h typedHandler[T], opt Options) *sink[T] {
 func (s *sink[T]) start() {
 	for i := 0; i < s.workers; i++ {
 		s.wg.Add(1)
-		go s.loop()
+		safego.Run(s.loop)
 	}
 }
 
@@ -376,7 +389,7 @@ func (s *sink[T]) stop(timeout time.Duration) {
 		s.notifyError(fmt.Errorf("关闭超时，丢弃队列中的日志"))
 	}
 	if c, ok := s.h.(Closer); ok {
-		if err := c.Close(); err != nil {
+		if err := safeClose(c); err != nil {
 			s.notifyError(err)
 		}
 	}
@@ -408,7 +421,7 @@ func (s *sink[T]) notifyDrop(total uint64) {
 	if !throttle(&s.lastDropNotify) {
 		return
 	}
-	(*fn)(s.name, total)
+	safeCallback(func() { (*fn)(s.name, total) })
 }
 
 func (s *sink[T]) notifyError(err error) {
@@ -419,7 +432,7 @@ func (s *sink[T]) notifyError(err error) {
 	if !throttle(&s.lastErrNotify) {
 		return
 	}
-	(*fn)(s.name, err)
+	safeCallback(func() { (*fn)(s.name, err) })
 }
 
 // throttle 保证同一 sink 的同类告警最小间隔。
@@ -437,10 +450,10 @@ func waitTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
 		timeout = DefaultShutdownTimeout
 	}
 	done := make(chan struct{})
-	go func() {
+	safego.Run(func() {
 		wg.Wait()
 		close(done)
-	}()
+	})
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
 	select {
@@ -450,3 +463,36 @@ func waitTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
 		return false
 	}
 }
+
+func isNilHandler(handler any) bool {
+	if handler == nil {
+		return true
+	}
+	v := reflect.ValueOf(handler)
+	switch v.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Ptr, reflect.Slice:
+		return v.IsNil()
+	default:
+		return false
+	}
+}
+
+func safeHandlerName(nameFn func() string) (name string, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = fmt.Errorf("handler Name panic: %v", recovered)
+		}
+	}()
+	return nameFn(), nil
+}
+
+func safeClose(closer Closer) (err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = fmt.Errorf("handler Close panic: %v", recovered)
+		}
+	}()
+	return closer.Close()
+}
+
+func safeCallback(fn func()) { defer func() { _ = recover() }(); fn() }

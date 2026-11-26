@@ -34,6 +34,9 @@ func (m MgoDao[E]) Insert(entity *E) error {
 		logger.Error("数据库连接失败: " + err.Error())
 		return errors.New("数据库连接失败")
 	}
+	if conn == nil {
+		return errors.New("数据库连接为空")
+	}
 	defer db.Mongo.ReturnConnection(conn)
 	err = conn.C(m.CollectionName).Insert(entity)
 	if err != nil {
@@ -99,6 +102,9 @@ func (m MgoDao[E]) Update(selector bson.M, update bson.M) error {
 	if err != nil {
 		logger.Error("数据库连接失败: " + err.Error())
 		return errors.New("数据库连接失败")
+	}
+	if conn == nil {
+		return errors.New("数据库连接为空")
 	}
 	defer db.Mongo.ReturnConnection(conn)
 	err = conn.C(m.CollectionName).Update(selector, update)

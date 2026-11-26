@@ -4,6 +4,8 @@ import (
 	"log"
 	"sync"
 	"time"
+
+	"github.com/maczh/mgin/internal/safego"
 )
 
 type LimitQueeMap struct {
@@ -39,29 +41,39 @@ var LimitQueue = &LimitQueeMap{
 
 // limitQueueStart 保证清理协程只启动一次，避免重复调用 NewLimitQueue 造成 goroutine 泄漏
 var limitQueueStart sync.Once
+var limitQueueStopOnce sync.Once
+var limitQueueStop = make(chan struct{})
 
 func NewLimitQueue() {
 	limitQueueStart.Do(cleanLimitQueue)
 }
 
 func cleanLimitQueue() {
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				log.Printf("cleanLimitQueue panic: %v", r)
-			}
-		}()
+	safego.Run(func() {
 		for {
 			now := time.Now()
 			next := now.Add(time.Hour * 24)
 			next = time.Date(next.Year(), next.Month(), next.Day(), 0, 0, 0, 0, next.Location())
 			t := time.NewTimer(next.Sub(now))
-			<-t.C
-			LimitQueue.reset()
-			log.Println("cleanLimitQueue reset done")
+			select {
+			case <-t.C:
+				LimitQueue.reset()
+				log.Println("cleanLimitQueue reset done")
+			case <-limitQueueStop:
+				if !t.Stop() {
+					select {
+					case <-t.C:
+					default:
+					}
+				}
+				return
+			}
 		}
-	}()
+	})
 }
+
+// StopLimitQueueCleaner stops the daily cleanup worker; repeated calls are safe.
+func StopLimitQueueCleaner() { limitQueueStopOnce.Do(func() { close(limitQueueStop) }) }
 
 // tryEnqueue 在锁内原子完成"裁剪 + 判断是否放行 + 写入"，
 // 避免 read-modify-write 竞态导致的限流失效与 slice 并发写。

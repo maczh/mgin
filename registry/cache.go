@@ -2,12 +2,14 @@ package registry
 
 import (
 	"math/rand"
+	"reflect"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/maczh/mgin/config"
+	"github.com/maczh/mgin/internal/safego"
 	"github.com/sadlil/gologger"
 )
 
@@ -57,7 +59,7 @@ type singleFlight struct {
 
 // NewCachedRegistry 用装饰器包裹真实注册中心客户端。
 func NewCachedRegistry(delegate RegistryClient) *CachedRegistry {
-	if delegate == nil {
+	if isNilRegistryClient(delegate) {
 		delegate = &noopRegistryClient{}
 	}
 	c := &CachedRegistry{
@@ -110,24 +112,31 @@ func (c *CachedRegistry) watch(service, group string) {
 		return
 	}
 	c.watchers[key] = nil
-	c.active.Add(1)
 	c.mu.Unlock()
-	defer c.active.Done()
-	cancel, err := watcher.WatchService(service, group, func() { c.Invalidate(service, group) })
-	if err != nil || cancel == nil {
+	safego.Run(func() {
+		defer func() {
+			if recover() != nil {
+				c.mu.Lock()
+				delete(c.watchers, key)
+				c.mu.Unlock()
+			}
+		}()
+		cancel, err := watcher.WatchService(service, group, func() { c.Invalidate(service, group) })
+		if err != nil || cancel == nil {
+			c.mu.Lock()
+			delete(c.watchers, key)
+			c.mu.Unlock()
+			return
+		}
 		c.mu.Lock()
-		delete(c.watchers, key)
+		if c.stopped {
+			c.mu.Unlock()
+			cancel()
+			return
+		}
+		c.watchers[key] = cancel
 		c.mu.Unlock()
-		return
-	}
-	c.mu.Lock()
-	if c.stopped {
-		c.mu.Unlock()
-		cancel()
-		return
-	}
-	c.watchers[key] = cancel
-	c.mu.Unlock()
+	})
 }
 
 // GetServiceInstances exposes a complete instance list when the delegate
@@ -149,7 +158,7 @@ func (c *CachedRegistry) GetServiceInstances(service string, group ...string) ([
 		}
 		return []ServiceInstance{{URL: url, Weight: 1}}, grp
 	}
-	instances, grp := p.GetServiceInstances(service, group...)
+	instances, grp := safeGetServiceInstances(p, service, group...)
 	return selectInstances(instances, c.strategy, &c.sequence), grp
 }
 
@@ -215,7 +224,7 @@ func (c *CachedRegistry) GetServiceURL(servicename string, groupName ...string) 
 		c.active.Add(1)
 		c.mu.Unlock()
 		defer c.active.Done()
-		instances, group := provider.GetServiceInstances(servicename, groupName...)
+		instances, group := safeGetServiceInstances(provider, servicename, groupName...)
 		selected := selectInstances(instances, c.strategy, &c.sequence)
 		if len(selected) > 0 && selected[0].URL != "" {
 			c.mu.Lock()
@@ -266,7 +275,7 @@ func (c *CachedRegistry) GetServiceURL(servicename string, groupName ...string) 
 		// leader 也未拿到实例（后端确实无实例），做一次非合并的直查兜底
 	}
 
-	url, grp := c.delegate.GetServiceURL(servicename, groupName...)
+	url, grp := safeGetServiceURL(c.delegate, servicename, groupName...)
 	c.mu.Lock()
 	if url != "" && !c.stopped {
 		c.entries[key] = &cacheEntry{
@@ -287,6 +296,37 @@ func (c *CachedRegistry) GetServiceURL(servicename string, groupName ...string) 
 		c.watch(servicename, grp)
 	}
 	return url, grp
+}
+
+func isNilRegistryClient(client RegistryClient) bool {
+	if client == nil {
+		return true
+	}
+	v := reflect.ValueOf(client)
+	switch v.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return v.IsNil()
+	default:
+		return false
+	}
+}
+
+func safeGetServiceInstances(provider InstanceProvider, service string, groups ...string) (instances []ServiceInstance, group string) {
+	defer func() {
+		if recover() != nil {
+			instances, group = nil, ""
+		}
+	}()
+	return provider.GetServiceInstances(service, groups...)
+}
+
+func safeGetServiceURL(delegate RegistryClient, service string, groups ...string) (url, group string) {
+	defer func() {
+		if recover() != nil {
+			url, group = "", ""
+		}
+	}()
+	return delegate.GetServiceURL(service, groups...)
 }
 
 // Register / DeRegister 直接透传给真实客户端，并在关闭时优雅停止后台刷新。

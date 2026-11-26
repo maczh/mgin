@@ -236,7 +236,7 @@ func TestQueueKeepsNewestAndFIFO(t *testing.T) {
 	if options.QueueSize != 100 || options.Workers != 1 {
 		t.Fatalf("options: %+v", options)
 	}
-	s := newSink[Entry](h, options)
+	s := newSink[Entry](h, options, h.Name())
 	for i := 0; i < 105; i++ {
 		if !s.deliver(newEntry(fmt.Sprint(i))) {
 			t.Fatal("new log rejected")

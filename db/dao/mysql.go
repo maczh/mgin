@@ -44,6 +44,9 @@ type CacheConfig struct {
 var logger = gologger.GetLogger()
 
 func (m *MySQLDao[E]) Debug() *MySQLDao[E] {
+	if m == nil {
+		return &MySQLDao[E]{debug: true}
+	}
 	return &MySQLDao[E]{
 		debug: true,
 		Tag:   m.Tag,
@@ -57,12 +60,18 @@ func (m *MySQLDao[E]) Debug() *MySQLDao[E] {
 // transaction callback so all DAO operations share the transaction's
 // connection instead of opening a separate database connection.
 func (m *MySQLDao[E]) WithTx(tx *gorm.DB) *MySQLDao[E] {
+	if m == nil {
+		return &MySQLDao[E]{tx: tx}
+	}
 	clone := *m
 	clone.tx = tx
 	return &clone
 }
 
 func (m *MySQLDao[E]) connection() (*gorm.DB, error) {
+	if m == nil {
+		return nil, errors.New("DAO is nil")
+	}
 	var (
 		conn *gorm.DB
 		err  error
@@ -88,6 +97,9 @@ func (m *MySQLDao[E]) connection() (*gorm.DB, error) {
 }
 
 func (m *MySQLDao[E]) WithContext(ctx *context.Context) *MySQLDao[E] {
+	if m == nil {
+		return &MySQLDao[E]{ctx: ctx}
+	}
 	m.ctx = ctx
 	return m
 }
@@ -100,22 +112,28 @@ func (m *MySQLDao[E]) WithCache(config CacheConfig) *MySQLDao[E] {
 	if config.TTL < 0 {
 		config.TTL = 0
 	}
+	if m == nil {
+		return &MySQLDao[E]{cache: &config}
+	}
 	m.cache = &config
 	return m
 }
 
 func (m *MySQLDao[E]) cacheEnabled() bool {
-	return m.cache != nil && m.cache.Enabled && m.cache.Store != nil
+	return m != nil && m.cache != nil && m.cache.Enabled && m.cache.Store != nil
 }
 
 func (m *MySQLDao[E]) cachePrefix() string {
-	if m.cache == nil || m.cache.Prefix == "" {
+	if m == nil || m.cache == nil || m.cache.Prefix == "" {
 		return "mgin:mysql:"
 	}
 	return m.cache.Prefix
 }
 
 func (m *MySQLDao[E]) cacheTablePrefix() string {
+	if m == nil {
+		return ""
+	}
 	var entity E
 	tag := ""
 	if m.Tag != nil {
@@ -237,6 +255,9 @@ func (m *MySQLDao[E]) Where(query interface{}, args ...interface{}) *gorm.DB {
 }
 
 func (m *MySQLDao[E]) whereCacheKey(operation string, query interface{}, args ...interface{}) (string, bool) {
+	if m == nil {
+		return "", false
+	}
 	return m.cacheKey(operation, struct {
 		Query interface{}
 		Args  []interface{}

@@ -18,12 +18,23 @@ func NewRedisCache(client redis.UniversalClient) *RedisCache {
 }
 
 func (c *RedisCache) Add(key interface{}, value interface{}, lifeSpan time.Duration) {
+	if c == nil {
+		return
+	}
 	c.Set(key, value, lifeSpan)
 }
 
-func (c *RedisCache) Value(key interface{}) (interface{}, bool) { return c.Get(key) }
+func (c *RedisCache) Value(key interface{}) (interface{}, bool) {
+	if c == nil {
+		return nil, false
+	}
+	return c.Get(key)
+}
 
 func (c *RedisCache) IsExist(key interface{}) bool {
+	if c == nil {
+		return false
+	}
 	_, ok := c.Get(key)
 	return ok
 }
@@ -33,14 +44,14 @@ func (c *RedisCache) IsExist(key interface{}) bool {
 // RedisCache 未做键前缀隔离，无法精确只删除缓存键，因此生产环境请勿随意调用，
 // 否则会误删同库内的其他业务数据。如需安全清空，请改用 Delete 按 key 逐个删除。
 func (c *RedisCache) Clear() bool {
-	if c.Client == nil {
+	if c == nil || c.Client == nil {
 		return false
 	}
 	return c.Client.FlushDB().Err() == nil
 }
 
 func (c *RedisCache) Get(key interface{}) (interface{}, bool) {
-	if c.Client == nil {
+	if c == nil || c.Client == nil {
 		return nil, false
 	}
 	value, err := c.Client.Get(redisKey(key)).Result()
@@ -51,7 +62,7 @@ func (c *RedisCache) Get(key interface{}) (interface{}, bool) {
 }
 
 func (c *RedisCache) Set(key interface{}, value interface{}, duration time.Duration) {
-	if c.Client == nil {
+	if c == nil || c.Client == nil {
 		return
 	}
 	data, err := cacheBytes(value)
@@ -61,7 +72,7 @@ func (c *RedisCache) Set(key interface{}, value interface{}, duration time.Durat
 }
 
 func (c *RedisCache) Range(f func(key, value interface{}) bool) {
-	if c.Client == nil {
+	if c == nil || c.Client == nil || f == nil {
 		return
 	}
 	var cursor uint64
@@ -84,7 +95,7 @@ func (c *RedisCache) Range(f func(key, value interface{}) bool) {
 }
 
 func (c *RedisCache) Delete(key interface{}) {
-	if c.Client != nil {
+	if c != nil && c.Client != nil {
 		_ = c.Client.Del(redisKey(key)).Err()
 	}
 }

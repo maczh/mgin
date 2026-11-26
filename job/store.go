@@ -64,6 +64,24 @@ func newStore(dbName string) (*store, error) {
 	return nil, errors.New("定时任务需要在 go.config.used 中启用 mysql / postgres / sqlite 中的至少一种")
 }
 
+// closeStore releases the underlying SQL connection when a store is abandoned
+// during startup or replaced by a concurrently initialized store.
+func closeStore(st *store) {
+	if st == nil || st.db == nil {
+		return
+	}
+	sqlDB, err := st.db.DB()
+	if err != nil {
+		logs.Error("[Job] 获取底层数据库连接以关闭失败: {}", err.Error())
+		return
+	}
+	if sqlDB != nil {
+		if err := sqlDB.Close(); err != nil {
+			logs.Error("[Job] 关闭定时任务数据库连接失败: {}", err.Error())
+		}
+	}
+}
+
 // mysqlConn 获取 MySQL 连接，兼容多库模式
 func mysqlConn(dbName string) (*gorm.DB, error) {
 	if db.Mysql.IsMultiDB() {
@@ -81,11 +99,17 @@ func mysqlConn(dbName string) (*gorm.DB, error) {
 
 // Driver 返回当前使用的数据库驱动名
 func (s *store) Driver() string {
+	if s == nil {
+		return ""
+	}
 	return s.driver
 }
 
 // DB 返回底层 GORM 连接，便于业务侧做自定义查询
 func (s *store) DB() *gorm.DB {
+	if s == nil {
+		return nil
+	}
 	if s.db == nil {
 		loadConfig()
 		s, _ = newStore(config.Config.GetConfigString("go.job.dbName"))

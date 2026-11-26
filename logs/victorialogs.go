@@ -68,7 +68,13 @@ func InitVictoriaLogs() error {
 	if timeout <= 0 {
 		timeout = 5 * time.Second
 	}
-	transport := http.DefaultTransport.(*http.Transport).Clone()
+	baseTransport, ok := http.DefaultTransport.(*http.Transport)
+	var transport *http.Transport
+	if ok && baseTransport != nil {
+		transport = baseTransport.Clone()
+	} else {
+		transport = &http.Transport{Proxy: http.ProxyFromEnvironment}
+	}
 	transport.TLSClientConfig = &tls.Config{RootCAs: roots, MinVersion: tls.VersionTLS12}
 	c := &victoriaCollector{client: &http.Client{Transport: transport, Timeout: timeout,
 		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }},

@@ -2,9 +2,12 @@ package utils
 
 import (
 	"bytes"
-	"github.com/maczh/mgin/logs"
+	"errors"
 	"os/exec"
 	"time"
+
+	"github.com/maczh/mgin/internal/safego"
+	"github.com/maczh/mgin/logs"
 )
 
 func CmdExec(name string, arg ...string) (string, error) {
@@ -16,10 +19,13 @@ func CmdExec(name string, arg ...string) (string, error) {
 }
 
 func CmdRunWithTimeout(cmd *exec.Cmd, timeout time.Duration) (error, bool) {
-	done := make(chan error)
-	go func() {
+	if cmd == nil {
+		return errors.New("command is nil"), false
+	}
+	done := make(chan error, 1)
+	safego.Run(func() {
 		done <- cmd.Wait()
-	}()
+	})
 
 	var err error
 	select {
@@ -31,9 +37,6 @@ func CmdRunWithTimeout(cmd *exec.Cmd, timeout time.Duration) (error, bool) {
 				logs.Error("failed to kill: {}, error: {}", cmd.Path, err)
 			}
 		}
-		go func() {
-			<-done // allow goroutine to exit
-		}()
 		logs.Info("process:{} killed", cmd.Path)
 		return err, true
 	case err = <-done:

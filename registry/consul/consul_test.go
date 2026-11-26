@@ -8,6 +8,18 @@ import (
 	"github.com/maczh/mgin/config"
 )
 
+func TestFilterClusterSkipsNilServiceEntries(t *testing.T) {
+	services := []*api.ServiceEntry{
+		nil,
+		{Service: nil},
+		{Service: &api.AgentService{Tags: []string{"DEFAULT"}}},
+	}
+	got := filterCluster(services, "")
+	if len(got) != 1 || got[0].Service == nil {
+		t.Fatalf("filterCluster() = %#v, want only valid service", got)
+	}
+}
+
 func TestConsulClient_Register(t *testing.T) {
 	ymlData := `go:
   consul:

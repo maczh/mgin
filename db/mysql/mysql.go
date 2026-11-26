@@ -2,6 +2,7 @@ package mysql
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -16,6 +17,7 @@ import (
 
 type MysqlClient struct {
 	mu       sync.RWMutex
+	initMu   sync.Mutex
 	mysql    *gorm.DB
 	mysqls   map[string]*gorm.DB
 	multi    bool
@@ -24,28 +26,56 @@ type MysqlClient struct {
 	confData []byte
 	conns    []string
 	cache    bool
+	closed   bool
 }
 
 var logger = logs.GetLogger()
 
+var ErrClosed = errors.New("mysql client is closed")
+
 func (m *MysqlClient) Init(mysqlConfigData []byte) {
-	if len(mysqlConfigData) == 0 {
-		return
+	if err := m.InitWithError(mysqlConfigData); err != nil {
+		logger.Error("MySQL初始化失败: " + err.Error())
 	}
-	candidate := &MysqlClient{}
-	candidate.init(mysqlConfigData)
-	if candidate.conf == nil || (!candidate.multi && candidate.mysql == nil) || (candidate.multi && len(candidate.mysqls) == 0) {
-		return
-	}
-	m.mu.Lock()
-	oldSingle, oldMulti, oldIsMulti := m.mysql, m.mysqls, m.multi
-	m.mysql, m.mysqls, m.multi = candidate.mysql, candidate.mysqls, candidate.multi
-	m.conf, m.confData, m.conns = candidate.conf, candidate.confData, candidate.conns
-	m.mu.Unlock()
-	closeConnections(oldSingle, oldMulti, oldIsMulti)
 }
 
-func (m *MysqlClient) init(mysqlConfigData []byte) {
+// InitWithError initializes a candidate connection set and publishes it only
+// after configuration parsing and connection setup succeed.
+func (m *MysqlClient) InitWithError(mysqlConfigData []byte) error {
+	if m == nil {
+		return ErrClosed
+	}
+	m.initMu.Lock()
+	defer m.initMu.Unlock()
+	m.mu.RLock()
+	closed := m.closed
+	m.mu.RUnlock()
+	if closed {
+		return ErrClosed
+	}
+	if len(mysqlConfigData) == 0 {
+		return errors.New("mysql configuration is empty")
+	}
+	candidate := &MysqlClient{}
+	if err := candidate.init(mysqlConfigData); err != nil {
+		closeConnections(candidate.mysql, candidate.mysqls, candidate.multi)
+		return err
+	}
+	m.mu.Lock()
+	if m.closed {
+		m.mu.Unlock()
+		closeConnections(candidate.mysql, candidate.mysqls, candidate.multi)
+		return ErrClosed
+	}
+	oldSingle, oldMulti, oldIsMulti := m.mysql, m.mysqls, m.multi
+	m.mysql, m.mysqls, m.multi = candidate.mysql, candidate.mysqls, candidate.multi
+	m.conf, m.confData, m.conns = candidate.conf, append([]byte(nil), candidate.confData...), append([]string(nil), candidate.conns...)
+	m.mu.Unlock()
+	closeConnections(oldSingle, oldMulti, oldIsMulti)
+	return nil
+}
+
+func (m *MysqlClient) init(mysqlConfigData []byte) error {
 	//if mysqlConfigUrl != "" {
 	//	m.confUrl = mysqlConfigUrl
 	//}
@@ -77,7 +107,7 @@ func (m *MysqlClient) init(mysqlConfigData []byte) {
 		if err != nil {
 			logger.Error("MySQL配置格式解析错误:" + err.Error())
 			m.conf = nil
-			return
+			return err
 		}
 		//}
 		m.multi = false
@@ -91,22 +121,25 @@ func (m *MysqlClient) init(mysqlConfigData []byte) {
 					conn, err := gorm.Open(mysql.Open(m.conf.String("go.data.mysql."+dbName)), &gorm.Config{Logger: logs.NewGORMLogger()})
 					if err != nil {
 						logger.Error(dbName + " mysql connection error:" + err.Error())
-						continue
+						return fmt.Errorf("%s mysql connection error: %w", dbName, err)
 					}
 					m.mysqls[dbName] = conn
 					m.conns = append(m.conns, dbName)
 				}
 			}
+			if len(m.mysqls) == 0 {
+				return errors.New("mySQL connection error: no configured connections available")
+			}
 		} else {
 			m.mysql, err = gorm.Open(mysql.Open(m.conf.String("go.data.mysql")), &gorm.Config{Logger: logs.NewGORMLogger()})
 			if err != nil {
 				logger.Error("mysql connection error:" + err.Error())
-				return
+				return err
 			}
 		}
 		if !m.multi && m.mysql == nil {
 			logger.Error("mysql connection error")
-			return
+			return errors.New("mySQL connection error")
 		}
 		if m.conf.Bool("go.data.mysql_debug") {
 			if m.multi {
@@ -138,7 +171,10 @@ func (m *MysqlClient) init(mysqlConfigData []byte) {
 				sqldb, err := m.mysql.DB()
 				if err != nil || sqldb == nil {
 					logger.Error("mysql connection pool error")
-					return
+					if err != nil {
+						return fmt.Errorf("mysql connection pool error: %w", err)
+					}
+					return errors.New("mysql connection pool is nil")
 				}
 				sqldb.SetConnMaxIdleTime(time.Duration(idleTimeout) * time.Second)
 				sqldb.SetMaxIdleConns(idle)
@@ -146,10 +182,15 @@ func (m *MysqlClient) init(mysqlConfigData []byte) {
 				sqldb.SetConnMaxLifetime(time.Duration(lifetime) * time.Minute)
 			} else {
 				for k := range m.mysqls {
+					if m.mysqls[k] == nil {
+						return fmt.Errorf("%s mysql connection is nil", k)
+					}
 					sqldb, err := m.mysqls[k].DB()
 					if err != nil || sqldb == nil {
-						logger.Error(k + " mysql connection pool error")
-						continue
+						if err != nil {
+							return fmt.Errorf("%s mysql connection pool error: %w", k, err)
+						}
+						return fmt.Errorf("%s mysql connection pool is nil", k)
 					}
 					sqldb.SetConnMaxIdleTime(time.Duration(idleTimeout) * time.Second)
 					sqldb.SetMaxIdleConns(idle)
@@ -159,12 +200,23 @@ func (m *MysqlClient) init(mysqlConfigData []byte) {
 			}
 		}
 	}
+	return nil
 }
 
 func (m *MysqlClient) Close() {
+	if m == nil {
+		return
+	}
+	m.initMu.Lock()
+	defer m.initMu.Unlock()
 	m.mu.Lock()
+	if m.closed {
+		m.mu.Unlock()
+		return
+	}
+	m.closed = true
 	single, multi, isMulti := m.mysql, m.mysqls, m.multi
-	m.mysql, m.mysqls = nil, nil
+	m.mysql, m.mysqls, m.conns, m.conf, m.confData = nil, nil, nil, nil, nil
 	m.mu.Unlock()
 	closeConnections(single, multi, isMulti)
 }
@@ -187,31 +239,51 @@ func closeConnections(single *gorm.DB, multi map[string]*gorm.DB, isMulti bool) 
 }
 
 func mySqlsCheck(m *MysqlClient) error {
+	if m == nil {
+		return ErrClosed
+	}
 	m.mu.RLock()
-	defer m.mu.RUnlock()
-	if !m.multi {
+	closed, multi := m.closed, m.multi
+	conns := make(map[string]*gorm.DB, len(m.mysqls))
+	for name, conn := range m.mysqls {
+		conns[name] = conn
+	}
+	m.mu.RUnlock()
+	if closed {
+		return ErrClosed
+	}
+	if !multi {
 		return errors.New("Not multi mysql connections setting")
 	}
-	for k := range m.mysqls {
-		sqldb, err := m.mysqls[k].DB()
-		if err != nil || sqldb == nil {
-			return errors.New("mySQL connection error: " + k)
+	for name, conn := range conns {
+		if conn == nil {
+			return errors.New("mySQL connection error: " + name)
 		}
-		err = sqldb.Ping()
-		if err != nil {
-			return errors.New("mySQL connection error: " + k)
+		sqldb, err := conn.DB()
+		if err != nil || sqldb == nil {
+			return errors.New("mySQL connection error: " + name)
+		}
+		if err = sqldb.Ping(); err != nil {
+			return fmt.Errorf("mySQL connection error: %s: %w", name, err)
 		}
 	}
 	return nil
 }
 
 func mySqlCheck(m *MysqlClient) (*gorm.DB, error) {
+	if m == nil {
+		return nil, ErrClosed
+	}
 	m.mu.RLock()
-	defer m.mu.RUnlock()
-	if m.mysql == nil {
+	closed, conn := m.closed, m.mysql
+	m.mu.RUnlock()
+	if closed {
+		return nil, ErrClosed
+	}
+	if conn == nil {
 		return nil, errors.New("mySQL connection error")
 	}
-	sqldb, err := m.mysql.DB()
+	sqldb, err := conn.DB()
 	if err != nil || sqldb == nil {
 		return nil, errors.New("mySQL connection error")
 	}
@@ -219,12 +291,27 @@ func mySqlCheck(m *MysqlClient) (*gorm.DB, error) {
 	if err != nil {
 		return nil, errors.New("mySQL connection error")
 	}
-	return m.mysql, nil
+	m.mu.RLock()
+	closed = m.closed
+	m.mu.RUnlock()
+	if closed {
+		return nil, ErrClosed
+	}
+	return conn, nil
 }
 
 func (m *MysqlClient) Check() error {
+	if m == nil {
+		return ErrClosed
+	}
+	m.mu.RLock()
+	closed, multi := m.closed, m.multi
+	m.mu.RUnlock()
+	if closed {
+		return ErrClosed
+	}
 	var err error
-	if m.multi {
+	if multi {
 		err = mySqlsCheck(m)
 		if err != nil {
 			logger.Error(err.Error())
@@ -239,8 +326,14 @@ func (m *MysqlClient) Check() error {
 }
 
 func (m *MysqlClient) GetConnection(dbName ...string) (*gorm.DB, error) {
+	if m == nil {
+		return nil, ErrClosed
+	}
 	m.mu.RLock()
 	defer m.mu.RUnlock()
+	if m.closed {
+		return nil, ErrClosed
+	}
 	if len(dbName) == 0 {
 		if m.multi {
 			return nil, errors.New("multi get connection must specify a database name")
@@ -267,12 +360,18 @@ func (m *MysqlClient) GetConnection(dbName ...string) (*gorm.DB, error) {
 }
 
 func (m *MysqlClient) IsMultiDB() bool {
+	if m == nil {
+		return false
+	}
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.multi
 }
 
 func (m *MysqlClient) ListConnNames() []string {
+	if m == nil {
+		return nil
+	}
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return append([]string(nil), m.conns...)

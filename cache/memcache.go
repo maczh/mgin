@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/huandu/go-clone"
+	"github.com/maczh/mgin/internal/safego"
 )
 
 type MemCache struct {
@@ -18,6 +19,9 @@ type MemCache struct {
 lifeSpan:缓存时间，0表示永不超时
 */
 func (c *MemCache) Add(key any, value any, lifeSpan time.Duration) {
+	if c == nil {
+		return
+	}
 	v := clone.Clone(value)
 	c.Set(key, v, lifeSpan)
 }
@@ -28,6 +32,9 @@ func (c *MemCache) Add(key any, value any, lifeSpan time.Duration) {
 */
 
 func (c *MemCache) Value(key any) (any, bool) {
+	if c == nil {
+		return nil, false
+	}
 	v, found := c.Get(key)
 	return clone.Clone(v), found
 }
@@ -68,7 +75,7 @@ func New(cleaningInterval time.Duration) *MemCache {
 		return cache
 	}
 
-	go func() {
+	safego.Run(func() {
 		ticker := time.NewTicker(cleaningInterval)
 		defer ticker.Stop()
 
@@ -91,20 +98,27 @@ func New(cleaningInterval time.Duration) *MemCache {
 				return
 			}
 		}
-	}()
+	})
 
 	return cache
 }
 
 // Get gets the value for the given key.
 func (cache *MemCache) Get(key any) (any, bool) {
+	if cache == nil {
+		return nil, false
+	}
 	obj, exists := cache.items.Load(key)
 
 	if !exists {
 		return nil, false
 	}
 
-	item := obj.(item)
+	itemValue, ok := obj.(item)
+	if !ok {
+		return nil, false
+	}
+	item := itemValue
 
 	if item.expires > 0 && time.Now().UnixNano() > item.expires {
 		return nil, false
@@ -116,6 +130,9 @@ func (cache *MemCache) Get(key any) (any, bool) {
 // Set sets a value for the given key with an expiration duration.
 // If the duration is 0 or less, it will be stored forever.
 func (cache *MemCache) Set(key any, value any, duration time.Duration) {
+	if cache == nil {
+		return
+	}
 	var expires int64
 
 	if duration > 0 {
@@ -131,10 +148,17 @@ func (cache *MemCache) Set(key any, value any, duration time.Duration) {
 // Range calls f sequentially for each key and value present in the cache.
 // If f returns false, range stops the iteration.
 func (cache *MemCache) Range(f func(key, value any) bool) {
+	if cache == nil || f == nil {
+		return
+	}
 	now := time.Now().UnixNano()
 
 	fn := func(key, value any) bool {
-		item := value.(item)
+		itemValue, ok := value.(item)
+		if !ok {
+			return true
+		}
+		item := itemValue
 
 		if item.expires > 0 && now > item.expires {
 			return true
@@ -148,6 +172,9 @@ func (cache *MemCache) Range(f func(key, value any) bool) {
 
 // Delete deletes the key and its value from the cache.
 func (cache *MemCache) Delete(key any) {
+	if cache == nil {
+		return
+	}
 	cache.items.Delete(key)
 }
 
@@ -156,5 +183,9 @@ func (cache *MemCache) Close() {
 	if cache == nil {
 		return
 	}
-	cache.stop.Do(func() { close(cache.close) })
+	cache.stop.Do(func() {
+		if cache.close != nil {
+			close(cache.close)
+		}
+	})
 }
