@@ -99,7 +99,7 @@ func diskPath(cachePath string) (string, error) {
 	if cachePath == "" {
 		return filepath.Join(base, "cache.db"), nil
 	}
-	if filepath.IsAbs(cachePath) || strings.HasPrefix(cachePath, "/") || cachePath[1:2] == ":" {
+	if filepath.IsAbs(cachePath) || strings.HasPrefix(cachePath, "/") || (len(cachePath) >= 2 && cachePath[1:2] == ":") {
 		return filepath.Clean(cachePath), nil
 	}
 	return filepath.Join(base, cachePath), nil

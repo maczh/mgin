@@ -93,6 +93,9 @@ func (mw *XssMw) RemoveXss() gin.HandlerFunc {
 	// middleware was initialized concurrently.
 	clone := *mw
 	clone.FieldsToSkip = append([]string(nil), mw.FieldsToSkip...)
+	if clone.BmPolicy == "" {
+		clone.BmPolicy = "StrictPolicy"
+	}
 	hasPassword := false
 	for _, field := range clone.FieldsToSkip {
 		if field == "password" {
@@ -114,11 +117,7 @@ func (mw *XssMw) RemoveXss() gin.HandlerFunc {
 // bails if really bad stuff happens
 func (mw *XssMw) callRemoveXss(c *gin.Context) {
 	// Bluemonday Policy
-	if mw.BmPolicy == "" {
-		mw.BmPolicy = "StrictPolicy"
-		// TODO
-		//} else if mw.BmPolicy != "StrictPolicy" && mw.BmPolicy != "UGCPolicy" && mw.BmPolicy != "New" {
-	} else if mw.BmPolicy != "StrictPolicy" && mw.BmPolicy != "UGCPolicy" {
+	if mw.BmPolicy != "StrictPolicy" && mw.BmPolicy != "UGCPolicy" {
 		fmt.Println("BlueMondy Policy setting is incorrect!")
 		c.AbortWithStatusJSON(http.StatusInternalServerError, models.Error(500, "BlueMondy Policy setting is incorrect!"))
 		return

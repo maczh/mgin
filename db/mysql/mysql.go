@@ -47,12 +47,6 @@ func (m *MysqlClient) InitWithError(mysqlConfigData []byte) error {
 	}
 	m.initMu.Lock()
 	defer m.initMu.Unlock()
-	m.mu.RLock()
-	closed := m.closed
-	m.mu.RUnlock()
-	if closed {
-		return ErrClosed
-	}
 	if len(mysqlConfigData) == 0 {
 		return errors.New("mysql configuration is empty")
 	}
@@ -69,6 +63,7 @@ func (m *MysqlClient) InitWithError(mysqlConfigData []byte) error {
 	}
 	oldSingle, oldMulti, oldIsMulti := m.mysql, m.mysqls, m.multi
 	m.mysql, m.mysqls, m.multi = candidate.mysql, candidate.mysqls, candidate.multi
+	m.closed = false
 	m.conf, m.confData, m.conns = candidate.conf, append([]byte(nil), candidate.confData...), append([]string(nil), candidate.conns...)
 	m.mu.Unlock()
 	closeConnections(oldSingle, oldMulti, oldIsMulti)

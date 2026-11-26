@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"compress/gzip"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -79,15 +80,21 @@ func Compress(data []byte) ([]byte, error) {
 
 // Decompress returns the decompressed bytes
 func Decompress(data []byte) ([]byte, error) {
+	const maxDecompressedBytes = 64 << 20
 	byteReader := bytes.NewReader(data)
 	gzipReader, err := gzip.NewReader(byteReader)
 	if err != nil {
 		return nil, err
 	}
 
-	decompressedBytes, err := ioutil.ReadAll(gzipReader)
+	decompressedBytes, err := ioutil.ReadAll(io.LimitReader(gzipReader, maxDecompressedBytes+1))
 	if err != nil {
+		_ = gzipReader.Close()
 		return nil, err
+	}
+	if len(decompressedBytes) > maxDecompressedBytes {
+		_ = gzipReader.Close()
+		return nil, fmt.Errorf("decompressed data exceeds %d bytes", maxDecompressedBytes)
 	}
 
 	err = gzipReader.Close()

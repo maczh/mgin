@@ -66,6 +66,9 @@ func AESBase64Decrypt(encrypt_data string, key string, iv []byte) (string, error
 		logs.Error("AES解密错误:{}", err.Error())
 		return "", err
 	}
+	if len(source) == 0 || len(source)%block.BlockSize() != 0 {
+		return "", errors.New("解密错误: 密文长度非法")
+	}
 	var dst []byte = make([]byte, len(source))
 	encrypt.CryptBlocks(dst, source)
 	oridata, err := PKCS5UnPadding(dst)

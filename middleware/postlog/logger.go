@@ -26,8 +26,13 @@ import (
 
 type bodyLogWriter struct {
 	gin.ResponseWriter
-	body *bytes.Buffer
+	body      *bytes.Buffer
+	limit     int
+	total     int64
+	truncated bool
 }
+
+const maxLoggedBodyBytes = 1 << 20
 
 var (
 	initOnce  sync.Once
@@ -113,12 +118,36 @@ func oneLineResponse(response string) string {
 }
 
 func (w bodyLogWriter) Write(b []byte) (int, error) {
-	w.body.Write(b)
+	w.total += int64(len(b))
+	if w.body.Len() < w.limit {
+		n := w.limit - w.body.Len()
+		if n > len(b) {
+			n = len(b)
+		}
+		_, _ = w.body.Write(b[:n])
+		if n < len(b) {
+			w.truncated = true
+		}
+	} else if len(b) > 0 {
+		w.truncated = true
+	}
 	return w.ResponseWriter.Write(b)
 }
 
 func (w bodyLogWriter) WriteString(s string) (int, error) {
-	w.body.WriteString(s)
+	w.total += int64(len(s))
+	if w.body.Len() < w.limit {
+		n := w.limit - w.body.Len()
+		if n > len(s) {
+			n = len(s)
+		}
+		_, _ = w.body.WriteString(s[:n])
+		if n < len(s) {
+			w.truncated = true
+		}
+	} else if len(s) > 0 {
+		w.truncated = true
+	}
 	return w.ResponseWriter.WriteString(s)
 }
 
@@ -149,19 +178,24 @@ func RequestLogger() gin.HandlerFunc {
 	})
 
 	return func(c *gin.Context) {
-		bodyLogWriter := &bodyLogWriter{body: bytes.NewBufferString(""), ResponseWriter: c.Writer}
+		bodyLogWriter := &bodyLogWriter{body: bytes.NewBufferString(""), limit: maxLoggedBodyBytes, ResponseWriter: c.Writer}
 		c.Writer = bodyLogWriter
 
 		// 开始时间
 		startTime := time.Now()
 
-		data, err := c.GetRawData()
-		if err != nil {
-			logs.Error("GetRawData error:", err.Error())
+		var body string
+		if c.Request.ContentLength >= 0 && c.Request.ContentLength > maxLoggedBodyBytes {
+			body = fmt.Sprintf("<body omitted: %d bytes>", c.Request.ContentLength)
+		} else {
+			data, err := c.GetRawData()
+			if err != nil {
+				logs.Error("GetRawData error:", err.Error())
+			} else {
+				body = string(data)
+				c.Request.Body = ioutil.NopCloser(bytes.NewBuffer(data))
+			}
 		}
-		body := string(data)
-
-		c.Request.Body = ioutil.NopCloser(bytes.NewBuffer(data)) // 关键点
 		logs.Debug("请求 {} {}", c.Request.Method, c.Request.RequestURI)
 		params := utils.GinParamMap(c)
 		if c.ContentType() == gin.MIMEJSON {
@@ -176,6 +210,9 @@ func RequestLogger() gin.HandlerFunc {
 		c.Next()
 
 		responseBody := bodyLogWriter.body.String()
+		if bodyLogWriter.truncated {
+			responseBody += fmt.Sprintf(" <body truncated: %d bytes>", bodyLogWriter.total)
+		}
 		fileSummary := fileResponseSummary(bodyLogWriter.Header().Get("Content-Type"), bodyLogWriter.Header().Get("Content-Disposition"), c.Request.URL.Path, bodyLogWriter.body.Len())
 		if fileSummary != "" {
 			responseBody = fileSummary

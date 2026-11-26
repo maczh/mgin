@@ -4,10 +4,19 @@ import (
 	"context"
 	"fmt"
 	clientv3 "go.etcd.io/etcd/client/v3"
+	"os"
 	"testing"
 )
 
+func requireLiveConfigTest(t *testing.T) {
+	t.Helper()
+	if os.Getenv("MGIN_LIVE_CONFIG_TESTS") != "1" {
+		t.Skip("requires external config service; set MGIN_LIVE_CONFIG_TESTS=1 to run")
+	}
+}
+
 func TestConfig_GetConfigData_Consul(t *testing.T) {
+	requireLiveConfigTest(t)
 	cfg := &config{
 		Cnf:       nil,
 		App:       app{Project: "test", Name: "user", Port: 8080},
@@ -21,6 +30,7 @@ func TestConfig_GetConfigData_Consul(t *testing.T) {
 }
 
 func TestConfig_GetConfigData_Etcd(t *testing.T) {
+	requireLiveConfigTest(t)
 	yml := `go:
   etcd:
     server: 192.168.110.15   #etcd服务IP
@@ -52,6 +62,7 @@ func TestConfig_GetConfigData_Etcd(t *testing.T) {
 }
 
 func TestConfig_GetConfigData_Polaris(t *testing.T) {
+	requireLiveConfigTest(t)
 	cfg := &config{
 		Cnf:       nil,
 		App:       app{Project: "oss", Name: "user", Port: 8080},

@@ -36,7 +36,7 @@ func (m *Sqlite) InitWithError(dbFileName string) error {
 	m.mu.RLock()
 	closed, opened := m.closed, m.sqlite != nil
 	m.mu.RUnlock()
-	if closed {
+	if closed && opened {
 		return errors.New("SQLite client is closed")
 	}
 	if opened {
@@ -69,7 +69,7 @@ func (m *Sqlite) InitWithError(dbFileName string) error {
 	}
 	published := m.sqlite == nil
 	if published {
-		m.sqlite, m.dbFile = conn, dbFileName
+		m.sqlite, m.dbFile, m.closed = conn, dbFileName, false
 	}
 	m.mu.Unlock()
 	if !published {

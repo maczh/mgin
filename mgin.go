@@ -136,7 +136,7 @@ func (m *mgin) Reload(configFile string) error {
 		return errors.New("配置未初始化")
 	}
 	oldUsed := config.Config.Config.Used
-	oldRegistry := registry.Registry
+	oldRegistry := registry.GetRegistry()
 	config.Config.Init(configFile)
 	if config.Config.Cnf == nil {
 		return errors.New("配置文件加载失败，保留现有连接")
@@ -150,7 +150,8 @@ func (m *mgin) Reload(configFile string) error {
 
 func initResources(m *mgin) {
 	configs := config.Config.Config.Used
-	registry.Registry = registry.NewRegistry()
+	registry.SetRegistry(registry.NewRegistry())
+	currentRegistry := registry.GetRegistry()
 	// Service registration is deferred until App.RunContext has acquired every
 	// configured listener successfully.
 
@@ -166,14 +167,14 @@ func initResources(m *mgin) {
 	if strings.Contains(configs, "redis") {
 		db.Redis.Init(config.Config.GetConfigData(config.Config.Config.Prefix.Redis))
 	}
-	if _, multi := registry.Registry.(registry.ConfiguredRegistrar); !multi && strings.Contains(configs, "nacos") {
-		registry.Registry.Register(config.Config.GetConfigData(config.Config.Config.Prefix.Nacos))
+	if _, multi := currentRegistry.(registry.ConfiguredRegistrar); !multi && strings.Contains(configs, "nacos") {
+		currentRegistry.Register(config.Config.GetConfigData(config.Config.Config.Prefix.Nacos))
 	}
-	if _, multi := registry.Registry.(registry.ConfiguredRegistrar); !multi && strings.Contains(configs, "etcd") {
-		registry.Registry.Register(config.Config.GetConfigData(config.Config.Config.Prefix.Etcd))
+	if _, multi := currentRegistry.(registry.ConfiguredRegistrar); !multi && strings.Contains(configs, "etcd") {
+		currentRegistry.Register(config.Config.GetConfigData(config.Config.Config.Prefix.Etcd))
 	}
-	if _, multi := registry.Registry.(registry.ConfiguredRegistrar); !multi && strings.Contains(configs, "consul") {
-		registry.Registry.Register(config.Config.GetConfigData(config.Config.Config.Prefix.Consul))
+	if _, multi := currentRegistry.(registry.ConfiguredRegistrar); !multi && strings.Contains(configs, "consul") {
+		currentRegistry.Register(config.Config.GetConfigData(config.Config.Config.Prefix.Consul))
 	}
 	if strings.Contains(configs, "job") {
 		if err := job.Start(); err != nil {
@@ -300,18 +301,14 @@ func (m *mgin) SafeExit() {
 		logger.Info("正在关闭Redis连接")
 		db.Redis.Close()
 	}
-	if registry.Registry != nil && (len(config.Config.Discovery.Registries) > 0 || strings.Contains(configs, "nacos") || strings.Contains(configs, "etcd") || strings.Contains(configs, "consul") || strings.Contains(configs, "polaris")) {
+	currentRegistry := registry.GetRegistry()
+	if currentRegistry != nil && (len(config.Config.Discovery.Registries) > 0 || strings.Contains(configs, "nacos") || strings.Contains(configs, "etcd") || strings.Contains(configs, "consul") || strings.Contains(configs, "polaris")) {
 		logger.Info("正在注销注册中心")
-		registry.Registry.DeRegister()
+		currentRegistry.DeRegister()
 	}
 	if strings.Contains(configs, "job") {
 		logger.Info("正在停止定时任务调度器")
 		job.Stop()
-	}
-	if strings.Contains(configs, "job") {
-		if err := job.GetManager().Check(); err != nil {
-			logs.Error("定时任务调度器健康检查失败: {}", err.Error())
-		}
 	}
 	if m != nil {
 		for dbConfigName, pl := range m.pluginSnapshot() {

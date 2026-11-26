@@ -281,7 +281,8 @@ func call(ctx context.Context, service, uri string, op *Options) (result string,
 	}
 	host := ""
 	var err error
-	if registry.Registry == nil {
+	currentRegistry := registry.GetRegistry()
+	if currentRegistry == nil {
 		err := errors.New("服务注册中心未初始化")
 		if op.Fallback != nil {
 			if value, ok := op.Fallback(err); ok {
@@ -292,10 +293,10 @@ func call(ctx context.Context, service, uri string, op *Options) (result string,
 	}
 	// Keep op.Group as requested by the caller so cache keys stay stable even
 	// when discovery fails; the resolved group is only needed for the lookup.
-	if resolver, ok := registry.Registry.(registry.NamedRegistryResolver); ok {
+	if resolver, ok := currentRegistry.(registry.NamedRegistryResolver); ok {
 		host, _ = resolveWithContext(ctx, resolver, op.Registry, service, op.Group)
 	} else {
-		host, _ = resolveLegacyWithContext(ctx, registry.Registry, service, op.Group)
+		host, _ = resolveLegacyWithContext(ctx, currentRegistry, service, op.Group)
 	}
 	if host == "" {
 		err := errors.New("微服务获取" + service + "服务主机IP端口失败")

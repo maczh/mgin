@@ -15,6 +15,21 @@ import (
 )
 
 var Registry RegistryClient
+var registryMu sync.RWMutex
+
+// GetRegistry returns a stable snapshot for one operation.
+func GetRegistry() RegistryClient {
+	registryMu.RLock()
+	defer registryMu.RUnlock()
+	return Registry
+}
+
+// SetRegistry publishes a registry client atomically with respect to readers.
+func SetRegistry(client RegistryClient) {
+	registryMu.Lock()
+	Registry = client
+	registryMu.Unlock()
+}
 
 type RegistryClient interface {
 	Register(registryConfigData []byte)

@@ -18,6 +18,7 @@ import (
 )
 
 type RedisClient struct {
+	mu            sync.RWMutex
 	multi         bool
 	master        string
 	clients       map[string]redis.UniversalClient
@@ -38,6 +39,8 @@ var Redis = &RedisClient{}
 var logger = gologger.GetLogger()
 
 func (r *RedisClient) Init(redisConfigData []byte) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if redisConfigData == nil || len(redisConfigData) == 0 {
 		logger.Error("Redis 配置错误，无法获取配置地址")
 		return
@@ -198,6 +201,8 @@ func (r *RedisClient) Close() {
 	case <-time.After(time.Second):
 		logger.Error("等待Redis订阅退出超时")
 	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if r.multi {
 		for dbName, rc := range r.clients {
 			if rc != nil {
@@ -233,11 +238,18 @@ func (r *RedisClient) Check() error {
 	if r == nil {
 		return errors.New("Redis client is nil")
 	}
-	if len(r.clients) == 0 {
+	r.mu.RLock()
+	multi := r.multi
+	clients := make(map[string]redis.UniversalClient, len(r.clients))
+	for name, client := range r.clients {
+		clients[name] = client
+	}
+	r.mu.RUnlock()
+	if len(clients) == 0 {
 		return errors.New("redis connection is not initialized")
 	}
-	if r.multi {
-		for name, client := range r.clients {
+	if multi {
+		for name, client := range clients {
 			if client == nil {
 				return fmt.Errorf("redis %s connection is nil", name)
 			}
@@ -247,7 +259,7 @@ func (r *RedisClient) Check() error {
 		}
 		return nil
 	}
-	client := r.clients["0"]
+	client := clients["0"]
 	if client == nil {
 		return errors.New("redis connection is not initialized")
 	}
@@ -284,18 +296,30 @@ func (r *RedisClient) GetConnection(dbName ...string) (redis.UniversalClient, er
 	if r == nil {
 		return nil, errors.New("Redis client is nil")
 	}
-	if r.multi {
+	r.mu.RLock()
+	multi := r.multi
+	var client redis.UniversalClient
+	var exists bool
+	if multi {
+		if len(dbName) == 1 {
+			client, exists = r.clients[dbName[0]]
+		}
+	} else {
+		client, exists = r.clients["0"]
+	}
+	r.mu.RUnlock()
+	if multi {
 		if len(dbName) == 0 || len(dbName) > 1 {
 			return nil, errors.New("Multidb Get RedisClient connection must specify one database name")
 		}
-		if _, ok := r.clients[dbName[0]]; !ok {
+		if !exists {
 			return nil, errors.New("Redis multidb db name invalid")
 		}
 		err := r.redisCheck(dbName[0])
 		if err != nil {
 			return nil, err
 		}
-		if client, ok := r.clients[dbName[0]]; ok && client != nil {
+		if client != nil {
 			return client, nil
 		} else {
 			return nil, errors.New("Redis connection failed.")
@@ -305,7 +329,7 @@ func (r *RedisClient) GetConnection(dbName ...string) (redis.UniversalClient, er
 		//if err != nil {
 		//	return nil, errors.New("redis connection failed")
 		//}
-		if client, ok := r.clients["0"]; ok && client != nil {
+		if exists && client != nil {
 			return client, nil
 		} else {
 			return nil, errors.New("Redis connection failed.")
@@ -317,6 +341,8 @@ func (r *RedisClient) IsMultiDB() bool {
 	if r == nil {
 		return false
 	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	return r.multi
 }
 
@@ -324,6 +350,8 @@ func (r *RedisClient) ListConnNames() []string {
 	if r == nil {
 		return nil
 	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	return append([]string(nil), r.conns...)
 }
 

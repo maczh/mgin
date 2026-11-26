@@ -412,7 +412,7 @@ func (app *App) RunContext(ctx context.Context) error {
 		return errors.New("no HTTP or HTTPS listener configured")
 	}
 	// Register only after every configured listener and TLS key pair is ready.
-	if registrar, ok := registry.Registry.(registry.ConfiguredRegistrar); ok {
+	if registrar, ok := registry.GetRegistry().(registry.ConfiguredRegistrar); ok {
 		registrar.RegisterConfigured()
 	}
 

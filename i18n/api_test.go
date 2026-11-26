@@ -50,17 +50,17 @@ func TestDictionaryAPIAndRequestLanguage(t *testing.T) {
 		return response
 	}
 	entry := `{"messageId":"hello","language":"EN","text":"Hello"}`
-	got := check(http.MethodPost, "/i18n", entry, vo.SUCCESS)
+	got := check(http.MethodPost, "/i18n/save", entry, vo.SUCCESS)
 	if got.Data.Language != "en" || got.Data.Text != "Hello" {
 		t.Fatal(got)
 	}
-	check(http.MethodPost, "/i18n", entry, 409)
-	path := "/i18n?" + url.Values{"messageId": {"hello"}, "language": {"en"}}.Encode()
+	check(http.MethodPost, "/i18n/save", entry, 409)
+	path := "/i18n/get?" + url.Values{"messageId": {"hello"}, "language": {"en"}}.Encode()
 	got = check(http.MethodGet, path, "", vo.SUCCESS)
 	if got.Data.Text != "Hello" {
 		t.Fatal(got)
 	}
-	check(http.MethodPut, "/i18n", `{"messageId":"hello","language":"en","text":"Updated"}`, vo.SUCCESS)
+	check(http.MethodPost, "/i18n/update", `{"messageId":"hello","language":"en","text":"Updated"}`, vo.SUCCESS)
 	got = check(http.MethodGet, path, "", vo.SUCCESS)
 	if got.Data.Text != "Updated" {
 		t.Fatal(got)
@@ -72,8 +72,8 @@ func TestDictionaryAPIAndRequestLanguage(t *testing.T) {
 	if list.Code != vo.SUCCESS || list.Data.Total != 1 || len(list.Data.List) != 1 || list.Data.List[0].Text != "Updated" {
 		t.Fatalf("list=%+v", list)
 	}
-	check(http.MethodPost, "/i18n", `{"language":"en","text":"bad"}`, 400)
-	check(http.MethodPost, "/i18n", `{broken`, 400)
+	check(http.MethodPost, "/i18n/save", `{"language":"en","text":"bad"}`, 400)
+	check(http.MethodPost, "/i18n/save", `{broken`, 400)
 	check(http.MethodGet, "/i18n/list?pageSize=101", "", 400)
 	check(http.MethodGet, "/i18n/list?page=bad", "", 400)
 	if err := s.Create(context.Background(), &Entry{MessageID: "hello", Language: "zh-cn", Text: "你好"}); err != nil {
@@ -89,10 +89,10 @@ func TestDictionaryAPIAndRequestLanguage(t *testing.T) {
 			t.Fatalf("language=%q translation=%+v", test.lang, translated)
 		}
 	}
-	check(http.MethodDelete, path, "", vo.SUCCESS)
+	check(http.MethodPost, "/i18n/delete?"+url.Values{"messageId": {"hello"}, "language": {"en"}}.Encode(), "", vo.SUCCESS)
 	check(http.MethodGet, path, "", 404)
-	check(http.MethodDelete, path, "", 404)
-	check(http.MethodPut, "/i18n", `{"messageId":"missing","language":"en","text":"bad"}`, 404)
+	check(http.MethodPost, "/i18n/delete?"+url.Values{"messageId": {"hello"}, "language": {"en"}}.Encode(), "", 404)
+	check(http.MethodPost, "/i18n/update", `{"messageId":"missing","language":"en","text":"bad"}`, 404)
 	currentStore.Store(nil)
 	check(http.MethodGet, path, "", 503)
 }

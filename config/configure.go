@@ -174,6 +174,7 @@ func (c *config) Init(cf string) {
 	if c == nil {
 		return
 	}
+	target := c
 	if cf == "" {
 		cf = config_file
 	}
@@ -303,18 +304,18 @@ func (c *config) Init(cf string) {
 	// Publish only after the candidate is fully populated. Readers using the
 	// config accessors synchronize on this mutex; direct public-field reads are
 	// retained for compatibility and must not race with Init.
-	Config.mu.Lock()
-	defer Config.mu.Unlock()
-	Config.Cnf = candidate.Cnf
-	Config.WorkDir = candidate.WorkDir
-	Config.App = candidate.App
-	Config.Config = candidate.Config
-	Config.Log = candidate.Log
-	Config.Logger = candidate.Logger
-	Config.Discovery = candidate.Discovery
-	Config.Jwt = candidate.Jwt
-	Config.Sys = candidate.Sys
-	Config.Casbin = candidate.Casbin
+	target.mu.Lock()
+	defer target.mu.Unlock()
+	target.Cnf = candidate.Cnf
+	target.WorkDir = candidate.WorkDir
+	target.App = candidate.App
+	target.Config = candidate.Config
+	target.Log = candidate.Log
+	target.Logger = candidate.Logger
+	target.Discovery = candidate.Discovery
+	target.Jwt = candidate.Jwt
+	target.Sys = candidate.Sys
+	target.Casbin = candidate.Casbin
 }
 
 func (c *config) GetConfigString(name string) string {

@@ -145,8 +145,10 @@ func TestDictionaryConcurrentDuplicate(t *testing.T) {
 func testConfig(t *testing.T, used string) string {
 	t.Helper()
 	Close()
-	old := *config.Config
-	t.Cleanup(func() { Close(); *config.Config = old })
+	t.Cleanup(func() {
+		Close()
+		config.Config.Cnf = nil
+	})
 	dir := t.TempDir()
 	name := filepath.Join(dir, "application.yml")
 	text := "go:\n  application:\n    name: local-app\n  config:\n    used: \"" + used + "\"\n  i18n:\n    default: en\n"
