@@ -52,6 +52,7 @@ var logger = gologger.GetLogger()
 const defaultLeaseTTL int64 = 30
 
 func (c *EtcdClient) Register(etcdConfigData []byte) {
+	cfg := config.Current()
 	if etcdConfigData == nil || len(etcdConfigData) == 0 {
 		logger.Error("Etcd 配置错误，无法获取配置地址")
 		return
@@ -79,7 +80,7 @@ func (c *EtcdClient) Register(etcdConfigData []byte) {
 		}
 		c.group = c.conf.String("go.etcd.group")
 		if c.group == "" {
-			c.group = config.Config.App.Project
+			c.group = cfg.App.Project
 		}
 		c.cluster = c.conf.String("go.etcd.clusterName")
 		if c.cluster == "" {
@@ -125,17 +126,17 @@ func (c *EtcdClient) Register(etcdConfigData []byte) {
 			return
 		}
 		ip := localip[0]
-		if config.Config.App.IpAddr != "" {
-			ip = config.Config.App.IpAddr
+		if cfg.App.IpAddr != "" {
+			ip = cfg.App.IpAddr
 		}
-		port := uint64(config.Config.App.Port)
+		port := uint64(cfg.App.Port)
 		protocol := "http://"
-		if port == 0 || config.Config.App.PortSSL != 0 {
-			port = uint64(config.Config.App.PortSSL)
+		if port == 0 || cfg.App.PortSSL != 0 {
+			port = uint64(cfg.App.PortSSL)
 			protocol = "https://"
 		}
 		apiUrl := fmt.Sprintf("%s%s:%d", protocol, ip, port)
-		prefix := c.servicePrefix(c.group, config.Config.App.Name)
+		prefix := c.servicePrefix(c.group, cfg.App.Name)
 		resp, err := c.client.Get(context.Background(), prefix, clientv3.WithPrefix())
 		if err != nil {
 			logger.Error("Etcd获取服务失败:" + err.Error())
@@ -163,7 +164,7 @@ func (c *EtcdClient) Register(etcdConfigData []byte) {
 		}
 		c.leaseID = respGrant.ID
 		c.instanceId = utils.NewUUIDString()
-		key := c.serviceKey(c.group, config.Config.App.Name, c.instanceId)
+		key := c.serviceKey(c.group, cfg.App.Name, c.instanceId)
 		logger.Debug("etcd服务的key: " + key + "，值：" + apiUrl)
 		res, regerr := c.client.Put(context.Background(), key, apiUrl, clientv3.WithLease(c.leaseID))
 		if regerr != nil {

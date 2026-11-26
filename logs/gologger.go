@@ -21,7 +21,7 @@ type GoLogger struct {
 }
 
 func GetLogger(selector ...string) GoLogger {
-	logFileName := config.Config.Logger.File
+	logFileName := config.Current().Logger.File
 	if len(selector) == 0 {
 		if logFileName != "" {
 			selector = []string{CONSOLE, FILE}
@@ -45,9 +45,10 @@ func GetLogger(selector ...string) GoLogger {
 
 // write sends one event to the configured destinations.
 func (log GoLogger) write(level, message string) {
-	if len(config.Config.Logger.Outputs) > 0 {
+	cfg := config.Current()
+	if len(cfg.Logger.Outputs) > 0 {
 		levels := map[string]string{"LOG": "info", "MSG": "info", "INF": "info", "WRN": "warn", "DBG": "debug", "ERR": "error", "CRT": "error", "RSS": "info"}
-		writeRecord(captureRecord(levels[level], message), config.Config.Logger.Outputs)
+		writeRecord(captureRecordWithApp(levels[level], message, cfg.App.Name), cfg.Logger.Outputs)
 		return
 	}
 	message = fmt.Sprintf("[goroutine_id=%d] %s", trace.GetGoroutineID(), message)

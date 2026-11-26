@@ -18,10 +18,11 @@ func JwtAuthorize() gin.HandlerFunc {
 			c.AbortWithStatus(http.StatusServiceUnavailable)
 			return
 		}
+		cfg := config.Current()
 		// nil 防护：c.Request/c.Request.URL 可能为 nil
 		if c.Request != nil && c.Request.URL != nil {
 			path := c.Request.URL.Path
-			if routeallow.MatchesPrefix(path, "/docs") || routeallow.MatchesPrefix(path, "/swagger") || routeallow.MatchesPrefix(path, config.Config.Sys.Swagger.Uri) {
+			if routeallow.MatchesPrefix(path, "/docs") || routeallow.MatchesPrefix(path, "/swagger") || routeallow.MatchesPrefix(path, cfg.Sys.Swagger.Uri) {
 				c.Next()
 				return
 			}
@@ -44,10 +45,10 @@ func JwtAuthorize() gin.HandlerFunc {
 			if config.Config == nil {
 				return nil, errors.New("jwt secret not configured")
 			}
-			if config.Config.Jwt.Secret == "" {
+			if cfg.Jwt.Secret == "" {
 				return nil, errors.New("jwt secret not configured")
 			}
-			return []byte(config.Config.Jwt.Secret), nil
+			return []byte(cfg.Jwt.Secret), nil
 		})
 
 		if err != nil || token == nil || !token.Valid {

@@ -45,6 +45,7 @@ var logger = gologger.GetLogger()
 // Register 方法用于向 Consul 注册服务
 // etcdConfigData 是包含 Consul 配置的字节切片
 func (c *ConsulClient) Register(etcdConfigData []byte) {
+	cfg := config.Current()
 	if etcdConfigData == nil || len(etcdConfigData) == 0 {
 		logger.Error("Consul 配置错误，无法获取配置地址")
 		return
@@ -104,20 +105,20 @@ func (c *ConsulClient) Register(etcdConfigData []byte) {
 			return
 		}
 		ip := localip[0]
-		if config.Config.App.IpAddr != "" {
-			ip = config.Config.App.IpAddr
+		if cfg.App.IpAddr != "" {
+			ip = cfg.App.IpAddr
 		}
-		port := uint64(config.Config.App.Port)
+		port := uint64(cfg.App.Port)
 		protocol := "http://"
-		if port == 0 || config.Config.App.PortSSL != 0 {
-			port = uint64(config.Config.App.PortSSL)
+		if port == 0 || cfg.App.PortSSL != 0 {
+			port = uint64(cfg.App.PortSSL)
 			protocol = "https://"
 		}
-		c.instanceID = getInstanceId(ip, port, config.Config.App.Name, c.namespace, c.group, c.cluster)
+		c.instanceID = getInstanceId(ip, port, cfg.App.Name, c.namespace, c.group, c.cluster)
 		c.checkID = c.instanceID + ":service:ttl"
 		registration := &api.AgentServiceRegistration{
 			ID:      c.instanceID,
-			Name:    config.Config.App.Name,
+			Name:    cfg.App.Name,
 			Address: ip,
 			Port:    int(port),
 			Tags:    []string{c.group, c.cluster, protocol},
@@ -305,14 +306,14 @@ func (c *ConsulClient) DeRegister() {
 		localip, err := localIPv4s(c.lan, c.lanNetwork)
 		if err == nil && len(localip) > 0 {
 			ip := localip[0]
-			if config.Config.App.IpAddr != "" {
-				ip = config.Config.App.IpAddr
+			if config.Current().App.IpAddr != "" {
+				ip = config.Current().App.IpAddr
 			}
-			port := uint64(config.Config.App.Port)
-			if port == 0 || config.Config.App.PortSSL != 0 {
-				port = uint64(config.Config.App.PortSSL)
+			port := uint64(config.Current().App.Port)
+			if port == 0 || config.Current().App.PortSSL != 0 {
+				port = uint64(config.Current().App.PortSSL)
 			}
-			id = getInstanceId(ip, port, config.Config.App.Name, c.namespace, c.group, c.cluster)
+			id = getInstanceId(ip, port, config.Current().App.Name, c.namespace, c.group, c.cluster)
 		}
 	}
 	if id == "" {

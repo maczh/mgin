@@ -19,7 +19,7 @@ func GenerateToken(claims jwt.MapClaims) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 
 	// 生成签名
-	tokenStr, err := token.SignedString([]byte(config.Config.Jwt.Secret))
+	tokenStr, err := token.SignedString([]byte(config.Current().Jwt.Secret))
 	if err != nil {
 		return "", err
 	}
@@ -30,6 +30,6 @@ func GenerateToken(claims jwt.MapClaims) (string, error) {
 // ValidateToken 验证JWT token
 func ValidateToken(tokenStr string) (*jwt.Token, error) {
 	return jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
-		return []byte(config.Config.Jwt.Secret), nil
+		return []byte(config.Current().Jwt.Secret), nil
 	})
 }

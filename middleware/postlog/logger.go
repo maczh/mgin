@@ -94,18 +94,42 @@ func shouldSkipLog(path string) bool {
 	if path == "" || path == "/" || strings.Contains(path, "/docs/") || strings.Contains(path, "/swagger/") {
 		return true
 	}
-	if uri := config.Config.Sys.Swagger.Uri; uri != "" && strings.Contains(path, uri) {
+	if uri := config.Current().Sys.Swagger.Uri; uri != "" && strings.Contains(path, uri) {
 		return true
 	}
 	return false
 }
 
 func getResponseLogMode() string {
-	mode := strings.ToLower(config.Config.Log.Get)
+	mode := strings.ToLower(config.Current().Log.Get)
 	if mode != "line" && mode != "off" {
 		return "full"
 	}
 	return mode
+}
+
+// readRequestBody buffers at most maxLoggedBodyBytes+1 bytes for logging.
+// Anything beyond the limit is left on the original stream via MultiReader so
+// handlers still receive the complete body (chunked requests included).
+func readRequestBody(c *gin.Context) string {
+	if c.Request.Body == nil {
+		return ""
+	}
+	if c.Request.ContentLength > maxLoggedBodyBytes {
+		return fmt.Sprintf("<body omitted: %d bytes>", c.Request.ContentLength)
+	}
+	data, err := io.ReadAll(io.LimitReader(c.Request.Body, maxLoggedBodyBytes+1))
+	if err != nil {
+		logs.Error("GetRawData error:", err.Error())
+		c.Request.Body = ioutil.NopCloser(bytes.NewReader(data))
+		return string(data)
+	}
+	if len(data) > maxLoggedBodyBytes {
+		c.Request.Body = ioutil.NopCloser(io.MultiReader(bytes.NewReader(data), c.Request.Body))
+		return fmt.Sprintf("<body omitted: >%d bytes>", maxLoggedBodyBytes)
+	}
+	c.Request.Body = ioutil.NopCloser(bytes.NewReader(data))
+	return string(data)
 }
 
 func oneLineResponse(response string) string {
@@ -117,7 +141,7 @@ func oneLineResponse(response string) string {
 	return string(responseRunes[:176]) + " ..."
 }
 
-func (w bodyLogWriter) Write(b []byte) (int, error) {
+func (w *bodyLogWriter) Write(b []byte) (int, error) {
 	w.total += int64(len(b))
 	if w.body.Len() < w.limit {
 		n := w.limit - w.body.Len()
@@ -134,7 +158,7 @@ func (w bodyLogWriter) Write(b []byte) (int, error) {
 	return w.ResponseWriter.Write(b)
 }
 
-func (w bodyLogWriter) WriteString(s string) (int, error) {
+func (w *bodyLogWriter) WriteString(s string) (int, error) {
 	w.total += int64(len(s))
 	if w.body.Len() < w.limit {
 		n := w.limit - w.body.Len()
@@ -178,24 +202,20 @@ func RequestLogger() gin.HandlerFunc {
 	})
 
 	return func(c *gin.Context) {
+		// Documentation paths never produce an interface log entry; skip them
+		// before wrapping the writer or buffering the request body.
+		if shouldSkipLog(c.Request.URL.Path) {
+			c.Next()
+			return
+		}
+
 		bodyLogWriter := &bodyLogWriter{body: bytes.NewBufferString(""), limit: maxLoggedBodyBytes, ResponseWriter: c.Writer}
 		c.Writer = bodyLogWriter
 
 		// 开始时间
 		startTime := time.Now()
 
-		var body string
-		if c.Request.ContentLength >= 0 && c.Request.ContentLength > maxLoggedBodyBytes {
-			body = fmt.Sprintf("<body omitted: %d bytes>", c.Request.ContentLength)
-		} else {
-			data, err := c.GetRawData()
-			if err != nil {
-				logs.Error("GetRawData error:", err.Error())
-			} else {
-				body = string(data)
-				c.Request.Body = ioutil.NopCloser(bytes.NewBuffer(data))
-			}
-		}
+		body := readRequestBody(c)
 		logs.Debug("请求 {} {}", c.Request.Method, c.Request.RequestURI)
 		params := utils.GinParamMap(c)
 		if c.ContentType() == gin.MIMEJSON {
@@ -224,9 +244,11 @@ func RequestLogger() gin.HandlerFunc {
 				logs.Error("gzip.NewReader error:", err.Error())
 			} else {
 				defer r.Close()
-				rBody, err := io.ReadAll(r)
+				rBody, err := io.ReadAll(io.LimitReader(r, maxLoggedBodyBytes+1))
 				if err != nil {
 					logs.Error("io.ReadAll error:", err.Error())
+				} else if len(rBody) > maxLoggedBodyBytes {
+					responseBody = string(rBody[:maxLoggedBodyBytes]) + fmt.Sprintf(" <body truncated: >%d bytes>", maxLoggedBodyBytes)
 				} else {
 					responseBody = string(rBody)
 				}
@@ -244,11 +266,6 @@ func RequestLogger() gin.HandlerFunc {
 			}
 		}
 		var result any
-
-		// 文档类路径不记录接口日志
-		if shouldSkipLog(c.Request.URL.Path) {
-			return
-		}
 
 		if responseDatabaseBody != "" && responseDatabaseBody[0:1] == "{" {
 			err := json.Unmarshal([]byte(responseDatabaseBody), &result)
@@ -270,7 +287,7 @@ func RequestLogger() gin.HandlerFunc {
 		postLog.Time = startTime.Format("2006-01-02 15:04:05")
 		postLog.Uri = c.Request.URL.Path
 		postLog.Method = c.Request.Method
-		postLog.AppName = config.Config.App.Name
+		postLog.AppName = config.Current().App.Name
 		postLog.RequestId = trace.GetRequestId()
 		postLog.ContentType = c.ContentType()
 		postLog.RequestHeader = headers

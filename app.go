@@ -126,7 +126,7 @@ func NewApp(configFile, appName, version string, xlang bool) *App {
 	//GIN的模式，生产环境可以设置成release
 	// 设置 Gin 框架的运行模式为调试模式
 	ginMode := gin.ReleaseMode
-	if config.Config.App.Debug {
+	if config.Current().App.Debug {
 		ginMode = gin.DebugMode
 	}
 	gin.SetMode(ginMode)
@@ -172,7 +172,7 @@ func (app *App) baseRouter() {
 
 	// RequestId 幂等校验必须先于 trace.TraceId，避免 trace 自动生成的 ID
 	// 被误认为客户端提供的 RequestId。
-	if config.Config.Cnf.Bool("go.requestid.enabled") {
+	if config.Current().Cnf.Bool("go.requestid.enabled") {
 		app.Router.Use(requestid.Idempotency())
 	}
 
@@ -214,7 +214,7 @@ func (app *App) baseRouter() {
 		job.RouterGroup(app.Router.Group("/job"))
 	}
 	// The reload endpoint is opt-in and must have a dedicated token.
-	if config.Config.Config.ReloadToken != "" {
+	if config.Current().Config.ReloadToken != "" {
 		app.Router.PUT("/cfg/reload", app.reloadConfig)
 	}
 	// 详见 README 第 22 章。未挂载时不影响定时任务调度本身的运行。
@@ -230,7 +230,7 @@ func (app *App) reloadConfig(c *gin.Context) {
 		c.JSON(http.StatusForbidden, gin.H{"code": -1, "msg": "仅允许内网或本机请求"})
 		return
 	}
-	configuredToken := config.Config.Config.ReloadToken
+	configuredToken := config.Current().Config.ReloadToken
 	if configuredToken == "" || !validReloadToken(c, configuredToken) {
 		c.JSON(http.StatusUnauthorized, gin.H{"code": -1, "msg": "配置重载认证失败"})
 		return
@@ -362,26 +362,27 @@ func (app *App) RunContext(ctx context.Context) error {
 	}
 	app.runStarted = true
 	app.runMu.Unlock()
+	cfg := config.Current()
 	// 获取当前可执行文件所在的绝对路径
 	path, _ := filepath.Abs(filepath.Dir(os.Args[0]))
 
 	// 创建 HTTP 服务器实例
 	server := &http.Server{
 		// 设置服务器监听的地址，端口从配置文件中获取
-		Addr: fmt.Sprintf(":%d", config.Config.App.Port),
+		Addr: fmt.Sprintf(":%d", cfg.App.Port),
 		// 设置服务器的处理器为应用的路由
 		Handler: app.Router,
 	}
 	// 创建 HTTPS 服务器实例
 	serverSsl := &http.Server{
 		// 设置服务器监听的地址，SSL 端口从配置文件中获取
-		Addr: fmt.Sprintf(":%d", config.Config.App.PortSSL),
+		Addr: fmt.Sprintf(":%d", cfg.App.PortSSL),
 		// 设置服务器的处理器为应用的路由
 		Handler: app.Router,
 	}
 	listeners := make([]net.Listener, 0, 2)
 	servers := make([]*http.Server, 0, 2)
-	if config.Config.App.Port > 0 {
+	if cfg.App.Port > 0 {
 		ln, err := net.Listen("tcp", server.Addr)
 		if err != nil {
 			return fmt.Errorf("HTTP listen %s: %w", server.Addr, err)
@@ -389,8 +390,8 @@ func (app *App) RunContext(ctx context.Context) error {
 		listeners = append(listeners, ln)
 		servers = append(servers, server)
 	}
-	if config.Config.App.Cert != "" {
-		cert, err := tls.LoadX509KeyPair(path+"/"+config.Config.App.Cert, path+"/"+config.Config.App.Key)
+	if cfg.App.Cert != "" {
+		cert, err := tls.LoadX509KeyPair(path+"/"+cfg.App.Cert, path+"/"+cfg.App.Key)
 		if err != nil {
 			for _, ln := range listeners {
 				_ = ln.Close()
@@ -423,7 +424,7 @@ func (app *App) RunContext(ctx context.Context) error {
 	table.Style.PaddingRight = 5
 	table.AddHeaders(fmt.Sprintf("%s    %s", app.name, app.version))
 	table.AddRow("MGin Server Start Successful")
-	table.AddRow(fmt.Sprintf("Port: %d    Pid: %d", config.Config.App.Port, os.Getpid()))
+	table.AddRow(fmt.Sprintf("Port: %d    Pid: %d", cfg.App.Port, os.Getpid()))
 	color.Println(color.Green(table.Render()))
 	// 打印应用启动信息
 	//logs.Info("|-----------------------------------|")

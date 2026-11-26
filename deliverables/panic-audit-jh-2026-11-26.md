@@ -18,13 +18,13 @@
 
 ## 0. 结论摘要
 
-**框架层面已不存在"稳定可复现的 P0"**：v1 报告中的 Redis 无锁共享状态（进程级 fatal）已在当前工作区修复并通过 `-race` 压力验证。剩余的稳定性风险集中在 **生命周期与热重载** 两条主线：**配置热重载会把数据面永久打死**，以及 **默认中间件把请求/响应全量缓冲进内存**。
+**框架层面已不存在"稳定可复现的 P0"**：v1 报告中的 Redis 无锁共享状态（进程级 fatal）已在 `eab05ed` 修复并通过 `-race` 压力验证。剩余的稳定性风险集中在 **生命周期与热重载** 两条主线：**配置热重载会把数据面永久打死**，以及 **默认中间件把请求/响应全量缓冲进内存**。
 
 | 编号 | 严重度 | 位置 | 类型 | 触发面 | 工作区状态 |
 |---|---|---|---|---|---|
 | R-01 | P1 | `db/mysql/mysql.go:59`、`db/sqlite/sqlite.go:63` | 热重载后连接池永久失效 | 运维（`PUT /cfg/reload`） | 补丁未生效：SQLite 实测仍 `FAIL`，MySQL 守卫未变 |
-| R-02 | P1 | `config/configure.go:310-314` | 导出字段数据竞争（含日志热路径） | 运维 + 并发流量 | 未修复，新快照重跑探针仍报 DATA RACE |
-| R-03 | P1 | `db/redis/redis.go:41-43` | Init 持写锁做网络 I/O，读者全停 | 运维 + Redis 慢/不可达 | **工作区新引入**，实测阻塞 2.70s |
+| R-02 | P1 | `config/configure.go:309-318` | 导出字段数据竞争（含日志热路径） | 运维 + 并发流量 | 未修复，新快照重跑探针仍报 DATA RACE |
+| R-03 | P1 | `db/redis/redis.go:41-43` | Init 持写锁做网络 I/O，读者全停 | 运维 + Redis 慢/不可达 | **补丁新引入**（随 `eab05ed` 入库），实测阻塞 2.70s |
 | R-04 | P1 | `middleware/postlog/logger.go:181-198`、`221-234` | 请求/响应体缓冲放大（OOM 面） | 远程（默认中间件） | **已部分修复**：响应与定长请求体封顶 1 MiB；chunked 请求体与 gzip 解压输出仍无界 |
 | R-05 | P2 | `mgin.go:285-312` | 先关 DB 后停 job，关闭期写已关闭库 | 每次进程退出 | 未修复 |
 | R-06 | P2 | `registry/cache.go:218-242` | 真实后端旁路 singleflight，缓存击穿 | 远程（TTL 到期/注册中心抖动） | 未修复 |
@@ -43,7 +43,7 @@
 | R-19 | P3 | `logs/output.go:84-129` | 文件目标每行 open/write/close 且持全局锁 | 高 QPS | 未修复 |
 | R-20 | P3 | `db/mysql/mysql_lifecycle_test.go:8`、`registry/cache_test.go`、`client/client_test.go` | 用例给出错误信心 / flaky / 测试绕过 `SetRegistry()` | CI | **多数已修**，余 3 项 |
 
-### 已在工作区修复（未提交，需在合并前保留）
+### 已在 `eab05ed` 中修复（结论已按提交后状态复核）
 
 | 原结论 | 现状 | 验证 |
 |---|---|---|
@@ -77,15 +77,30 @@ go build ./... && gofmt -l .                   # 编译与格式（均通过）
 
 ### 1.2 测试与竞态
 
+初版快照（`b08e1f9c…`，10 个文件）：
+
 ```bash
-go build ./...                                                   # OK
-gofmt -l .                                                       # 空
+go build ./...                                                     # OK
+gofmt -l .                                                         # 空
 go test -race ./cache ./utils ./db/... ./registry ./client ./logsink ./job -count=1   # 全绿
-go test -race ./registry -run TestCachedRegistry -count=20       # 2/20 失败（见 R-06）
-go test ./i18n -run TestI18nAPI -count=1                        # 稳定 404（见 R-20）
+go test -race ./registry -run TestCachedRegistry -count=20         # 2/20 失败（见 R-06）
 ```
 
-`go test ./...` 与 `go vet ./...` 未作为验收门：前者包含硬编码内网 etcd/Consul 地址且无超时的用例（历史单次运行挂起 600s 后超时），后者在 `i18n/store_test.go:148-149` 报 `assignment copies lock value`（复制含 `sync.RWMutex` 的 `config.config`），属既有用例问题。
+复核快照（`e66e1127…` ≡ 现 HEAD `eab05ed`）：
+
+```bash
+go build ./...                                                     # OK
+gofmt -l .                                                         # 空
+go vet ./...                                                       # 现全仓干净（原 i18n/store_test.go 复制含锁结构告警已消除）
+go test -count=1 -race ./middleware/postlog ./middleware/xss ./i18n ./cache ./utils \
+    ./registry ./db/redis ./db/sqlite ./middleware/ratelimit ./logs          # 全绿
+go test -count=1 -race -run 'ZZAudit|TestMysqlClientCanValidate' ./db/sqlite ./db/mysql
+    # SQLite 重开探针 FAIL（R-01）；MySQL 用例 PASS 但断言空转（R-20-2 / 附录 A.4）
+go test -count=1 -race -run TestZZAuditConfigFieldRace ./config    # WARNING: DATA RACE ×2（R-02）
+go test -timeout 120s ./...   # registry/etcd TestEtcdClient_Register → panic: test timed out after 2m0s
+```
+
+`go test ./...` 仍**不能**作为验收门（活体注册中心用例无门禁、无超时）；`go build` / `gofmt` / `go vet` 已可作为门。
 
 ### 1.3 动态探针（跑完即删，全部只触达 127.0.0.1 或临时文件，未接触共享基础设施）
 
@@ -164,13 +179,14 @@ SQLite 同构：`sqlite.go:39` 的 `closed && opened` 判断在 `Close()` 之后
 次生问题（新引入）：入口守卫删除后，关闭态下 `InitWithError` 会先执行 `candidate.init()`——**真实打开一套新的 MySQL 连接池**，再在发布点丢弃它。每次失败的重载都产生一轮无谓的连接建立与关闭抖动。
 
 证据：
-- SQLite 探针（临时用例，已删除）：
+- SQLite 探针（临时用例，已删除）。**在最新快照上重跑仍为 FAIL**：
   ```text
-  reopen after Close error = SQLite client is closed
-  GetConnection after reopen conn=false error = SQLite client is closed
-  REOPEN BROKEN: client cannot be reopened after Close
+  $ go test -count=1 -race -run TestZZAuditReopenAfterClose ./db/sqlite
+  === RUN   TestZZAuditReopenAfterClose
+      zz_audit_reopen_test.go:18: reopen after Close failed: SQLite client is closed
+  --- FAIL: TestZZAuditReopenAfterClose (0.00s)
   ```
-- MySQL 由控制流唯一确定（同上代码），未在共享数据库上验证：本地无可用 MySQL 实例，且 `gorm.Open` 默认 Ping，无法在离线环境构造"成功打开"的前置状态。
+- MySQL 由控制流唯一确定（`mysql.go:58-63` 在锁内以 `closed` 短路）。离线环境无法构造"候选打开成功"的前置状态，因此**不能**用 MySQL 用例证伪——见 R-20-2 与附录 A.4。
 
 建议修复（择一，注意保持公开 API）：
 1. 把"关闭即终态"和"重载换连接"分成两种语义：新增内部 `reopen()`/`reset()` 或在 `InitWithError` 的发布段用 `m.closed = false` 无条件替换，同时保留 `Close()` 之后的显式拒绝给外部调用者；
@@ -423,34 +439,42 @@ go test -race ./registry -run TestCachedRegistry -count=20
 
 ### R-20 测试与契约问题（P3，但会误导修复）
 
-1. **`i18n` API 用例稳定失败**：`RouterGroup` 注册的是 `/i18n/list|get|save|update|delete`（[i18n/api.go](file:///Users/macro/Work/go/src/github.com/maczh/mgin/i18n/api.go)），而 [i18n/api_test.go:53](file:///Users/macro/Work/go/src/github.com/maczh/mgin/i18n/api_test.go#L53) 首个操作就打 `POST /i18n` → `HTTP status=404: 404 page not found`，`go test ./i18n` 必红。要么补路由，要么改用例；现在它掩盖的是"契约不一致"。
-2. **`TestMysqlClientCanValidateReopenAfterClose` 给出虚假信心**（[db/mysql/mysql_lifecycle_test.go:8](file:///Users/macro/Work/go/src/github.com/maczh/mgin/db/mysql/mysql_lifecycle_test.go#L8)-16）：用例只断言"返回的不是 `ErrClosed`"。因为假 DSN 在 `candidate.init()` 阶段就失败，**根本走不到发布点的 `closed` 检查**，所以 R-01 的实际缺陷（关闭后无法重开）它抓不到。用例名还暗示"可重开"，容易让后续维护者误判已修。建议用 SQLite 或 sqlmock 写一个"关闭后成功重开并可用"的断言。
+1. ~~**`i18n` API 用例稳定失败**~~ **已修复**：[i18n/api_test.go:53](file:///Users/macro/Work/go/src/github.com/maczh/mgin/i18n/api_test.go#L53)-95 已改用真实路由 `/i18n/save|get|update|delete`，`go test -race ./i18n` 通过。
+2. **`TestMysqlClientCanValidateReopenAfterClose` 仍给出虚假信心**（[db/mysql/mysql_lifecycle_test.go:8](file:///Users/macro/Work/go/src/github.com/maczh/mgin/db/mysql/mysql_lifecycle_test.go#L8)-16）：用例只断言"返回的非 `ErrClosed`"。最新快照下它**通过**，但通过与"可重开"无关——实测（附录 A.4）返回的是 DSN/网络错误：
+   ```text
+   --- PASS: TestMysqlClientCanValidateReopenAfterClose
+   [ERR] mysql.go::(*MysqlClient).init [131] mysql connection error:invalid DSN: missing the slash separating the database name
+   [ERR] mysql.go::(*MysqlClient).init [131] mysql connection error:dial tcp 127.0.0.1:13306: connect: connection refused
+   ```
+   `candidate.init()`（`mysql.go:54`）先于 `closed` 检查（`mysql.go:59`），因此**离线环境下该断言永远观测不到发布点的拒绝**，R-01 的真实缺陷被用例名掩盖。建议：改用 SQLite/sqlmock 断言"关闭后成功重开且可查询"，或把用例名与断言改回"关闭即终态"以如实反映现状。
 3. **`TestCachedRegistry_SingleFlightDedup` 是 flaky**：`-race -count=20` 下 2 次失败（`实际: 2`）。它真实暴露了 R-06 的两处缺陷，但作为 CI 用例会被当成噪声忽略。修 R-06 时应把它变成确定性用例（用屏障替代裸并发）。
-4. **`config` 包测试硬编码内网地址且无超时**，历史单次 `go test ./config` 挂起 600s 后超时；`go vet ./...` 在 `i18n/store_test.go:148-149` 报 `assignment copies lock value`（复制含 `sync.RWMutex` 的 `config.config`）。这两项使"全仓测试"无法作为回归门，也是本次改用聚焦测试的原因。
+4. **全仓测试仍不能作为回归门（部分改善）**：`config/configure_test.go:11-16` 新增 `MGIN_LIVE_CONFIG_TESTS=1` 门禁后 `go test ./config` 不再挂起；`i18n/store_test.go` 的复制含锁结构告警已消除，**`go vet ./...` 现全仓干净**。但 `registry/etcd/etcd_test.go:45-70`、`registry/consul/consul_test.go:23-52`、`registry/polaris/polaris_test.go:9-40` 仍在**无门禁、无超时**地连接硬编码的真实注册中心（含公网地址，本报告不复述），实测 `go test -timeout 120s ./...` 在 `TestEtcdClient_Register` 上触发 `panic: test timed out after 2m0s`。
 5. **测试仍在裸改 `registry.Registry`**（`client/client_test.go:29-50`、`client/cache_regression_test.go:32-39`）：生产代码已迁到 `GetRegistry()/SetRegistry()`，测试却绕过 `registryMu` 直接赋值——`-race` 下若并发跑即报竞态，且无法验证访问器语义。应统一改用 `SetRegistry()`。
-6. `mgin.go:311-315` 在 `job.Stop()` 之后又调一次 `job.GetManager().Check()`：对已停止的调度器做健康检查没有意义（`Check()` 在未运行时返回 nil），属遗留噪声，建议删除。
+6. ~~`mgin.go` 在 `job.Stop()` 之后又调一次 `job.GetManager().Check()`~~ **已修复**（现 `mgin.go:309-312` 只剩 `job.Stop()`）。
 
 ---
 
 ## 5. 修复优先级建议
 
 **第 0 步（先做，成本最低、收益最大）**
-1. `Reload()` 不再关闭 MySQL/SQLite，改为依赖 `InitWithError` 的"候选成功后原子替换并关闭旧连接"（一步解决 R-01，同时消除 R-08 的字典库失联与 R-05 的一部分窗口）。
-2. Redis `Init` 的 I/O 移出写锁（R-03）——这是对基线的**回归**，合并前必须处理。
+1. `Reload()` 不再关闭 MySQL/SQLite，改为依赖 `InitWithError` 的"候选成功后原子替换并关闭旧连接"（一步解决 R-01，同时消除 R-08 的字典库失联与 R-05 的一部分窗口）。若坚持保留 `closeResources` 的关闭动作，则必须删除 `mysql.go:59` / `sqlite.go:63` 发布点的 `closed` 短路——否则新加的两行 `m.closed = false` 都是死代码。
+2. Redis `Init` 的 I/O 移出写锁（R-03）——这是对基线的**回归**，已在 `eab05ed` 入库，必须优先处理。
+3. 撤回或补完 `config/configure.go` 的 `target := c` 改动：它不改变任何同步语义（`c` 与 `Config` 同一对象），却容易被误读为"R-02 已处理"。
 
 **第 1 步（对外服务发布前）**
-3. postlog 缓冲上限 + 提前跳过（R-04）；恢复 `cache.CloseCache()` 并给 MemCache 容量/淘汰（R-09）。
-4. 配置读侧收口（R-02）：先处理日志热路径与 `Sys.Swagger.Uri`、`Log.Get` 等每请求读取点。
-5. `SafeExit` 顺序调整 + `job.Stop` 超时（R-05、R-12）。
+4. R-04 残余三项：请求侧改 `io.LimitReader`（摆脱对 `ContentLength` 的依赖）、gzip 解压输出加 `LimitReader`、`shouldSkipLog`/`GinParamMap`/`GinHeaders` 前移；恢复 `cache.CloseCache()`（`mgin.go:323`）并给 MemCache 容量/淘汰（R-09）。
+5. 配置读侧收口（R-02）：先处理日志热路径（`logs/output.go:155`）与 `checkAll`/`SafeExit` 的 `Config.Config.Used` 直读（`mgin.go:242`、`282`）。
+6. `SafeExit` 顺序调整 + `job.Stop` 超时（R-05、R-12）。
 
 **第 2 步（迭代内）**
-6. `CachedRegistry` 去重上提到 `InstanceProvider` 分支、修正 inflight 删除（R-06）；熔断表上限与 URI 归一、`RegistryClient` 增加 ctx 版本（R-07）。
-7. Mongo 终态 `closed` 与 MySQL 对齐（R-11）；i18n 字典缓存与重载重建（R-08）。
-8. DAO：`JOIN` nil 守卫、`Alias` 白名单、`WithContext/WithCache` 改副本语义（R-10）。
-9. 限流参数上限与 Header 摘要键（R-13）。
+7. `CachedRegistry` 去重上提到 `InstanceProvider` 分支、修正 inflight 删除（R-06）；熔断表上限与 URI 归一、`RegistryClient` 增加 ctx 版本（R-07）。
+8. Mongo 终态 `closed` 与 MySQL 对齐（R-11）；i18n 字典缓存与重载重建（R-08）。
+9. DAO：`JOIN` nil 守卫、`Alias` 白名单、`WithContext/WithCache` 改副本语义（R-10）。
+10. 限流参数上限与 Header 摘要键（R-13）。
+11. 给 `registry/{etcd,consul,polaris}` 活体用例加上与 `config` 包相同的 env 门禁 + 显式超时（R-20-4 残余），否则 `go test ./...` 永远无法作为门。
 
 **第 3 步（卫生）**
-R-14、R-15、R-17、R-18、R-19，以及 R-20 的用例修正（**先修用例再修代码**，否则回归门会给出错误信号）。
+R-14 残余（multipart 双份缓冲、`fmt.Println/Printf` 直写 stdout）、R-15、R-17、R-18、R-19，以及 R-20 剩余的 flaky/裸赋值用例修正（**先修用例再修代码**，否则回归门会给出错误信号）。
 
 ### 回归测试的"正确接缝"
 
@@ -487,6 +511,14 @@ func TestAuditReopenAfterClose(t *testing.T) {
 --- FAIL: TestAuditReopenAfterClose (0.01s)
 ```
 
+同一接缝在最新快照（预检放宽为 `closed && opened`、发布点新增 `closed = false`）上重跑，结论不变：
+
+```text
+=== RUN   TestZZAuditReopenAfterClose
+    zz_audit_reopen_test.go:18: reopen after Close failed: SQLite client is closed
+--- FAIL: TestZZAuditReopenAfterClose (0.00s)
+```
+
 ### A.2 config 导出字段竞态（`-race`，FAIL）
 
 ```go
@@ -505,6 +537,20 @@ WARNING: DATA RACE  ×5
   write configure.go:314 ↔ read len(Config.Discovery.Registries)
   read  Config.Logger.Outputs[i].Fields ↔ write configure.go:249（Unmarshal 就地填充后备数组）
 ```
+
+### A.4 MySQL "关闭后可重开"用例为何空转（PASS 但无效）
+
+```go
+c := &MysqlClient{}; c.Close()
+t.Logf("%v", c.InitWithError([]byte("go:\n  data:\n    mysql: root:root@tcp(127.0.0.1:13306)/x?timeout=200ms\n")))
+```
+
+```text
+[ERR] mysql.go::(*MysqlClient).init [131] mysql connection error:dial tcp 127.0.0.1:13306: connect: connection refused
+[ERR] mysql.go::(*MysqlClient).init [131] mysql connection error:invalid DSN: missing the slash separating the database name
+```
+
+错误一律产生于 `candidate.init()`（`mysql.go:54`），先于 `mysql.go:59` 的 `closed` 短路 → 离线下"断言非 ErrClosed"必然成立，无法证伪 R-01（这正是 R-20-2 的判定依据）。
 
 ### A.3 Redis Init 持锁 I/O（PASS，但记录了阻塞时长）
 
@@ -549,6 +595,7 @@ grep -rn 'safego.Run\|go func(' --include='*.go' . | grep -v _test | wc -l
 ## 附录 C：验证局限
 
 1. **未在真实 MySQL/Redis/Mongo/etcd 上运行**：遵循"不为了验证编译而连接共享基础设施"。R-01 的 MySQL 分支、R-11、R-06 的 etcd 行为以代码走查 + 可控 fake 为准；SQLite/Redis/AES/diskPath/config 均有本地实测。
-2. **`go test ./...` 与 `go vet ./...` 未作为验收门**，原因见 §1.2 与 R-20；已改为受影响包的聚焦 `-race` 运行（全部通过）。
-3. **工作区在审计过程中持续变化**（见开头提示）。合并前请以 `git diff` 指纹 `b08e1f9c9a9edfab5d29b72136cfcfda1c4618bc` 对齐，或重跑 §1.2 命令重新确认。
-4. **未审计**：`registry/{nacos,etcd,consul,polaris}` 与外部 SDK 的内部行为、`casbin`/`jwt` 中间件的鉴权正确性、以及 `/Users/macro/Work/go/src/github.com/maczh/` 下的伴生插件（mgkafka、elasticsearch 等）——它们各自应单独过一次同流程。
+2. **`go test ./...` 仍不作为验收门**：`registry/{etcd,consul,polaris}` 活体用例无门禁、无超时（实测 120s 后 `panic: test timed out`）。`go vet ./...` 在最新快照已干净，可作为门；代码级验证改为受影响包的聚焦 `-race` 运行（全部通过）。
+3. **工作区在审计过程中持续变化，并于采集结束时入库为 `eab05ed`**：源码结论对齐指纹 `e66e1127…`，采集结束校验 `git diff eab05ed -- . ':(exclude)deliverables'` 为空。上一版 `b08e1f9c…` 与最新版的差异判定见 §2.1。后续若 HEAD 再变，请先复跑三条关键探针（SQLite 重开、config 竞态、Redis 持锁 I/O）。
+4. **本报告文件本身也在被并行改写**：§1.2 / §2.1 / 附录 A.4 / 附录 C 的复核内容在入库前后被覆盖过一次，已重新补齐；若再次发现条目回退，以本节说明为准。
+5. **未审计**：`registry/{nacos,etcd,consul,polaris}` 与外部 SDK 的内部行为、`casbin`/`jwt` 中间件的鉴权正确性、以及 `/Users/macro/Work/go/src/github.com/maczh/` 下的伴生插件（mgkafka、elasticsearch 等）——它们各自应单独过一次同流程。

@@ -165,6 +165,50 @@ type casbin struct {
 
 var Config = &config{}
 
+// Snapshot is an immutable point-in-time copy of the published configuration.
+// It excludes the mutex so it can be returned and read without copying a lock.
+// Nested field types stay unexported on purpose: callers only need to read
+// their exported fields, and must not be able to mutate a published snapshot.
+type Snapshot struct {
+	Cnf       *koanf.Koanf
+	WorkDir   string
+	App       app
+	Config    appConfig
+	Log       appLog
+	Logger    appLogger
+	Discovery discovery
+	Jwt       jwtConfig
+	Sys       sys
+	Casbin    casbin
+}
+
+func (c *config) snapshot() Snapshot {
+	var s Snapshot
+	if c == nil {
+		return s
+	}
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	s.Cnf = c.Cnf
+	s.WorkDir = c.WorkDir
+	s.App = c.App
+	s.Config = c.Config
+	s.Log = c.Log
+	s.Logger = c.Logger
+	s.Discovery = c.Discovery
+	s.Jwt = c.Jwt
+	s.Sys = c.Sys
+	s.Casbin = c.Casbin
+	return s
+}
+
+// Current returns a snapshot that is safe to read while a reload publishes a
+// new configuration. Production code must use this instead of reading the
+// exported fields of Config directly.
+func Current() Snapshot {
+	return Config.snapshot()
+}
+
 var logger = gologger.GetLogger()
 
 const config_file = "./application.yml"
@@ -396,17 +440,30 @@ func (c *config) Exists(name string) bool {
 	return c.Cnf.Exists(name)
 }
 
-func (c *config) GetConfigUrl(prefix string) string {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	configUrl := c.Config.Server
-	switch c.Config.Type {
+// GetConfigString/Exists read from the snapshot's own koanf instance so a
+// multi-key operation can use one coherent view of the configuration.
+func (s Snapshot) GetConfigString(name string) string {
+	if s.Cnf == nil || !s.Cnf.Exists(name) {
+		return ""
+	}
+	return s.Cnf.String(name)
+}
+
+func (s Snapshot) Exists(name string) bool {
+	return s.Cnf != nil && s.Cnf.Exists(name)
+}
+
+func (c *config) GetConfigUrl(prefix string) string { return c.snapshot().GetConfigUrl(prefix) }
+
+func (s Snapshot) GetConfigUrl(prefix string) string {
+	configUrl := s.Config.Server
+	switch s.Config.Type {
 	case "nacos":
 		base := strings.TrimRight(configUrl, "/")
-		dataID := url.QueryEscape(prefix + "-" + c.Config.Env + ".yml")
-		group := url.QueryEscape(c.App.Project)
-		namespace := url.QueryEscape(c.Config.Namespace)
-		switch normalizeNacosVersion(c.Config.APIVersion) {
+		dataID := url.QueryEscape(prefix + "-" + s.Config.Env + ".yml")
+		group := url.QueryEscape(s.App.Project)
+		namespace := url.QueryEscape(s.Config.Namespace)
+		switch normalizeNacosVersion(s.Config.APIVersion) {
 		case "v2":
 			configUrl = fmt.Sprintf("%s/nacos/v2/cs/config?group=%s&dataId=%s&namespaceId=%s", base, group, dataID, namespace)
 		case "v3":
@@ -423,60 +480,62 @@ func (c *config) GetConfigUrl(prefix string) string {
 			}
 			prefix = strs[0]
 			version := strs[1]
-			configUrl = configUrl + "/config/v1/configfiles/release?namespace=default&group=" + c.App.Project + "&name=" + prefix + "-" + c.Config.Env + ".yml&release_name=" + version
+			configUrl = configUrl + "/config/v1/configfiles/release?namespace=default&group=" + s.App.Project + "&name=" + prefix + "-" + s.Config.Env + ".yml&release_name=" + version
 			break
 		} else {
-			configUrl = configUrl + "/config/v1/configfiles/release?namespace=default&group=" + c.App.Project + "&name=" + prefix + "-" + c.Config.Env + ".yml"
+			configUrl = configUrl + "/config/v1/configfiles/release?namespace=default&group=" + s.App.Project + "&name=" + prefix + "-" + s.Config.Env + ".yml"
 		}
 	case "consul":
-		configUrl = fmt.Sprintf("%s/v1/kv/%s/%s-%s.yml?dc=dc1&raw=true", configUrl, c.App.Project, prefix, c.Config.Env)
+		configUrl = fmt.Sprintf("%s/v1/kv/%s/%s-%s.yml?dc=dc1&raw=true", configUrl, s.App.Project, prefix, s.Config.Env)
 	case "springconfig":
-		configUrl = fmt.Sprintf("%s/%s/%s-%s.yml", configUrl, c.App.Project, prefix, c.Config.Env)
+		configUrl = fmt.Sprintf("%s/%s/%s-%s.yml", configUrl, s.App.Project, prefix, s.Config.Env)
 	case "file":
-		if c.WorkDir != "" {
-			configUrl = c.WorkDir + "/" + prefix + "-" + c.Config.Env + ".yml"
+		if s.WorkDir != "" {
+			configUrl = s.WorkDir + "/" + prefix + "-" + s.Config.Env + ".yml"
 			break
 		}
 		path, _ := filepath.Abs(filepath.Dir(os.Args[0]))
-		if c.Config.Path != "" {
-			path = strings.TrimSuffix(c.Config.Path, "/")
+		if s.Config.Path != "" {
+			path = strings.TrimSuffix(s.Config.Path, "/")
 		}
-		configUrl = path + "/" + prefix + "-" + c.Config.Env + ".yml"
+		configUrl = path + "/" + prefix + "-" + s.Config.Env + ".yml"
 	default:
-		configUrl = configUrl + prefix + "-" + c.Config.Env + ".yml"
+		configUrl = configUrl + prefix + "-" + s.Config.Env + ".yml"
 	}
 	logger.Debug("配置文件地址: " + configUrl)
 	return configUrl
 }
 
-func (c *config) GetConfigData(prefix string) []byte {
-	switch c.Config.Type {
+func (c *config) GetConfigData(prefix string) []byte { return c.snapshot().GetConfigData(prefix) }
+
+func (s Snapshot) GetConfigData(prefix string) []byte {
+	switch s.Config.Type {
 	case "nacos":
-		return c.getNacosConfigData(prefix)
+		return s.getNacosConfigData(prefix)
 	case "etcd":
-		cli, err := clientv3.New(clientv3.Config{Endpoints: []string{c.Config.Server}, DialTimeout: 5 * time.Second})
+		cli, err := clientv3.New(clientv3.Config{Endpoints: []string{s.Config.Server}, DialTimeout: 5 * time.Second})
 		if err != nil {
 			return nil
 		}
 		defer cli.Close()
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		resp, err := cli.Get(ctx, fmt.Sprintf("/config/%s/%s-%s.yml", c.App.Project, prefix, c.Config.Env))
+		resp, err := cli.Get(ctx, fmt.Sprintf("/config/%s/%s-%s.yml", s.App.Project, prefix, s.Config.Env))
 		if err != nil {
 			return nil
 		}
 		if len(resp.Kvs) == 0 {
-			logger.Error("无法获取配置文件: " + prefix + "-" + c.Config.Env + ".yml (etcd 中不存在该配置键)")
+			logger.Error("无法获取配置文件: " + prefix + "-" + s.Config.Env + ".yml (etcd 中不存在该配置键)")
 			return nil
 		}
 		return resp.Kvs[0].Value
 	case "polaris":
 		ctx, cancel := context.WithTimeout(context.Background(), configRequestTimeout)
 		defer cancel()
-		resp, err := grequests.Get(c.GetConfigUrl(prefix), grequests.FromRequestOptions(&grequests.RequestOptions{
+		resp, err := grequests.Get(s.GetConfigUrl(prefix), grequests.FromRequestOptions(&grequests.RequestOptions{
 			Context: ctx,
 			Headers: map[string]string{
-				"X-Polaris-Token": c.Config.Token,
+				"X-Polaris-Token": s.Config.Token,
 			},
 		}))
 		if err != nil {
@@ -499,7 +558,7 @@ func (c *config) GetConfigData(prefix string) []byte {
 		}
 		return []byte(res.ConfigFileRelease.Content)
 	case "file":
-		data, err := os.ReadFile(c.GetConfigUrl(prefix))
+		data, err := os.ReadFile(s.GetConfigUrl(prefix))
 		if err != nil {
 			return nil
 		}
@@ -507,7 +566,7 @@ func (c *config) GetConfigData(prefix string) []byte {
 	default:
 		ctx, cancel := context.WithTimeout(context.Background(), configRequestTimeout)
 		defer cancel()
-		resp, err := grequests.DoRegularRequest("GET", c.GetConfigUrl(prefix), &grequests.RequestOptions{Context: ctx})
+		resp, err := grequests.DoRegularRequest("GET", s.GetConfigUrl(prefix), &grequests.RequestOptions{Context: ctx})
 		if err != nil {
 			return nil
 		}
@@ -531,17 +590,21 @@ func normalizeNacosVersion(version string) string {
 }
 
 func (c *config) getNacosConfigData(prefix string) []byte {
+	return c.snapshot().getNacosConfigData(prefix)
+}
+
+func (s Snapshot) getNacosConfigData(prefix string) []byte {
 	ctx, cancel := context.WithTimeout(context.Background(), configRequestTimeout)
 	defer cancel()
 	params := map[string]string{}
 	headers := map[string]string{"User-Agent": "Nacos-Go-Client:mgin", "Client-Version": "Nacos-Go-Client:mgin"}
-	token := c.Config.AccessToken
-	if token == "" && c.Config.Username != "" {
+	token := s.Config.AccessToken
+	if token == "" && s.Config.Username != "" {
 		loginPath := "/nacos/v1/auth/login"
-		if normalizeNacosVersion(c.Config.APIVersion) == "v3" {
+		if normalizeNacosVersion(s.Config.APIVersion) == "v3" {
 			loginPath = "/nacos/v3/auth/user/login"
 		}
-		resp, err := grequests.Post(strings.TrimRight(c.Config.Server, "/")+loginPath, grequests.FromRequestOptions(&grequests.RequestOptions{Data: map[string]string{"username": c.Config.Username, "password": c.Config.Password}, Context: ctx}))
+		resp, err := grequests.Post(strings.TrimRight(s.Config.Server, "/")+loginPath, grequests.FromRequestOptions(&grequests.RequestOptions{Data: map[string]string{"username": s.Config.Username, "password": s.Config.Password}, Context: ctx}))
 		if err != nil || !resp.Ok {
 			logger.Error("Nacos 配置中心登录失败")
 			return nil
@@ -558,11 +621,11 @@ func (c *config) getNacosConfigData(prefix string) []byte {
 		params["accessToken"] = token
 		headers["Authorization"] = "Bearer " + token
 	}
-	resp, err := grequests.Get(c.GetConfigUrl(prefix), grequests.FromRequestOptions(&grequests.RequestOptions{Params: params, Headers: headers, Context: ctx}))
+	resp, err := grequests.Get(s.GetConfigUrl(prefix), grequests.FromRequestOptions(&grequests.RequestOptions{Params: params, Headers: headers, Context: ctx}))
 	if err != nil || !resp.Ok {
 		return nil
 	}
-	return decodeNacosConfig(normalizeNacosVersion(c.Config.APIVersion), resp.Bytes())
+	return decodeNacosConfig(normalizeNacosVersion(s.Config.APIVersion), resp.Bytes())
 }
 
 func decodeNacosConfig(version string, body []byte) []byte {

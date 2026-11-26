@@ -118,6 +118,7 @@ func (n *NacosClient) heartbeat() error {
 }
 
 func (n *NacosClient) Register(nacosConfigData []byte) {
+	cfg := config.Current()
 	if nacosConfigData == nil || len(nacosConfigData) == 0 {
 		logger.Error("Nacos 配置错误，无法获取配置地址")
 		return
@@ -180,17 +181,17 @@ func (n *NacosClient) Register(nacosConfigData []byte) {
 			return
 		}
 		ip := localip[0]
-		if config.Config.App.IpAddr != "" {
-			ip = config.Config.App.IpAddr
+		if cfg.App.IpAddr != "" {
+			ip = cfg.App.IpAddr
 		}
 		n.cluster = n.conf.String("go.nacos.clusterName")
 		if n.cluster == "" {
 			n.cluster = "DEFAULT"
 		}
-		port := uint64(config.Config.App.Port)
+		port := uint64(cfg.App.Port)
 		metadata := make(map[string]string)
-		if port == 0 || config.Config.App.PortSSL != 0 {
-			port = uint64(config.Config.App.PortSSL)
+		if port == 0 || cfg.App.PortSSL != 0 {
+			port = uint64(cfg.App.PortSSL)
 			metadata["ssl"] = "true"
 		}
 		for k, v := range map[string]string{
@@ -199,7 +200,7 @@ func (n *NacosClient) Register(nacosConfigData []byte) {
 			"weight":      "1",
 			"clusterName": n.cluster,
 			"groupName":   n.group,
-			"serviceName": config.Config.App.Name,
+			"serviceName": cfg.App.Name,
 			"metadata":    toJSON(metadata),
 			"namespaceId": n.namespace,
 		} {
@@ -359,7 +360,7 @@ func (n *NacosClient) GetServiceInstances(service string, groupName ...string) (
 // do not expose a client-side instance event stream. It emits only on a
 // healthy-to-empty transition, so cache consumers are not invalidated repeatedly.
 func (n *NacosClient) SubscribeOffline(callback func(service, group string)) error {
-	_, err := n.WatchService(config.Config.App.Name, "", func() { callback(config.Config.App.Name, "") })
+	_, err := n.WatchService(config.Current().App.Name, "", func() { callback(config.Current().App.Name, "") })
 	return err
 }
 

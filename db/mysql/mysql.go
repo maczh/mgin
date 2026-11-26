@@ -56,11 +56,8 @@ func (m *MysqlClient) InitWithError(mysqlConfigData []byte) error {
 		return err
 	}
 	m.mu.Lock()
-	if m.closed {
-		m.mu.Unlock()
-		closeConnections(candidate.mysql, candidate.mysqls, candidate.multi)
-		return ErrClosed
-	}
+	// InitWithError is also the reload path: a successful candidate revives a
+	// client that was closed, replacing and closing the previous connections.
 	oldSingle, oldMulti, oldIsMulti := m.mysql, m.mysqls, m.multi
 	m.mysql, m.mysqls, m.multi = candidate.mysql, candidate.mysqls, candidate.multi
 	m.closed = false

@@ -34,11 +34,8 @@ func (m *Sqlite) InitWithError(dbFileName string) error {
 		return errors.New("SQLite client is nil")
 	}
 	m.mu.RLock()
-	closed, opened := m.closed, m.sqlite != nil
+	opened := m.sqlite != nil
 	m.mu.RUnlock()
-	if closed && opened {
-		return errors.New("SQLite client is closed")
-	}
 	if opened {
 		return nil
 	}
@@ -51,7 +48,7 @@ func (m *Sqlite) InitWithError(dbFileName string) error {
 	}
 	path, _ := filepath.Abs(filepath.Dir(executable))
 	if dbFileName == "" {
-		dbFileName = fmt.Sprintf("%s/%s.db", path, config.Config.App.Name)
+		dbFileName = fmt.Sprintf("%s/%s.db", path, config.Current().App.Name)
 	} else if len(dbFileName) < 2 || !(dbFileName[0] == '/' || dbFileName[1] == ':') {
 		dbFileName = fmt.Sprintf("%s/%s", path, dbFileName)
 	}
@@ -60,13 +57,6 @@ func (m *Sqlite) InitWithError(dbFileName string) error {
 		return err
 	}
 	m.mu.Lock()
-	if m.closed {
-		m.mu.Unlock()
-		if sqlDB, dbErr := conn.DB(); dbErr == nil && sqlDB != nil {
-			_ = sqlDB.Close()
-		}
-		return errors.New("SQLite client is closed")
-	}
 	published := m.sqlite == nil
 	if published {
 		m.sqlite, m.dbFile, m.closed = conn, dbFileName, false

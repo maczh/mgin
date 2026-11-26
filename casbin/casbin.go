@@ -182,7 +182,7 @@ func (s *casbinService) GetEnforcer() *casbin.SyncedCachedEnforcer {
 			logs.Error("适配数据库失败请检查casbin表是否为InnoDB引擎!", err)
 			return
 		}
-		modelFile := config.Config.Casbin.ModelFile
+		modelFile := config.Current().Casbin.ModelFile
 		if modelFile == "" {
 			modelFile = "rbac_model.conf"
 		}

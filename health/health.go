@@ -187,7 +187,7 @@ type dependency struct {
 // dependencies 依据 go.config.used 实时组装待检查的数据源列表。
 // 每请求都重新组装，保证配置文件热更新（如新增数据源）后探针口径同步生效。
 func dependencies() []dependency {
-	used := config.Config.Config.Used
+	used := config.Current().Config.Used
 	list := make([]dependency, 0, 7)
 	if strings.Contains(used, "mysql") {
 		logs.Info("正在检查mysql健康状态")

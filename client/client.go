@@ -236,7 +236,7 @@ func call(ctx context.Context, service, uri string, op *Options) (result string,
 	start := time.Now()
 	requestID := trace.GetRequestId()
 	defer func() {
-		if !config.Config.Log.VictoriaLogs.Client {
+		if !config.Current().Log.VictoriaLogs.Client {
 			return
 		}
 		level := "info"
@@ -246,13 +246,13 @@ func call(ctx context.Context, service, uri string, op *Options) (result string,
 			message += ": " + callErr.Error()
 		}
 		logsink.EmitRecordTo(logs.VictoriaLogsClientTarget, &logsink.Record{
-			Time: start.Format(time.RFC3339Nano), App: config.Config.App.Name, Level: level,
+			Time: start.Format(time.RFC3339Nano), App: config.Current().App.Name, Level: level,
 			Message: message, RequestID: requestID,
 		})
 	}()
 
 	if op.Protocol == "" {
-		op.Protocol = config.Config.Discovery.CallType
+		op.Protocol = config.Current().Discovery.CallType
 	}
 	headers := trace.GetHeaders()
 	if op.Header != nil {

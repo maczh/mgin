@@ -38,6 +38,7 @@ type PolarisClient struct {
 var logger = gologger.GetLogger()
 
 func (c *PolarisClient) Register(registryConfigData []byte) {
+	cfg := config.Current()
 	if registryConfigData == nil || len(registryConfigData) == 0 {
 		logger.Error("Polaris 配置错误，无法获取配置地址")
 		return
@@ -77,14 +78,14 @@ func (c *PolarisClient) Register(registryConfigData []byte) {
 			return
 		}
 		ip := localip[0]
-		if config.Config.App.IpAddr != "" {
-			ip = config.Config.App.IpAddr
+		if cfg.App.IpAddr != "" {
+			ip = cfg.App.IpAddr
 		}
 		//创建服务
 		serviceUrl := fmt.Sprintf("%s/naming/v1/services", c.apiBaseUrl)
 		createSerfviceReq := []ServiceCreateRequest{
 			{
-				Name:      config.Config.App.Name,
+				Name:      cfg.App.Name,
 				Namespace: c.namespace,
 			},
 		}
@@ -111,10 +112,10 @@ func (c *PolarisClient) Register(registryConfigData []byte) {
 		instanceUrl := fmt.Sprintf("%s/naming/v1/instances", c.apiBaseUrl)
 		registerReq := []InstanceRegisterRequest{
 			{
-				Service:   config.Config.App.Name,
+				Service:   cfg.App.Name,
 				Namespace: c.namespace,
 				Host:      ip,
-				Port:      config.Config.App.Port,
+				Port:      cfg.App.Port,
 				Weight:    &c.weight,
 				Metadata: map[string]string{
 					"ssl": "false",
@@ -123,8 +124,8 @@ func (c *PolarisClient) Register(registryConfigData []byte) {
 		}
 		registerReq[0].SetHealthy(true)
 		registerReq[0].SetProtocol("http")
-		if config.Config.App.PortSSL != 0 {
-			registerReq[0].Port = config.Config.App.PortSSL
+		if cfg.App.PortSSL != 0 {
+			registerReq[0].Port = cfg.App.PortSSL
 			registerReq[0].Metadata["ssl"] = "true"
 		}
 		logger.Debug("注册实例请求参数: " + toJSON(registerReq))
@@ -154,7 +155,7 @@ func (c *PolarisClient) Register(registryConfigData []byte) {
 		serviceId := res1.Responses[0].Instance.Id
 		c.instanceId = serviceId
 		cache.OnGetCache("polaris").Set("serviceId", serviceId, 0)
-		logger.Info(fmt.Sprintf("%s服务注册成功", config.Config.App.Name))
+		logger.Info(fmt.Sprintf("%s服务注册成功", cfg.App.Name))
 	}
 }
 
@@ -253,7 +254,7 @@ func (c *PolarisClient) GetServiceInstances(service string, namespaces ...string
 // SubscribeOffline polls Polaris health because the HTTP naming API does not
 // provide a portable client watch stream. Notifications are edge-triggered.
 func (c *PolarisClient) SubscribeOffline(callback func(service, group string)) error {
-	_, err := c.WatchService(config.Config.App.Name, "", func() { callback(config.Config.App.Name, "") })
+	_, err := c.WatchService(config.Current().App.Name, "", func() { callback(config.Current().App.Name, "") })
 	return err
 }
 
@@ -302,15 +303,15 @@ func (c *PolarisClient) DeRegister() {
 				return
 			}
 			ip := localip[0]
-			if config.Config.App.IpAddr != "" {
-				ip = config.Config.App.IpAddr
+			if config.Current().App.IpAddr != "" {
+				ip = config.Current().App.IpAddr
 			}
-			query.Service = config.Config.App.Name
+			query.Service = config.Current().App.Name
 			query.Namespace = c.namespace
 			query.Host = ip
-			port := int64(config.Config.App.Port)
-			if port == 0 || config.Config.App.PortSSL != 0 {
-				port = int64(config.Config.App.PortSSL)
+			port := int64(config.Current().App.Port)
+			if port == 0 || config.Current().App.PortSSL != 0 {
+				port = int64(config.Current().App.PortSSL)
 			}
 			query.Port = port
 		}
@@ -332,7 +333,7 @@ func (c *PolarisClient) DeRegister() {
 			"X-Polaris-Token": c.token,
 		},
 		Params: map[string]string{
-			"service":   config.Config.App.Name,
+			"service":   config.Current().App.Name,
 			"namespace": c.namespace,
 		},
 	}))
@@ -360,7 +361,7 @@ func (c *PolarisClient) DeRegister() {
 		},
 		JSON: []map[string]string{
 			{
-				"name":      config.Config.App.Name,
+				"name":      config.Current().App.Name,
 				"namespace": c.namespace,
 			},
 		},

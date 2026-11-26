@@ -59,7 +59,11 @@ func FormatRecord(r *logsink.Record, output config.LogOutput) ([]byte, error) {
 }
 
 func captureRecord(level, message string) *logsink.Record {
-	r := &logsink.Record{Time: time.Now().Format(time.RFC3339Nano), Level: level, Message: message, App: config.Config.App.Name, RequestID: trace.GetRequestId(), GoroutineID: trace.GetGoroutineID()}
+	return captureRecordWithApp(level, message, config.Current().App.Name)
+}
+
+func captureRecordWithApp(level, message, app string) *logsink.Record {
+	r := &logsink.Record{Time: time.Now().Format(time.RFC3339Nano), Level: level, Message: message, App: app, RequestID: trace.GetRequestId(), GoroutineID: trace.GetGoroutineID()}
 	pcs := make([]uintptr, 16)
 	n := runtime.Callers(2, pcs)
 	frames := runtime.CallersFrames(pcs[:n])
@@ -96,7 +100,7 @@ func writeRecord(r *logsink.Record, outputs []config.LogOutput) {
 		case "file":
 			name := out.File
 			if name == "" {
-				name = config.Config.Logger.File
+				name = config.Current().Logger.File
 			}
 			if name == "" {
 				reportOutputError(fmt.Errorf("file log target requires a file"))
@@ -132,11 +136,15 @@ func writeRecord(r *logsink.Record, outputs []config.LogOutput) {
 func reportOutputError(err error) { fmt.Fprintln(os.Stderr, "mgin logs: "+err.Error()) }
 
 func enabled(level string) bool {
-	threshold := strings.ToLower(config.Config.Logger.Level)
+	return enabledWithSnapshot(level, config.Current())
+}
+
+func enabledWithSnapshot(level string, cfg config.Snapshot) bool {
+	threshold := strings.ToLower(cfg.Logger.Level)
 	if threshold == "" {
 		threshold = "error"
 	}
-	if config.Config.App.Debug {
+	if cfg.App.Debug {
 		threshold = "debug"
 	}
 	ranks := map[string]int{"debug": 0, "info": 1, "warn": 2, "error": 3}
@@ -148,16 +156,17 @@ func enabled(level string) bool {
 }
 
 func emit(level, format string, args []any) {
-	if !enabled(level) {
+	cfg := config.Current()
+	if !enabledWithSnapshot(level, cfg) {
 		return
 	}
 	message := formatMessage(format, args)
-	if len(config.Config.Logger.Outputs) > 0 {
-		writeRecord(captureRecord(level, message), config.Config.Logger.Outputs)
+	if len(cfg.Logger.Outputs) > 0 {
+		writeRecord(captureRecordWithApp(level, message, cfg.App.Name), cfg.Logger.Outputs)
 		return
 	}
 	// Keep legacy text formatting and destination defaults.
-	l := GetLogger(strings.FieldsFunc(config.Config.Logger.Out, func(r rune) bool { return r == ',' })...)
+	l := GetLogger(strings.FieldsFunc(cfg.Logger.Out, func(r rune) bool { return r == ',' })...)
 	if id := trace.GetRequestId(); id != "" {
 		message = "[" + id + "] " + message
 	}
@@ -176,6 +185,6 @@ func emit(level, format string, args []any) {
 // RegisterHandler attaches an external application log destination. Configure its
 // name in go.logger.outputs.target. Queue defaults follow go.log.sink.
 func RegisterHandler(h logsink.RecordHandler, opts ...logsink.Option) error {
-	defaults := []logsink.Option{logsink.WithQueueSize(config.Config.Log.Sink.Queue), logsink.WithWorkers(config.Config.Log.Sink.Workers)}
+	defaults := []logsink.Option{logsink.WithQueueSize(config.Current().Log.Sink.Queue), logsink.WithWorkers(config.Current().Log.Sink.Workers)}
 	return logsink.RegisterRecord(h, append(defaults, opts...)...)
 }

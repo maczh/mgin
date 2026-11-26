@@ -17,17 +17,21 @@ func (e ValidationError) Error() string { return e.Key + ": " + e.Message }
 // Validate checks the safety-critical v1.26 settings without requiring any
 // optional component. It is intentionally additive and can be called before Init.
 func (c *config) Validate() []ValidationError {
-	if c == nil || c.Cnf == nil {
+	if c == nil {
+		return []ValidationError{{Key: "config", Message: "configuration is not loaded"}}
+	}
+	s := c.snapshot()
+	if s.Cnf == nil {
 		return []ValidationError{{Key: "config", Message: "configuration is not loaded"}}
 	}
 	var out []ValidationError
-	if c.App.Port < 0 || c.App.Port > 65535 {
+	if s.App.Port < 0 || s.App.Port > 65535 {
 		out = append(out, ValidationError{"go.application.port", "must be between 0 and 65535"})
 	}
-	if c.App.PortSSL < 0 || c.App.PortSSL > 65535 {
+	if s.App.PortSSL < 0 || s.App.PortSSL > 65535 {
 		out = append(out, ValidationError{"go.application.port_ssl", "must be between 0 and 65535"})
 	}
-	if c.Config.Type == "" && c.Config.Server != "" {
+	if s.Config.Type == "" && s.Config.Server != "" {
 		out = append(out, ValidationError{"go.config.server_type", "is required when config server is set"})
 	}
 	return out

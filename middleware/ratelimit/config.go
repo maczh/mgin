@@ -115,16 +115,17 @@ func LoadConfig() *Config {
 // LoadConfigFrom 从指定配置前缀读取限流配置，便于同一进程内挂载多组互不干扰的限流策略
 func LoadConfigFrom(prefix string) *Config {
 	cfg := &Config{}
-	if config.Config.Cnf == nil || !config.Config.Exists(prefix) {
+	snap := config.Current()
+	if !snap.Exists(prefix) {
 		return cfg.normalize()
 	}
 	// 整体反序列化，koanf 默认使用 koanf tag
-	if err := config.Config.Cnf.Unmarshal(prefix, cfg); err != nil {
+	if err := snap.Cnf.Unmarshal(prefix, cfg); err != nil {
 		logger.Error("限流配置解析错误: " + err.Error())
 		return cfg.normalize()
 	}
 	// 全局规则与 Config 共用同一层配置节点，需单独反序列化
-	if err := config.Config.Cnf.Unmarshal(prefix, &cfg.global); err != nil {
+	if err := snap.Cnf.Unmarshal(prefix, &cfg.global); err != nil {
 		logger.Error("限流全局规则解析错误: " + err.Error())
 	}
 	return cfg.normalize()

@@ -80,10 +80,11 @@ func NewRegistry() RegistryClient {
 	if config.Config == nil {
 		return &noopRegistryClient{}
 	}
-	if len(config.Config.Discovery.Registries) > 0 {
-		return newRegistryCollection(config.Config.Discovery.Registries, config.Config.Discovery.DefaultRegistry)
+	cfg := config.Current()
+	if len(cfg.Discovery.Registries) > 0 {
+		return newRegistryCollection(cfg.Discovery.Registries, cfg.Discovery.DefaultRegistry)
 	}
-	switch config.Config.Discovery.Registry {
+	switch cfg.Discovery.Registry {
 	case "nacos":
 		client = NewCachedRegistry(&nacos.NacosClient{})
 	case "etcd":

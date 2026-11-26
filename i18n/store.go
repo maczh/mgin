@@ -257,12 +257,13 @@ func (s *Store) Translate(ctx context.Context, messageID, language string) (stri
 }
 
 func configuredStore() (*Store, error) {
-	if !tablePattern.MatchString(config.Config.App.Name) {
+	cfg := config.Current()
+	if !tablePattern.MatchString(cfg.App.Name) {
 		return nil, fmt.Errorf("i18n: invalid application name for dictionary table")
 	}
 
 	used := map[string]bool{}
-	for _, name := range strings.Split(config.Config.Config.Used, ",") {
+	for _, name := range strings.Split(cfg.Config.Used, ",") {
 		used[strings.ToLower(strings.TrimSpace(name))] = true
 	}
 	var conn *gorm.DB
@@ -270,7 +271,7 @@ func configuredStore() (*Store, error) {
 	owned := false
 	switch {
 	case used["mysql"]:
-		name := config.Config.GetConfigString("go.i18n.dbName")
+		name := cfg.GetConfigString("go.i18n.dbName")
 		if db.Mysql.IsMultiDB() && name == "" {
 			names := db.Mysql.ListConnNames()
 			if len(names) == 0 {
@@ -286,12 +287,12 @@ func configuredStore() (*Store, error) {
 	case used["sqlite"]:
 		conn, err = db.Sqlite.GetConnection()
 	default:
-		filename := config.Config.GetConfigString("go.i18n.sqlite")
+		filename := cfg.GetConfigString("go.i18n.sqlite")
 		if filename == "" {
-			filename = config.Config.App.Name + "_i18n.db"
+			filename = cfg.App.Name + "_i18n.db"
 		}
 		if !filepath.IsAbs(filename) {
-			filename = filepath.Join(config.Config.WorkDir, filename)
+			filename = filepath.Join(cfg.WorkDir, filename)
 		}
 		conn, err = gorm.Open(sqlite.Open(filename), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
 		owned = true
@@ -307,7 +308,7 @@ func configuredStore() (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("i18n: opening dictionary database: %w", err)
 	}
-	s, err := NewStore(conn, config.Config.App.Name)
+	s, err := NewStore(conn, cfg.App.Name)
 	if err != nil {
 		if owned && conn != nil {
 			if pool, e := conn.DB(); e == nil {
@@ -317,7 +318,7 @@ func configuredStore() (*Store, error) {
 		return nil, err
 	}
 	s.owned = owned
-	language := normalizeLanguage(config.Config.GetConfigString("go.i18n.default"))
+	language := normalizeLanguage(cfg.GetConfigString("go.i18n.default"))
 	if language != "" {
 		if len(language) > 35 || !languagePattern.MatchString(language) {
 			s.close()

@@ -56,7 +56,7 @@ func (m *mgin) Use(dbConfigName string, dbInit dbInitFunc, dbClose dbCloseFunc, 
 		logs.Error("无法加载{}：MGin、配置或插件初始化函数未就绪", dbConfigName)
 		return
 	}
-	if !strings.Contains(config.Config.Config.Used, dbConfigName) {
+	if !strings.Contains(config.Current().Config.Used, dbConfigName) {
 		logs.Error("加载{}失败，配置文件中未使用", dbConfigName)
 		return
 	}
@@ -135,46 +135,53 @@ func (m *mgin) Reload(configFile string) error {
 	if config.Config == nil {
 		return errors.New("配置未初始化")
 	}
-	oldUsed := config.Config.Config.Used
+	oldUsed := config.Current().Config.Used
 	oldRegistry := registry.GetRegistry()
 	config.Config.Init(configFile)
-	if config.Config.Cnf == nil {
+	if config.Current().Cnf == nil {
 		return errors.New("配置文件加载失败，保留现有连接")
 	}
 
 	// Stop the old resources only after the new configuration has loaded.
 	m.closeResources(oldUsed, oldRegistry)
 	initResources(m)
+	// Multi-registry collections are registered by RunContext, which only runs
+	// once per process. Re-register after a reload or the service disappears
+	// from discovery (closeResources already de-registered the old instance).
+	if registrar, ok := registry.GetRegistry().(registry.ConfiguredRegistrar); ok {
+		registrar.RegisterConfigured()
+	}
 	return nil
 }
 
 func initResources(m *mgin) {
-	configs := config.Config.Config.Used
+	cfg := config.Current()
+	configs := cfg.Config.Used
 	registry.SetRegistry(registry.NewRegistry())
 	currentRegistry := registry.GetRegistry()
 	// Service registration is deferred until App.RunContext has acquired every
 	// configured listener successfully.
 
 	if strings.Contains(configs, "mysql") {
-		db.Mysql.Init(config.Config.GetConfigData(config.Config.Config.Prefix.Mysql))
+		db.Mysql.Init(cfg.GetConfigData(cfg.Config.Prefix.Mysql))
 	}
 	if strings.Contains(configs, "sqlite") {
-		db.Sqlite.Init(config.Config.Config.Prefix.Sqlite)
+		db.Sqlite.Init(cfg.Config.Prefix.Sqlite)
 	}
 	if strings.Contains(configs, "mongodb") {
-		db.Mongo.Init(config.Config.GetConfigData(config.Config.Config.Prefix.Mongodb))
+		db.Mongo.Init(cfg.GetConfigData(cfg.Config.Prefix.Mongodb))
 	}
 	if strings.Contains(configs, "redis") {
-		db.Redis.Init(config.Config.GetConfigData(config.Config.Config.Prefix.Redis))
+		db.Redis.Init(cfg.GetConfigData(cfg.Config.Prefix.Redis))
 	}
 	if _, multi := currentRegistry.(registry.ConfiguredRegistrar); !multi && strings.Contains(configs, "nacos") {
-		currentRegistry.Register(config.Config.GetConfigData(config.Config.Config.Prefix.Nacos))
+		currentRegistry.Register(cfg.GetConfigData(cfg.Config.Prefix.Nacos))
 	}
 	if _, multi := currentRegistry.(registry.ConfiguredRegistrar); !multi && strings.Contains(configs, "etcd") {
-		currentRegistry.Register(config.Config.GetConfigData(config.Config.Config.Prefix.Etcd))
+		currentRegistry.Register(cfg.GetConfigData(cfg.Config.Prefix.Etcd))
 	}
 	if _, multi := currentRegistry.(registry.ConfiguredRegistrar); !multi && strings.Contains(configs, "consul") {
-		currentRegistry.Register(config.Config.GetConfigData(config.Config.Config.Prefix.Consul))
+		currentRegistry.Register(cfg.GetConfigData(cfg.Config.Prefix.Consul))
 	}
 	if strings.Contains(configs, "job") {
 		if err := job.Start(); err != nil {
@@ -186,7 +193,7 @@ func initResources(m *mgin) {
 			if !strings.Contains(configs, name) || pl.InitFunc == nil {
 				continue
 			}
-			data := config.Config.GetConfigData(config.Config.GetConfigString("go.config.prefix." + name))
+			data := cfg.GetConfigData(cfg.GetConfigString("go.config.prefix." + name))
 			if data == nil {
 				logs.Error("{}配置错误，无法获取配置地址", name)
 				continue
@@ -239,7 +246,7 @@ func Init(configFile string) {
 
 func (m *mgin) checkAll() {
 
-	configs := config.Config.Config.Used
+	configs := config.Current().Config.Used
 	var err error
 	if strings.Contains(configs, "mysql") {
 		logger.Info("正在检查MySQL")
@@ -279,7 +286,8 @@ func (m *mgin) SafeExit() {
 	if config.Config == nil {
 		return
 	}
-	configs := config.Config.Config.Used
+	cfg := config.Current()
+	configs := cfg.Config.Used
 
 	// 先排空接口日志队列并关闭各日志 handler，再关闭数据库连接
 	postlog.Close()
@@ -302,7 +310,7 @@ func (m *mgin) SafeExit() {
 		db.Redis.Close()
 	}
 	currentRegistry := registry.GetRegistry()
-	if currentRegistry != nil && (len(config.Config.Discovery.Registries) > 0 || strings.Contains(configs, "nacos") || strings.Contains(configs, "etcd") || strings.Contains(configs, "consul") || strings.Contains(configs, "polaris")) {
+	if currentRegistry != nil && (len(cfg.Discovery.Registries) > 0 || strings.Contains(configs, "nacos") || strings.Contains(configs, "etcd") || strings.Contains(configs, "consul") || strings.Contains(configs, "polaris")) {
 		logger.Info("正在注销注册中心")
 		currentRegistry.DeRegister()
 	}

@@ -32,97 +32,91 @@ type connection struct {
 
 var logger = gologger.GetLogger()
 
+// Init parses MongoDB configuration and dials every configured database
+// outside the publish lock. A slow endpoint is bounded to at most 10s per
+// database and no longer blocks readers during a reload.
 func (m *Mongodb) Init(mongodbConfigData []byte) {
 	if m == nil {
 		return
 	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if mongodbConfigData == nil || len(mongodbConfigData) == 0 {
+	if len(mongodbConfigData) == 0 {
 		logger.Error("Mongodb 配置错误，无法获取配置地址")
 		return
 	}
-	m.confData = mongodbConfigData
-	//if m.confUrl == "" {
-	//	logger.Error("MongoDB配置Url为空")
-	//	return
-	//}
-	m.tags = make([]string, 0)
-	if m.conns == nil {
-		m.conns = make(map[string]connection)
+
+	m.mu.RLock()
+	initialized := len(m.conns) > 0
+	m.mu.RUnlock()
+	if initialized {
+		return
 	}
-	if len(m.conns) == 0 {
-		if m.conf == nil {
-			//var confData []byte
-			var err error
-			//if strings.HasPrefix(m.confUrl, "http://") {
-			//	resp, err := grequests.Get(m.confUrl, nil)
-			//	if err != nil {
-			//		logger.Error("MongoDB配置下载失败! " + err.Error())
-			//		return
-			//	}
-			//	confData = []byte(resp.String())
-			//} else {
-			//	confData, err = ioutil.ReadFile(m.confUrl)
-			//	if err != nil {
-			//		logger.Error(fmt.Sprintf("MongoDB本地配置文件%s读取失败:%s", m.confUrl, err.Error()))
-			//		return
-			//	}
-			//}
-			m.conf = koanf.New(".")
-			err = m.conf.Load(rawbytes.Provider(m.confData), yaml.Parser())
-			if err != nil {
-				logger.Error("MongoDB配置解析错误:" + err.Error())
-				m.conf = nil
-				return
-			}
-		}
-		m.multi = m.conf.Bool("go.data.mongodb.multidb")
-		if m.multi {
-			dbNames := strings.Split(m.conf.String("go.data.mongodb.dbNames"), ",")
-			for _, dbName := range dbNames {
-				if dbName != "" && m.conf.Exists(fmt.Sprintf("go.data.mongodb.%s.uri", dbName)) {
-					uri := m.conf.String(fmt.Sprintf("go.data.mongodb.%s.uri", dbName))
-					m.max = 10
-					if m.conf.Int("go.data.mongo_pool.max") > 1 {
-						m.max = m.conf.Int("go.data.mongo_pool.max")
-						if m.max < 10 {
-							m.max = 10
-						}
-					}
-					session, err := mgo.DialWithTimeout(uri, 10*time.Second, m.max)
-					if err != nil {
-						logger.Error(dbName + " MongoDB连接错误:" + err.Error())
-						continue
-					}
-					m.conns[dbName] = connection{
-						conn: session,
-						db:   m.conf.String(fmt.Sprintf("go.data.mongodb.%s.db", dbName)),
-						url:  uri,
-					}
-					m.tags = append(m.tags, dbName)
-				}
-			}
-		} else {
-			m.max = 10
-			if m.conf.Int("go.data.mongo_pool.max") > 1 {
-				m.max = m.conf.Int("go.data.mongo_pool.max")
-				if m.max < 10 {
-					m.max = 10
-				}
-			}
-			conn, err := mgo.DialWithTimeout(m.conf.String("go.data.mongodb.uri"), 10*time.Second, m.max)
-			if err != nil {
-				logger.Error("MongoDB连接错误:" + err.Error())
-				return
-			}
-			m.conns["0"] = connection{
-				conn: conn,
-				db:   m.conf.String("go.data.mongodb.db"),
-				url:  m.conf.String("go.data.mongodb.uri"),
-			}
+
+	conf := koanf.New(".")
+	if err := conf.Load(rawbytes.Provider(mongodbConfigData), yaml.Parser()); err != nil {
+		logger.Error("MongoDB配置解析错误:" + err.Error())
+		return
+	}
+
+	multi := conf.Bool("go.data.mongodb.multidb")
+	max := 10
+	if conf.Int("go.data.mongo_pool.max") > 1 {
+		max = conf.Int("go.data.mongo_pool.max")
+		if max < 10 {
+			max = 10
 		}
 	}
+	conns := make(map[string]connection)
+	tags := make([]string, 0)
+	if multi {
+		dbNames := strings.Split(conf.String("go.data.mongodb.dbNames"), ",")
+		for _, dbName := range dbNames {
+			if dbName == "" || !conf.Exists(fmt.Sprintf("go.data.mongodb.%s.uri", dbName)) {
+				continue
+			}
+			uri := conf.String(fmt.Sprintf("go.data.mongodb.%s.uri", dbName))
+			session, err := mgo.DialWithTimeout(uri, 10*time.Second, max)
+			if err != nil {
+				logger.Error(dbName + " MongoDB连接错误:" + err.Error())
+				continue
+			}
+			conns[dbName] = connection{
+				conn: session,
+				db:   conf.String(fmt.Sprintf("go.data.mongodb.%s.db", dbName)),
+				url:  uri,
+			}
+			tags = append(tags, dbName)
+		}
+	} else {
+		uri := conf.String("go.data.mongodb.uri")
+		conn, err := mgo.DialWithTimeout(uri, 10*time.Second, max)
+		if err != nil {
+			logger.Error("MongoDB连接错误:" + err.Error())
+			return
+		}
+		conns["0"] = connection{
+			conn: conn,
+			db:   conf.String("go.data.mongodb.db"),
+			url:  uri,
+		}
+	}
+
+	m.mu.Lock()
+	if len(m.conns) > 0 {
+		m.mu.Unlock()
+		for _, candidate := range conns {
+			if candidate.conn != nil {
+				candidate.conn.Close()
+			}
+		}
+		return
+	}
+	m.conf = conf
+	m.multi = multi
+	m.max = max
+	m.conns = conns
+	m.tags = tags
+	m.confData = append([]byte(nil), mongodbConfigData...)
+	m.mu.Unlock()
 }
 
 func (m *Mongodb) Close() {

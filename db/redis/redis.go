@@ -38,89 +38,40 @@ var Redis = &RedisClient{}
 
 var logger = gologger.GetLogger()
 
+// Init parses the Redis configuration and builds all clients outside the
+// publish lock. A slow or unreachable Redis therefore cannot block readers
+// (GetConnection/Check/IsMultiDB) while the reload is in flight.
 func (r *RedisClient) Init(redisConfigData []byte) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if redisConfigData == nil || len(redisConfigData) == 0 {
+	if r == nil {
+		return
+	}
+	if len(redisConfigData) == 0 {
 		logger.Error("Redis 配置错误，无法获取配置地址")
 		return
 	}
-	r.confData = redisConfigData
-	//if r.confUrl == "" {
-	//	logger.Error("Redis配置Url为空")
-	//	return
-	//}
-	if len(r.clients) == 0 {
-		if r.conf == nil {
-			//var confData []byte
-			var err error
-			//if strings.HasPrefix(r.confUrl, "http://") {
-			//	resp, err := grequests.Get(r.confUrl, nil)
-			//	if err != nil {
-			//		logger.Error("Redis配置下载失败! " + err.Error())
-			//		return
-			//	}
-			//	confData = []byte(resp.String())
-			//} else {
-			//	confData, err = ioutil.ReadFile(r.confUrl)
-			//	if err != nil {
-			//		logger.Error(fmt.Sprintf("Redis本地配置文件%s读取失败:%s", r.confUrl, err.Error()))
-			//		return
-			//	}
-			//}
-			r.conf = koanf.New(".")
-			err = r.conf.Load(rawbytes.Provider(r.confData), yaml.Parser())
-			if err != nil {
-				logger.Error("Redis配置文件解析错误:" + err.Error())
-				r.conf = nil
-				return
-			}
-		}
-		r.multi = r.conf.Bool("go.data.redis.multidb")
-		r.clients = make(map[string]redis.UniversalClient)
-		r.cfgs = make(map[string]redis.UniversalOptions)
-		r.conns = make([]string, 0)
-		if r.multi {
-			dbNames := strings.Split(r.conf.String("go.data.redis.dbNames"), ",")
-			for _, dbName := range dbNames {
-				var uo redis.UniversalOptions
-				if dbName != "" {
-					if r.conf.Exists(fmt.Sprintf("go.data.redis.%s.uri", dbName)) {
-						uo.Addrs = strings.Split(r.conf.String(fmt.Sprintf("go.data.redis.%s.uri", dbName)), ",")
-					} else if r.conf.Exists(fmt.Sprintf("go.data.redis.%s.host", dbName)) {
-						hosts := strings.Split(r.conf.String(fmt.Sprintf("go.data.redis.%s.host", dbName)), ",")
-						ports := strings.Split(r.conf.String(fmt.Sprintf("go.data.redis.%s.port", dbName)), ",")
-						addrs := make([]string, 0, len(hosts))
-						for i, addr := range hosts {
-							if i >= len(ports) {
-								break
-							}
-							addrs = append(addrs, fmt.Sprintf("%s:%s", addr, ports[i]))
-						}
-						uo.Addrs = addrs
-					} else {
-						continue
-					}
-					if r.conf.String(fmt.Sprintf("go.data.redis.%s.master", dbName)) != "" {
-						r.master = r.conf.String(fmt.Sprintf("go.data.redis.%s.master", dbName))
-						uo.MasterName = r.master
-					}
-					uo.Password = r.conf.String(fmt.Sprintf("go.data.redis.%s.password", dbName))
-					uo.DB = r.conf.Int(fmt.Sprintf("go.data.redis.%s.database", dbName))
-					if uo.DB == -1 || len(uo.Addrs) > 1 {
-						uo.DB = 0
-					}
-					r.cfgs[dbName] = uo
-					r.conns = append(r.conns, dbName)
-				}
-			}
-		} else {
+
+	conf := koanf.New(".")
+	if err := conf.Load(rawbytes.Provider(redisConfigData), yaml.Parser()); err != nil {
+		logger.Error("Redis配置文件解析错误:" + err.Error())
+		return
+	}
+
+	multi := conf.Bool("go.data.redis.multidb")
+	master := ""
+	cfgs := make(map[string]redis.UniversalOptions)
+	conns := make([]string, 0)
+	if multi {
+		dbNames := strings.Split(conf.String("go.data.redis.dbNames"), ",")
+		for _, dbName := range dbNames {
 			var uo redis.UniversalOptions
-			if r.conf.Exists("go.data.redis.uri") {
-				uo.Addrs = strings.Split(r.conf.String("go.data.redis.uri"), ",")
-			} else if r.conf.Exists("go.data.redis.host") {
-				hosts := strings.Split(r.conf.String("go.data.redis.host"), ",")
-				ports := strings.Split(r.conf.String("go.data.redis.port"), ",")
+			if dbName == "" {
+				continue
+			}
+			if conf.Exists(fmt.Sprintf("go.data.redis.%s.uri", dbName)) {
+				uo.Addrs = strings.Split(conf.String(fmt.Sprintf("go.data.redis.%s.uri", dbName)), ",")
+			} else if conf.Exists(fmt.Sprintf("go.data.redis.%s.host", dbName)) {
+				hosts := strings.Split(conf.String(fmt.Sprintf("go.data.redis.%s.host", dbName)), ",")
+				ports := strings.Split(conf.String(fmt.Sprintf("go.data.redis.%s.port", dbName)), ",")
 				addrs := make([]string, 0, len(hosts))
 				for i, addr := range hosts {
 					if i >= len(ports) {
@@ -129,59 +80,118 @@ func (r *RedisClient) Init(redisConfigData []byte) {
 					addrs = append(addrs, fmt.Sprintf("%s:%s", addr, ports[i]))
 				}
 				uo.Addrs = addrs
+			} else {
+				continue
 			}
-			if r.conf.String("go.data.redis.master") != "" {
-				r.master = r.conf.String("go.data.redis.master")
-				uo.MasterName = r.master
+			if conf.String(fmt.Sprintf("go.data.redis.%s.master", dbName)) != "" {
+				master = conf.String(fmt.Sprintf("go.data.redis.%s.master", dbName))
+				uo.MasterName = master
 			}
-			uo.Password = r.conf.String("go.data.redis.password")
-			uo.DB = r.conf.Int("go.data.redis.database")
+			uo.Password = conf.String(fmt.Sprintf("go.data.redis.%s.password", dbName))
+			uo.DB = conf.Int(fmt.Sprintf("go.data.redis.%s.database", dbName))
 			if uo.DB == -1 || len(uo.Addrs) > 1 {
 				uo.DB = 0
 			}
-			r.cfgs["0"] = uo
-			r.conns = append(r.conns, "0")
+			cfgs[dbName] = uo
+			conns = append(conns, dbName)
 		}
-		if r.conf.Int("go.data.redis_pool.max") > 1 {
-			min := r.conf.Int("go.data.redis_pool.min")
-			if min == 0 {
-				min = 2
-			}
-			max := r.conf.Int("go.data.redis_pool.max")
-			if max < 10 {
-				max = 10
-			}
-			idleTimeout := r.conf.Int("go.data.redis_pool.idleTimeout")
-			if idleTimeout == 0 {
-				idleTimeout = 5
-			}
-			connectTimeout := r.conf.Int("go.data.redis_pool.timeout")
-			if connectTimeout == 0 {
-				connectTimeout = 60
-			}
-			for k, rds := range r.cfgs {
-				rds.PoolSize = max
-				rds.MinIdleConns = min
-				rds.IdleTimeout = time.Duration(idleTimeout) * time.Minute
-				rds.DialTimeout = time.Duration(connectTimeout) * time.Second
-				r.cfgs[k] = rds
-			}
-		}
-		for dbName, rds := range r.cfgs {
-			rc := redis.NewUniversalClient(&rds)
-			if err := rc.Ping().Err(); err != nil {
-				logger.Error(dbName + " Redis连接失败:" + err.Error())
-				if err.Error() != "ERR SELECT is not allowed in cluster mode" {
-					continue
+	} else {
+		var uo redis.UniversalOptions
+		if conf.Exists("go.data.redis.uri") {
+			uo.Addrs = strings.Split(conf.String("go.data.redis.uri"), ",")
+		} else if conf.Exists("go.data.redis.host") {
+			hosts := strings.Split(conf.String("go.data.redis.host"), ",")
+			ports := strings.Split(conf.String("go.data.redis.port"), ",")
+			addrs := make([]string, 0, len(hosts))
+			for i, addr := range hosts {
+				if i >= len(ports) {
+					break
 				}
+				addrs = append(addrs, fmt.Sprintf("%s:%s", addr, ports[i]))
 			}
-			fmt.Printf("%s 连接成功\n", dbName)
-			r.clients[dbName] = rc
+			uo.Addrs = addrs
 		}
-		r.subMu.Lock()
-		r.subClosed = false
-		r.subMu.Unlock()
+		if conf.String("go.data.redis.master") != "" {
+			master = conf.String("go.data.redis.master")
+			uo.MasterName = master
+		}
+		uo.Password = conf.String("go.data.redis.password")
+		uo.DB = conf.Int("go.data.redis.database")
+		if uo.DB == -1 || len(uo.Addrs) > 1 {
+			uo.DB = 0
+		}
+		cfgs["0"] = uo
+		conns = append(conns, "0")
 	}
+	if conf.Int("go.data.redis_pool.max") > 1 {
+		min := conf.Int("go.data.redis_pool.min")
+		if min == 0 {
+			min = 2
+		}
+		max := conf.Int("go.data.redis_pool.max")
+		if max < 10 {
+			max = 10
+		}
+		idleTimeout := conf.Int("go.data.redis_pool.idleTimeout")
+		if idleTimeout == 0 {
+			idleTimeout = 5
+		}
+		connectTimeout := conf.Int("go.data.redis_pool.timeout")
+		if connectTimeout == 0 {
+			connectTimeout = 60
+		}
+		for k, rds := range cfgs {
+			rds.PoolSize = max
+			rds.MinIdleConns = min
+			rds.IdleTimeout = time.Duration(idleTimeout) * time.Minute
+			rds.DialTimeout = time.Duration(connectTimeout) * time.Second
+			cfgs[k] = rds
+		}
+	}
+
+	clients := make(map[string]redis.UniversalClient, len(cfgs))
+	for dbName, rds := range cfgs {
+		opts := rds
+		rc := redis.NewUniversalClient(&opts)
+		if err := pingRedis(rc); err != nil {
+			logger.Error(dbName + " Redis连接失败:" + err.Error())
+			if err.Error() != "ERR SELECT is not allowed in cluster mode" {
+				_ = rc.Close()
+				continue
+			}
+		}
+		fmt.Printf("%s 连接成功\n", dbName)
+		clients[dbName] = rc
+	}
+
+	r.mu.Lock()
+	if len(r.clients) > 0 {
+		r.mu.Unlock()
+		for _, rc := range clients {
+			_ = rc.Close()
+		}
+		return
+	}
+	r.conf = conf
+	r.multi = multi
+	r.master = master
+	r.cfgs = cfgs
+	r.conns = conns
+	r.clients = clients
+	r.confData = append([]byte(nil), redisConfigData...)
+	r.mu.Unlock()
+
+	r.subMu.Lock()
+	r.subClosed = false
+	r.subMu.Unlock()
+}
+
+// pingRedis bounds candidate connection checks independently of DialTimeout so
+// a black-holed endpoint cannot stretch a reload indefinitely.
+func pingRedis(rc redis.UniversalClient) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	return rc.ProcessContext(ctx, redis.NewStatusCmd("ping"))
 }
 
 func (r *RedisClient) Close() {

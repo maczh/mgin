@@ -14,7 +14,7 @@ import (
 // CasbinHandler 拦截器
 func CasbinHandler() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if config.Config == nil || !config.Config.Casbin.Enabled {
+		if config.Config == nil || !config.Current().Casbin.Enabled {
 			c.Next()
 			return
 		}
@@ -32,7 +32,7 @@ func CasbinHandler() gin.HandlerFunc {
 				return
 			}
 		}
-		swaggerURI := config.Config.Sys.Swagger.Uri
+		swaggerURI := config.Current().Sys.Swagger.Uri
 		if strings.Contains(path, "/docs/") || strings.Contains(path, "/swagger/") || (swaggerURI != "" && strings.Contains(path, swaggerURI)) {
 			c.Next()
 			return

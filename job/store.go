@@ -35,7 +35,7 @@ type store struct {
 // 多库（multidb）模式下需要通过 go.job.dbName 指定使用哪个库；
 // 未指定时自动取该数据库配置中的第一个连接。
 func newStore(dbName string) (*store, error) {
-	used := strings.ToLower(config.Config.Config.Used)
+	used := strings.ToLower(config.Current().Config.Used)
 	var errs []string
 
 	if strings.Contains(used, DriverMysql) {
