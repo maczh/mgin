@@ -138,6 +138,8 @@ type VictoriaLogsConfig struct {
 	URL      string `json:"url"`
 	APIToken string `json:"api_token" koanf:"api_token"`
 	APICert  string `json:"api_crt" koanf:"api_crt"`
+	HTTPUser string `json:"http_user" koanf:"http_user"`
+	HTTPPass string `json:"http_pass" koanf:"http_pass"`
 	Request  bool   `json:"request"`
 	Client   bool   `json:"client"`
 	Timeout  int    `json:"timeout"`

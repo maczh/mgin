@@ -83,7 +83,9 @@ go:
     victorialogs:
       url: https://172.16.88.119:37624
       api_token: ""          # 填写采集服务 token
-      api_crt: ""            # 使用 YAML | 块填写完整 api.crt PEM 证书
+      http_user: "vlogs"     # Basic Auth 用户名
+      http_pass: ""          # VictoriaLogs -httpAuth.password
+      api_crt: ""            # 兼容字段；当前按要求跳过 TLS 证书校验
       request: false         # PostLog 接口访问日志
       client: false          # client.Call 调用结果及耗时，独立于 logger.level
       timeout: 5000          # 每次 HTTP 请求超时，毫秒
