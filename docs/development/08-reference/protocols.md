@@ -9,7 +9,7 @@
 | 服务 ↔ 注册中心 | 各产品 HTTP API / etcd v3 | — | 见 [服务发现](../05-governance/01-discovery-and-load-balancing.md) |
 | 服务 ↔ 配置中心 | HTTP / etcd | YAML | 见 §7 |
 | 日志 → MongoDB | MongoDB wire protocol | BSON | 接口日志 |
-| 日志 → VictoriaLogs | HTTP | JSON lines | 运行/调用日志 |
+| 日志 → VictoriaLogs | HTTP（OTLP/HTTP） | Protobuf（OpenTelemetry Logs） | 运行/调用日志 |
 
 统一约定：
 

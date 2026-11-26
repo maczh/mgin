@@ -69,7 +69,7 @@ go:
     # 启用对应开关即可上报，无需应用注册 handler。
     # 运行日志另在 go.logger.outputs 中配置 target: victorialogs。
     victorialogs:
-      url: https://172.16.88.119:37624
+      url: https://172.16.88.119:37623 # 基地址，框架追加 /insert/opentelemetry/v1/logs（OTLP/HTTP protobuf）
       api_token: "" # 填写采集服务 token
       api_crt: "" # 使用 YAML | 块填写完整 api.crt PEM 证书
       request: false # PostLog 接口访问日志
