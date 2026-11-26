@@ -71,7 +71,10 @@ go:
     victorialogs:
       url: https://172.16.88.119:37623 # 基地址，框架追加 /insert/opentelemetry/v1/logs（OTLP/HTTP protobuf）
       api_token: "" # 填写采集服务 token
+      http_user: "" # 配置 http_pass 时的 Basic Auth 用户名，默认 vlogs
+      http_pass: "" # VictoriaLogs -httpAuth.password；配置后优先于 api_token
       api_crt: "" # 使用 YAML | 块填写完整 api.crt PEM 证书
+      insecure_skip_verify: false # 测试环境可设为 true，跳过 HTTPS 证书校验
       request: false # PostLog 接口访问日志
       client: false # client.Call 调用结果及耗时，独立于 logger.level
       timeout: 5000 # 每次 HTTP 请求超时，毫秒

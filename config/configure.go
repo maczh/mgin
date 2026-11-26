@@ -95,12 +95,15 @@ type appLogger struct {
 
 // VictoriaLogsConfig configures the built-in HTTPS collector.
 type VictoriaLogsConfig struct {
-	URL      string `json:"url"`
-	APIToken string `json:"api_token" koanf:"api_token"`
-	APICert  string `json:"api_crt" koanf:"api_crt"`
-	Request  bool   `json:"request"`
-	Client   bool   `json:"client"`
-	Timeout  int    `json:"timeout"`
+	URL                string `json:"url"`
+	APIToken           string `json:"api_token" koanf:"api_token"`
+	HTTPUser           string `json:"http_user" koanf:"http_user"`
+	HTTPPass           string `json:"http_pass" koanf:"http_pass"`
+	APICert            string `json:"api_crt" koanf:"api_crt"`
+	InsecureSkipVerify bool   `json:"insecure_skip_verify" koanf:"insecure_skip_verify"`
+	Request            bool   `json:"request"`
+	Client             bool   `json:"client"`
+	Timeout            int    `json:"timeout"`
 }
 
 type appLog struct {

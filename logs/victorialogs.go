@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -52,6 +53,8 @@ type victoriaCollector struct {
 	client   *http.Client
 	endpoint string
 	token    string
+	username string
+	password string
 	app      string
 }
 
@@ -82,12 +85,15 @@ func InitVictoriaLogs() error {
 	if err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
 		return fmt.Errorf("victorialogs: url must be an HTTPS collector base URL")
 	}
-	if strings.TrimSpace(cfg.APIToken) == "" {
+	if strings.TrimSpace(cfg.APIToken) == "" && strings.TrimSpace(cfg.HTTPPass) == "" {
 		return fmt.Errorf("victorialogs: api_token is required")
 	}
-	roots := x509.NewCertPool()
-	if !roots.AppendCertsFromPEM([]byte(cfg.APICert)) {
-		return fmt.Errorf("victorialogs: api_crt must contain a PEM certificate")
+	var roots *x509.CertPool
+	if !cfg.InsecureSkipVerify {
+		roots = x509.NewCertPool()
+		if !roots.AppendCertsFromPEM([]byte(cfg.APICert)) {
+			return fmt.Errorf("victorialogs: api_crt must contain a PEM certificate")
+		}
 	}
 	timeout := time.Duration(cfg.Timeout) * time.Millisecond
 	if timeout <= 0 {
@@ -100,10 +106,17 @@ func InitVictoriaLogs() error {
 	} else {
 		transport = &http.Transport{Proxy: http.ProxyFromEnvironment}
 	}
-	transport.TLSClientConfig = &tls.Config{RootCAs: roots, MinVersion: tls.VersionTLS12}
+	transport.TLSClientConfig = &tls.Config{RootCAs: roots, MinVersion: tls.VersionTLS12, InsecureSkipVerify: cfg.InsecureSkipVerify} // #nosec G402 -- explicitly opt-in for test/self-signed collectors
 	c := &victoriaCollector{client: &http.Client{Transport: transport, Timeout: timeout,
 		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }},
 		endpoint: strings.TrimRight(cfg.URL, "/") + victoriaOTLPLogsPath, token: cfg.APIToken, app: snap.App.Name}
+	if cfg.HTTPPass != "" {
+		c.username = cfg.HTTPUser
+		if c.username == "" {
+			c.username = "vlogs"
+		}
+		c.password = cfg.HTTPPass
+	}
 	if cfg.Request {
 		h := logsink.NewHandlerFunc(VictoriaLogsTarget, func(e *logsink.Entry) error {
 			return c.write(victoriaEvent{App: c.app, Type: "request", Level: "info", Message: e.Method + " " + e.Uri,
@@ -151,7 +164,12 @@ func (c *victoriaCollector) write(e victoriaEvent) error {
 		if err != nil {
 			return err
 		}
-		req.Header.Set("Authorization", "Bearer "+c.token)
+		if c.password != "" {
+			credentials := base64.StdEncoding.EncodeToString([]byte(c.username + ":" + c.password))
+			req.Header.Set("Authorization", "Basic "+credentials)
+		} else {
+			req.Header.Set("Authorization", "Bearer "+c.token)
+		}
 		req.Header.Set("Content-Type", otlpContentType)
 		resp, err := c.client.Do(req)
 		if err != nil {
