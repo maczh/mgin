@@ -312,7 +312,7 @@ func call(ctx context.Context, service, uri string, op *Options) (result string,
 	}
 	var resp *grequests.Response
 	url := fmt.Sprintf("%s%s", host, u)
-	logs.Debug("微服务{}请求: {} {}", service, op.Method, url)
+	logs.Debug("微服务{}请求: {} {} 参数: query={}, data={}, json={}, path={}, header={}", service, op.Method, url, utils.ToJSON(op.Query), utils.ToJSON(op.Data), utils.ToJSON(op.Json), utils.ToJSON(op.Path), utils.ToJSON(op.Header))
 	switch op.Protocol {
 	case CONTENT_TYPE_FORM:
 		headers["Content-Type"] = gin.MIMEPOSTForm
@@ -380,6 +380,7 @@ func call(ctx context.Context, service, uri string, op *Options) (result string,
 	}
 	logs.Debug("微服务{}返回 HTTP {}", service, resp.StatusCode)
 	result = resp.String()
+	logs.Debug("微服务{}返回结果: {}", service, result)
 	if cacheable(op) {
 		discoveryService := service
 		if op.Registry != "" {
